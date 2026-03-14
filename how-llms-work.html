@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How LLMs Work — Interactive Explainer</title>
+<style>
+  :root {
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f5f0;
+    --bg-tertiary: #eeeee8;
+    --bg-info: #E6F1FB;
+    --text-primary: #1a1a1a;
+    --text-secondary: #6b6b6b;
+    --text-tertiary: #9a9a9a;
+    --text-info: #185FA5;
+    --border-tertiary: rgba(0,0,0,0.12);
+    --border-secondary: rgba(0,0,0,0.2);
+    --border-info: #378ADD;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #2a2a2a;
+      --bg-tertiary: #222222;
+      --bg-info: #0C447C33;
+      --text-primary: #e8e8e8;
+      --text-secondary: #a0a0a0;
+      --text-tertiary: #707070;
+      --text-info: #85B7EB;
+      --border-tertiary: rgba(255,255,255,0.12);
+      --border-secondary: rgba(255,255,255,0.2);
+      --border-info: #378ADD;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    line-height: 1.7;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  .container {
+    max-width: 680px;
+    width: 100%;
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    border: 0.5px solid var(--border-tertiary);
+    padding: 2rem;
+  }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 0.25rem; }
+  .subtitle { font-size: 14px; color: var(--text-secondary); margin-bottom: 1.5rem; }
+  .step-nav { display: flex; gap: 4px; margin: 0 0 1.5rem; flex-wrap: wrap; }
+  .step-btn {
+    font-size: 12px; padding: 6px 14px; border-radius: var(--radius-md);
+    cursor: pointer; border: 0.5px solid var(--border-tertiary);
+    background: transparent; color: var(--text-secondary);
+    transition: all .2s; font-family: var(--font-sans); font-weight: 400;
+  }
+  .step-btn:hover { background: var(--bg-secondary); }
+  .step-btn.active { background: var(--bg-info); color: var(--text-info); border-color: var(--border-info); font-weight: 500; }
+  .stage { display: none; }
+  .stage.visible { display: block; }
+  .nav-row { display: flex; justify-content: space-between; margin-top: 1.5rem; padding-top: 1rem; border-top: 0.5px solid var(--border-tertiary); }
+  .nav-arrow {
+    cursor: pointer; font-size: 13px; color: var(--text-info);
+    background: none; border: none; font-family: var(--font-sans);
+  }
+  .nav-arrow:hover { text-decoration: underline; }
+  .nav-arrow:disabled { opacity: .3; cursor: default; text-decoration: none; }
+  .token-demo { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+  .tok {
+    padding: 6px 12px; border-radius: var(--radius-md); font-size: 14px;
+    font-family: var(--font-mono); transition: all .3s; cursor: pointer;
+    border: 0.5px solid var(--border-tertiary); background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+  .tok.highlighted { border-color: var(--border-info); background: var(--bg-info); color: var(--text-info); }
+  .tok-id { font-size: 11px; color: var(--text-tertiary); display: block; text-align: center; margin-top: 2px; }
+  .embed-bar { height: 10px; border-radius: 3px; margin: 2px 0; transition: width .6s ease; }
+  .attn-grid { display: grid; gap: 2px; margin: 12px auto; width: fit-content; }
+  .attn-cell {
+    width: 44px; height: 44px; border-radius: 4px; display: flex;
+    align-items: center; justify-content: center; font-size: 11px;
+    font-family: var(--font-mono); cursor: pointer; transition: all .3s;
+  }
+  .layer-stack { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+  .layer-bar {
+    border-radius: var(--radius-md); padding: 10px 16px; font-size: 13px;
+    display: flex; justify-content: space-between; align-items: center;
+    transition: all .4s; border: 0.5px solid transparent; cursor: pointer;
+  }
+  .layer-bar:hover { opacity: 0.85; }
+  .layer-bar.active-layer { border-color: var(--border-info); }
+  .prob-bar-wrap { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .prob-label { font-size: 13px; font-family: var(--font-mono); min-width: 80px; color: var(--text-primary); }
+  .prob-track { flex: 1; height: 20px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden; }
+  .prob-fill { height: 100%; border-radius: 4px; transition: width .8s ease; }
+  .hint { font-size: 13px; color: var(--text-secondary); margin: 8px 0; line-height: 1.6; }
+  .stage-title { font-size: 15px; color: var(--text-primary); line-height: 1.7; margin-bottom: 8px; font-weight: 500; }
+  .try-it input {
+    width: 100%; padding: 8px 12px; font-size: 14px; font-family: var(--font-sans);
+    border: 0.5px solid var(--border-secondary); border-radius: var(--radius-md);
+    background: var(--bg-primary); color: var(--text-primary); outline: none;
+  }
+  .try-it input:focus { border-color: var(--border-info); }
+  button.action {
+    padding: 8px 16px; font-size: 13px; font-family: var(--font-sans);
+    border: 0.5px solid var(--border-secondary); border-radius: var(--radius-md);
+    background: transparent; color: var(--text-primary); cursor: pointer;
+    transition: all .2s;
+  }
+  button.action:hover { background: var(--bg-secondary); }
+  button.action:active { transform: scale(0.98); }
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+    background: var(--bg-secondary); border-radius: 2px; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--bg-primary); border: 0.5px solid var(--border-secondary);
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>How LLMs work</h1>
+  <p class="subtitle">An interactive walkthrough — click through each stage</p>
+
+  <div class="step-nav" id="stepNav"></div>
+
+  <!-- STEP 0: Tokenization -->
+  <div class="stage" id="s0">
+    <p class="stage-title">Text in, numbers out</p>
+    <p class="hint">An LLM never sees letters. It chops your text into <strong>tokens</strong> — common words, word fragments, or punctuation — each mapped to a number. Try typing below to see tokenization in action.</p>
+    <div class="try-it" style="margin:12px 0;">
+      <input type="text" id="tokenInput" value="The cat sat on the mat" oninput="tokenize()">
+    </div>
+    <div class="token-demo" id="tokenDisplay"></div>
+    <p class="hint">Each token is a chunk the model recognizes. Common words like "the" get their own token. Rare words get split into pieces.</p>
+  </div>
+
+  <!-- STEP 1: Embeddings -->
+  <div class="stage" id="s1">
+    <p class="stage-title">Tokens become meaning-vectors</p>
+    <p class="hint">Each token ID gets looked up in a giant table and converted into a <strong>vector</strong> — a list of thousands of numbers encoding meaning. Similar words end up with similar vectors. Click a token to see its (simplified) embedding.</p>
+    <div class="token-demo" id="embedTokens"></div>
+    <div id="embedViz" style="margin:12px 0;"></div>
+    <p class="hint" id="embedHint">Click a token above to see a simplified embedding vector.</p>
+  </div>
+
+  <!-- STEP 2: Attention -->
+  <div class="stage" id="s2">
+    <p class="stage-title">Every token looks at every other token</p>
+    <p class="hint">This is the big idea: <strong>self-attention</strong>. Each token asks "which other tokens are relevant to me?" and computes a weight for every pair. Click any cell in the grid to explore.</p>
+    <div style="overflow-x:auto;">
+      <div class="attn-grid" id="attnGrid"></div>
+    </div>
+    <p class="hint" id="attnHint">The brighter the cell, the more token A pays attention to token B. Rows = "who is asking", columns = "who is being looked at".</p>
+  </div>
+
+  <!-- STEP 3: Transformer layers -->
+  <div class="stage" id="s3">
+    <p class="stage-title">Stack it deep: layer after layer</p>
+    <p class="hint">One round of attention isn't enough. The model stacks <strong>dozens of layers</strong> — each refining the representation. Early layers notice syntax; deep layers capture meaning, facts, and reasoning. Click a layer to see what it focuses on.</p>
+    <div class="layer-stack" id="layerStack"></div>
+    <p class="hint" id="layerHint"></p>
+  </div>
+
+  <!-- STEP 4: Prediction -->
+  <div class="stage" id="s4">
+    <p class="stage-title">Predicting the next token</p>
+    <p class="hint">After all layers process the input, the model outputs a <strong>probability distribution</strong> over every possible next token. It samples from these probabilities to pick the next word — then feeds it back in and repeats.</p>
+    <div style="background:var(--bg-secondary);padding:12px 16px;border-radius:var(--radius-md);font-family:var(--font-mono);font-size:14px;margin:12px 0;min-height:40px;line-height:1.7;" id="genOutput">The cat sat on the</div>
+    <div id="probBars" style="margin:12px 0;"></div>
+    <div style="display:flex;gap:8px;margin:12px 0;">
+      <button class="action" onclick="generateNext()" id="genBtn">Generate next token</button>
+      <button class="action" onclick="resetGen()">Reset</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin:8px 0;">
+      <label style="font-size:13px;color:var(--text-secondary);">Temperature</label>
+      <input type="range" min="0" max="100" value="30" id="tempSlider" style="flex:1;" oninput="updateTemp()">
+      <span style="font-size:13px;min-width:32px;" id="tempVal">0.3</span>
+    </div>
+    <p class="hint">Temperature controls randomness. Low = predictable (picks the most likely token). High = creative (samples more broadly).</p>
+  </div>
+
+  <div class="nav-row">
+    <button class="nav-arrow" id="prevBtn" onclick="go(current-1)">&larr; Previous</button>
+    <span style="font-size:12px;color:var(--text-tertiary);" id="counter"></span>
+    <button class="nav-arrow" id="nextBtn" onclick="go(current+1)">Next &rarr;</button>
+  </div>
+</div>
+
+<script>
+const steps = ["Tokenization","Embeddings","Attention","Layers","Prediction"];
+const TOKENS = ["The","cat","sat","on","the","mat"];
+const TOKEN_IDS = [464, 2857, 3891, 319, 464, 2527];
+let current = 0;
+
+const nav = document.getElementById('stepNav');
+steps.forEach((s, i) => {
+  const b = document.createElement('button');
+  b.className = 'step-btn' + (i === 0 ? ' active' : '');
+  b.textContent = s;
+  b.onclick = () => go(i);
+  nav.appendChild(b);
+});
+
+function go(i) {
+  if (i < 0 || i >= steps.length) return;
+  current = i;
+  document.querySelectorAll('.stage').forEach((el, j) => el.classList.toggle('visible', j === i));
+  document.querySelectorAll('.step-btn').forEach((el, j) => el.classList.toggle('active', j === i));
+  document.getElementById('prevBtn').disabled = i === 0;
+  document.getElementById('nextBtn').disabled = i === steps.length - 1;
+  document.getElementById('counter').textContent = (i + 1) + ' / ' + steps.length;
+}
+
+// === TOKENIZATION ===
+function tokenize() {
+  const text = document.getElementById('tokenInput').value;
+  const container = document.getElementById('tokenDisplay');
+  container.innerHTML = '';
+  const words = text.split(/(\s+|[.,!?;:])/).filter(t => t.trim());
+  words.forEach((w) => {
+    const d = document.createElement('div');
+    d.innerHTML = '<span style="display:block">' + w + '</span><span class="tok-id">#' + (Math.abs(hashStr(w)) % 50000) + '</span>';
+    d.className = 'tok';
+    d.onmouseenter = () => d.classList.add('highlighted');
+    d.onmouseleave = () => d.classList.remove('highlighted');
+    container.appendChild(d);
+  });
+}
+function hashStr(s) { let h=0; for(let i=0;i<s.length;i++) h=((h<<5)-h)+s.charCodeAt(i); return h; }
+tokenize();
+
+// === EMBEDDINGS ===
+const embedColors = ['#378ADD','#1D9E75','#D85A30','#D4537E','#534AB7','#639922'];
+function initEmbeddings() {
+  const c = document.getElementById('embedTokens');
+  c.innerHTML = '';
+  TOKENS.forEach((t, i) => {
+    const d = document.createElement('div');
+    d.className = 'tok';
+    d.textContent = t;
+    d.onclick = () => showEmbed(i);
+    c.appendChild(d);
+  });
+}
+function showEmbed(idx) {
+  document.querySelectorAll('#embedTokens .tok').forEach((el, i) => el.classList.toggle('highlighted', i === idx));
+  const viz = document.getElementById('embedViz');
+  const dims = ['Animacy','Size','Action','Location','Frequency','Abstractness','Sentiment','Syntax'];
+  const vectors = [
+    [0.1,0.3,0.1,0.2,0.95,0.6,0.5,0.9],
+    [0.9,0.4,0.3,0.2,0.5,0.2,0.7,0.3],
+    [0.2,0.1,0.9,0.3,0.5,0.3,0.5,0.6],
+    [0.1,0.1,0.1,0.8,0.9,0.5,0.5,0.8],
+    [0.1,0.3,0.1,0.2,0.95,0.6,0.5,0.9],
+    [0.1,0.7,0.1,0.6,0.4,0.2,0.6,0.3],
+  ];
+  const v = vectors[idx];
+  viz.innerHTML = dims.map((d, i) =>
+    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;">' +
+    '<span style="font-size:12px;color:var(--text-secondary);min-width:80px;text-align:right">' + d + '</span>' +
+    '<div style="flex:1;height:10px;background:var(--bg-secondary);border-radius:3px;overflow:hidden;">' +
+    '<div class="embed-bar" style="width:' + (v[i]*100) + '%;background:' + embedColors[idx] + ';"></div></div>' +
+    '<span style="font-size:11px;font-family:var(--font-mono);color:var(--text-tertiary);min-width:28px">' + v[i].toFixed(2) + '</span></div>'
+  ).join('');
+  document.getElementById('embedHint').textContent = '"' + TOKENS[idx] + '" → a vector of numbers encoding its meaning. Notice "' + TOKENS[0] + '" and "' + TOKENS[4] + '" have identical vectors — they\'re the same word!';
+}
+initEmbeddings();
+
+// === ATTENTION ===
+const attnWeights = [
+  [0.3,0.1,0.1,0.1,0.3,0.1],
+  [0.15,0.4,0.2,0.05,0.1,0.1],
+  [0.1,0.35,0.2,0.15,0.05,0.15],
+  [0.05,0.05,0.3,0.3,0.1,0.2],
+  [0.3,0.1,0.05,0.1,0.3,0.15],
+  [0.05,0.1,0.05,0.2,0.15,0.45],
+];
+function initAttention() {
+  const g = document.getElementById('attnGrid');
+  const n = TOKENS.length;
+  g.style.gridTemplateColumns = '40px repeat(' + n + ', 44px)';
+  g.style.gridTemplateRows = '30px repeat(' + n + ', 44px)';
+  g.innerHTML = '<div></div>';
+  TOKENS.forEach(t => {
+    g.innerHTML += '<div style="font-size:11px;font-family:var(--font-mono);color:var(--text-secondary);text-align:center;line-height:30px">' + t + '</div>';
+  });
+  const isDark = window.matchMedia('(prefers-color-scheme:dark)').matches;
+  for (let r = 0; r < n; r++) {
+    g.innerHTML += '<div style="font-size:11px;font-family:var(--font-mono);color:var(--text-secondary);display:flex;align-items:center;justify-content:flex-end;padding-right:4px">' + TOKENS[r] + '</div>';
+    for (let c = 0; c < n; c++) {
+      const w = attnWeights[r][c];
+      const bg = 'rgba(55,138,221,' + w + ')';
+      const textColor = w > 0.25 ? (isDark ? '#E6F1FB' : '#042C53') : 'var(--text-tertiary)';
+      g.innerHTML += '<div class="attn-cell" style="background:' + bg + ';color:' + textColor + '" onclick="explainAttn(' + r + ',' + c + ')">' + w.toFixed(2) + '</div>';
+    }
+  }
+}
+function explainAttn(r, c) {
+  const w = attnWeights[r][c];
+  const strength = w > 0.3 ? 'strongly' : w > 0.15 ? 'moderately' : 'weakly';
+  let extra = '';
+  if (r === c) extra = ' This is self-attention — the token attending to itself.';
+  if (TOKENS[r] === 'sat' && TOKENS[c] === 'cat') extra = ' Makes sense — "sat" needs to know WHO sat.';
+  document.getElementById('attnHint').textContent = '"' + TOKENS[r] + '" attends ' + strength + ' to "' + TOKENS[c] + '" (weight: ' + w.toFixed(2) + ').' + extra;
+}
+initAttention();
+
+// === LAYERS ===
+const layerDescs = [
+  { name: 'Layer 1–4', focus: 'Syntax & position', detail: 'Learns word order, punctuation, basic grammar. "The" is a determiner before a noun.', color: '#85B7EB' },
+  { name: 'Layer 5–12', focus: 'Parts of speech & phrases', detail: '"cat" is a noun, "sat" is a verb. Phrases form: "the cat" becomes a unit.', color: '#5DCAA5' },
+  { name: 'Layer 13–24', focus: 'Semantics & relationships', detail: '"cat sat on mat" — the model now understands who did what, where. Meaning emerges.', color: '#AFA9EC' },
+  { name: 'Layer 25–40', focus: 'Facts, reasoning, context', detail: 'Cats are animals. Mats are on floors. This is indoors. The model connects to its trained knowledge.', color: '#F0997B' },
+  { name: 'Layer 41–80', focus: 'Planning the response', detail: 'Deciding what comes next. Weighing options. Shaping the final output distribution.', color: '#ED93B1' },
+];
+function initLayers() {
+  const s = document.getElementById('layerStack');
+  s.innerHTML = '';
+  const isDark = window.matchMedia('(prefers-color-scheme:dark)').matches;
+  layerDescs.forEach((l) => {
+    const d = document.createElement('div');
+    d.className = 'layer-bar';
+    d.style.background = l.color + (isDark ? '22' : '28');
+    d.innerHTML = '<span style="font-weight:500;font-size:13px">' + l.name + '</span><span style="font-size:12px;color:var(--text-secondary)">' + l.focus + '</span>';
+    d.onclick = () => {
+      document.querySelectorAll('.layer-bar').forEach(b => b.classList.remove('active-layer'));
+      d.classList.add('active-layer');
+      document.getElementById('layerHint').textContent = l.detail;
+    };
+    s.appendChild(d);
+  });
+}
+initLayers();
+
+// === PREDICTION ===
+const genSeqs = [
+  { candidates: [{ t: 'mat', p: 0.42 }, { t: 'floor', p: 0.18 }, { t: 'rug', p: 0.12 }, { t: 'couch', p: 0.08 }] },
+  { candidates: [{ t: '.', p: 0.55 }, { t: ',', p: 0.15 }, { t: 'and', p: 0.10 }, { t: '!', p: 0.05 }] },
+  { candidates: [{ t: 'It', p: 0.20 }, { t: 'The', p: 0.18 }, { t: 'She', p: 0.08 }, { t: 'Then', p: 0.07 }] },
+];
+let genStep = 0;
+let genText = 'The cat sat on the';
+const probColors = ['#378ADD','#1D9E75','#D85A30','#888780'];
+
+function showProbs(step) {
+  const bars = document.getElementById('probBars');
+  if (step >= genSeqs.length) {
+    bars.innerHTML = '<p class="hint">The sequence continues — each new token feeds back as input, and the whole process repeats.</p>';
+    return;
+  }
+  const c = genSeqs[step].candidates;
+  bars.innerHTML = c.map((x, i) =>
+    '<div class="prob-bar-wrap"><span class="prob-label">' + x.t + '</span>' +
+    '<div class="prob-track"><div class="prob-fill" style="width:' + (x.p*100) + '%;background:' + probColors[i] + '"></div></div>' +
+    '<span style="font-size:12px;font-family:var(--font-mono);color:var(--text-secondary);min-width:36px">' + Math.round(x.p*100) + '%</span></div>'
+  ).join('');
+}
+function generateNext() {
+  if (genStep >= genSeqs.length) return;
+  const temp = parseFloat(document.getElementById('tempSlider').value) / 100;
+  const c = genSeqs[genStep].candidates;
+  let pick;
+  if (temp < 0.2) pick = c[0];
+  else if (temp < 0.6) pick = c[Math.random() < 0.7 ? 0 : 1];
+  else { const r = Math.random(); pick = r < 0.4 ? c[0] : r < 0.65 ? c[1] : r < 0.85 ? c[2] : c[3]; }
+  genText += (pick.t.match(/^[.,!?;:]/) ? '' : ' ') + pick.t;
+  document.getElementById('genOutput').textContent = genText;
+  genStep++;
+  showProbs(genStep);
+}
+function resetGen() {
+  genStep = 0;
+  genText = 'The cat sat on the';
+  document.getElementById('genOutput').textContent = genText;
+  showProbs(0);
+}
+function updateTemp() {
+  document.getElementById('tempVal').textContent = (document.getElementById('tempSlider').value / 100).toFixed(1);
+}
+showProbs(0);
+go(0);
+</script>
+</body>
+</html>
