@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How LLM Training Works — Interactive Explainer</title>
+<style>
+  :root {
+    --font-sans: system-ui, -apple-system, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+    --color-background-primary: #ffffff;
+    --color-background-secondary: #f5f4f0;
+    --color-background-tertiary: #eeedea;
+    --color-text-primary: #1a1a1a;
+    --color-text-secondary: #73726c;
+    --color-text-tertiary: #9c9a92;
+    --color-text-info: #185FA5;
+    --color-text-success: #3B6D11;
+    --color-text-warning: #854F0B;
+    --color-text-danger: #A32D2D;
+    --color-background-info: #E6F1FB;
+    --color-background-success: #EAF3DE;
+    --color-background-warning: #FAEEDA;
+    --color-background-danger: #FCEBEB;
+    --color-border-tertiary: rgba(0,0,0,0.15);
+    --color-border-secondary: rgba(0,0,0,0.3);
+    --color-border-info: #85B7EB;
+    --border-radius-md: 8px;
+    --border-radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-background-primary: #1a1a1a;
+      --color-background-secondary: #2c2c2a;
+      --color-background-tertiary: #3d3d3a;
+      --color-text-primary: #e8e6df;
+      --color-text-secondary: #b4b2a9;
+      --color-text-tertiary: #888780;
+      --color-text-info: #85B7EB;
+      --color-text-success: #97C459;
+      --color-text-warning: #FAC775;
+      --color-text-danger: #F09595;
+      --color-background-info: #042C53;
+      --color-background-success: #173404;
+      --color-background-warning: #412402;
+      --color-background-danger: #501313;
+      --color-border-tertiary: rgba(255,255,255,0.15);
+      --color-border-secondary: rgba(255,255,255,0.3);
+      --color-border-info: #378ADD;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); color: var(--color-text-primary); background: var(--color-background-primary); max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.6; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 1.5rem; }
+  .stepper { display: flex; gap: 4px; margin: 0 0 1.5rem; flex-wrap: wrap; }
+  .step-pill { font-size: 12px; padding: 6px 14px; border-radius: var(--border-radius-md); cursor: pointer; border: 0.5px solid var(--color-border-tertiary); background: var(--color-background-primary); color: var(--color-text-secondary); transition: all .2s; user-select: none; }
+  .step-pill.active { background: var(--color-background-info); color: var(--color-text-info); border-color: var(--color-border-info); font-weight: 500; }
+  .step-pill:hover:not(.active) { background: var(--color-background-secondary); }
+  .nav-row { display: flex; justify-content: space-between; margin-top: 1.5rem; }
+  button { font-family: var(--font-sans); font-size: 13px; padding: 8px 16px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: transparent; color: var(--color-text-primary); cursor: pointer; transition: all .15s; }
+  button:hover { background: var(--color-background-secondary); }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .neuron-grid { display: flex; gap: 24px; justify-content: center; align-items: flex-start; margin: 1rem 0; flex-wrap: wrap; }
+  .layer-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .layer-label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; }
+  .node-circle { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; border: 0.5px solid var(--color-border-secondary); transition: all 0.6s; }
+  .node-val { font-family: var(--font-mono); font-size: 10px; }
+  .arrow-label { font-size: 11px; color: var(--color-text-tertiary); text-align: center; margin: 0 6px; }
+  .metric-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px 16px; text-align: center; }
+  .metric-label { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 2px; }
+  .metric-value { font-size: 20px; font-weight: 500; font-family: var(--font-mono); }
+  .metrics-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin: 1rem 0; }
+  .highlight-box { border-left: 3px solid; padding: 10px 14px; margin: 1rem 0; font-size: 13px; line-height: 1.6; border-radius: 0; }
+  .highlight-blue { border-color: #378ADD; background: var(--color-background-info); color: var(--color-text-info); }
+  .highlight-amber { border-color: #BA7517; background: var(--color-background-warning); color: var(--color-text-warning); }
+  .highlight-green { border-color: #639922; background: var(--color-background-success); color: var(--color-text-success); }
+  .highlight-red { border-color: #E24B4A; background: var(--color-background-danger); color: var(--color-text-danger); }
+  .slider-row { display: flex; align-items: center; gap: 12px; margin: 1rem 0; }
+  .slider-row label { font-size: 13px; color: var(--color-text-secondary); min-width: 100px; }
+  .slider-row input[type=range] { flex: 1; }
+  .slider-out { font-family: var(--font-mono); font-size: 13px; min-width: 40px; text-align: right; }
+  .token-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 0.75rem 0; }
+  .token { padding: 4px 10px; border-radius: 6px; font-family: var(--font-mono); font-size: 13px; border: 0.5px solid var(--color-border-tertiary); background: var(--color-background-primary); }
+  .token.input-tok { background: var(--color-background-info); color: var(--color-text-info); border-color: var(--color-border-info); }
+  .token.target-tok { background: var(--color-background-success); color: var(--color-text-success); }
+  .token.pred-tok { background: var(--color-background-warning); color: var(--color-text-warning); }
+  .prob-bar-container { margin: 0.5rem 0; }
+  .prob-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 12px; }
+  .prob-word { min-width: 50px; text-align: right; font-family: var(--font-mono); }
+  .prob-bar { height: 18px; border-radius: 4px; transition: width 0.5s; display: flex; align-items: center; padding-left: 6px; font-size: 10px; font-weight: 500; }
+  .weight-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 0.75rem 0; }
+  .weight-table th, .weight-table td { padding: 6px 10px; text-align: center; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .weight-table th { color: var(--color-text-secondary); font-weight: 500; }
+  .weight-table .changed { color: var(--color-text-success); font-weight: 500; }
+  .epoch-chart { width: 100%; height: 160px; margin: 0.75rem 0; }
+  code { background: var(--color-background-secondary); padding: 2px 6px; border-radius: 4px; font-size: 12px; font-family: var(--font-mono); }
+  svg text.t { font-family: var(--font-sans); font-size: 14px; fill: var(--color-text-primary); }
+  svg text.ts { font-family: var(--font-sans); font-size: 12px; fill: var(--color-text-secondary); }
+  svg text.th { font-family: var(--font-sans); font-size: 14px; font-weight: 500; fill: var(--color-text-primary); }
+  svg line.arr { stroke: var(--color-text-tertiary); stroke-width: 1.5; }
+  svg line.leader { stroke: var(--color-text-tertiary); stroke-width: 0.5; stroke-dasharray: 3 2; }
+  svg .c-blue rect { fill: var(--color-background-info); stroke: #85B7EB; }
+  svg .c-blue text.th, svg .c-blue text.t { fill: var(--color-text-info); }
+  svg .c-blue text.ts { fill: var(--color-text-info); opacity: 0.8; }
+  svg .c-amber rect { fill: var(--color-background-warning); stroke: #FAC775; }
+  svg .c-amber text.th, svg .c-amber text.t { fill: var(--color-text-warning); }
+  svg .c-amber text.ts { fill: var(--color-text-warning); opacity: 0.8; }
+  svg .c-coral rect { fill: #FAECE7; stroke: #F0997B; }
+  svg .c-coral text.th { fill: #712B13; }
+  svg .c-coral text.ts { fill: #993C1D; }
+  svg .c-green rect { fill: var(--color-background-success); stroke: #97C459; }
+  svg .c-green text.th, svg .c-green text.t { fill: var(--color-text-success); }
+  svg .c-green text.ts { fill: var(--color-text-success); opacity: 0.8; }
+  @media (prefers-color-scheme: dark) {
+    svg .c-coral rect { fill: #4A1B0C; stroke: #D85A30; }
+    svg .c-coral text.th { fill: #F5C4B3; }
+    svg .c-coral text.ts { fill: #F0997B; }
+  }
+</style>
+</head>
+<body>
+<h1>How LLM training works</h1>
+<div class="stepper" id="stepper"></div>
+<div id="phases"></div>
+<div class="nav-row">
+  <button onclick="go(-1)" id="prev-btn">Previous</button>
+  <button onclick="go(1)" id="next-btn">Next step</button>
+</div>
+
+<script>
+const phases = [
+  { id:'overview', title:'Overview', short:'Overview' },
+  { id:'forward',  title:'Forward pass', short:'Forward' },
+  { id:'loss',     title:'Loss calculation', short:'Loss' },
+  { id:'backprop', title:'Backpropagation', short:'Backprop' },
+  { id:'optim',    title:'Optimization', short:'Optimize' },
+  { id:'loop',     title:'Training loop', short:'Loop' },
+];
+
+let cur = 0;
+let lr = 0.1;
+let epoch = 0;
+let lossHistory = [];
+let weights = [0.5, -0.3, 0.8, 0.2, -0.6, 0.4];
+let origWeights = [...weights];
+
+function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+function softmax(arr) {
+  const m = Math.max(...arr);
+  const e = arr.map(v => Math.exp(v - m));
+  const s = e.reduce((a,b)=>a+b);
+  return e.map(v => v/s);
+}
+
+const stepper = document.getElementById('stepper');
+phases.forEach((p,i) => {
+  const pill = document.createElement('span');
+  pill.className = 'step-pill';
+  pill.textContent = p.short;
+  pill.onclick = () => { cur = i; render(); };
+  stepper.appendChild(pill);
+});
+
+function render() {
+  document.querySelectorAll('.step-pill').forEach((p,i) => p.classList.toggle('active', i===cur));
+  document.getElementById('prev-btn').disabled = cur === 0;
+  document.getElementById('next-btn').textContent = cur === phases.length-1 ? 'Restart' : 'Next step';
+  const container = document.getElementById('phases');
+
+  if (phases[cur].id === 'overview') {
+    container.innerHTML = `
+      <div class="highlight-box highlight-blue">Training an LLM = teaching a neural network to predict the next token. The model sees billions of text examples and slowly adjusts millions of numbers (weights) until its predictions get good.</div>
+      <div style="margin:1.25rem 0">
+        <svg width="100%" viewBox="0 0 680 130">
+          <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+          <g class="c-blue"><rect x="20" y="40" width="120" height="50" rx="8" stroke-width="0.5"/><text class="th" x="80" y="65" text-anchor="middle" dominant-baseline="central">Forward pass</text></g>
+          <line x1="140" y1="65" x2="178" y2="65" class="arr" marker-end="url(#arrow)"/>
+          <g class="c-amber"><rect x="180" y="40" width="120" height="50" rx="8" stroke-width="0.5"/><text class="th" x="240" y="65" text-anchor="middle" dominant-baseline="central">Compute loss</text></g>
+          <line x1="300" y1="65" x2="338" y2="65" class="arr" marker-end="url(#arrow)"/>
+          <g class="c-coral"><rect x="340" y="40" width="120" height="50" rx="8" stroke-width="0.5"/><text class="th" x="400" y="65" text-anchor="middle" dominant-baseline="central">Backprop</text></g>
+          <line x1="460" y1="65" x2="498" y2="65" class="arr" marker-end="url(#arrow)"/>
+          <g class="c-green"><rect x="500" y="40" width="140" height="50" rx="8" stroke-width="0.5"/><text class="th" x="570" y="65" text-anchor="middle" dominant-baseline="central">Update weights</text></g>
+          <path d="M570 90 L570 115 L80 115 L80 90" fill="none" class="arr" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+          <text class="ts" x="340" y="110" text-anchor="middle">repeat</text>
+        </svg>
+      </div>
+      <div class="highlight-box highlight-amber">A <strong>weight</strong> (or parameter) is just a number. The model has billions of them. Each one slightly influences how the model transforms input into output. Training = finding the right values for all of them.</div>
+    `;
+  }
+  else if (phases[cur].id === 'forward') {
+    const h1 = Math.round(sigmoid(0.5 * weights[0] + 0.8 * weights[1]) * 100) / 100;
+    const h2 = Math.round(sigmoid(0.5 * weights[2] + 0.8 * weights[3]) * 100) / 100;
+    const out1 = Math.round(sigmoid(h1 * weights[4] + h2 * weights[5]) * 100) / 100;
+    container.innerHTML = `
+      <div class="highlight-box highlight-blue">Data flows <strong>forward</strong> through the network: input tokens enter, get multiplied by weights at each layer, pass through activation functions, and produce a prediction at the end.</div>
+      <div class="token-row">
+        <span class="token input-tok">The</span>
+        <span class="token input-tok">cat</span>
+        <span class="token input-tok">sat</span>
+        <span class="token input-tok">on</span>
+        <span class="token input-tok">the</span>
+        <span style="font-size:13px;color:var(--color-text-secondary);padding:4px 0">&#8594; predict next:</span>
+        <span class="token pred-tok">???</span>
+      </div>
+      <div style="font-size:13px;color:var(--color-text-secondary);text-align:center;margin:0.5rem 0">Simplified 2-layer network (real LLMs have billions of weights across dozens of layers)</div>
+      <div class="neuron-grid">
+        <div class="layer-col">
+          <div class="layer-label">Input</div>
+          <div class="node-circle" style="background:var(--color-background-info)"><span class="node-val">0.50</span></div>
+          <div class="node-circle" style="background:var(--color-background-info)"><span class="node-val">0.80</span></div>
+        </div>
+        <div class="layer-col" style="justify-content:center;padding-top:20px">
+          <div class="arrow-label">w<sub>1</sub>=${weights[0].toFixed(2)}<br>w<sub>2</sub>=${weights[1].toFixed(2)}<br>w<sub>3</sub>=${weights[2].toFixed(2)}<br>w<sub>4</sub>=${weights[3].toFixed(2)}</div>
+          <div style="font-size:22px;color:var(--color-text-tertiary)">&#8594;</div>
+        </div>
+        <div class="layer-col">
+          <div class="layer-label">Hidden</div>
+          <div class="node-circle" style="background:var(--color-background-warning)"><span class="node-val">${h1.toFixed(2)}</span></div>
+          <div class="node-circle" style="background:var(--color-background-warning)"><span class="node-val">${h2.toFixed(2)}</span></div>
+        </div>
+        <div class="layer-col" style="justify-content:center;padding-top:20px">
+          <div class="arrow-label">w<sub>5</sub>=${weights[4].toFixed(2)}<br>w<sub>6</sub>=${weights[5].toFixed(2)}</div>
+          <div style="font-size:22px;color:var(--color-text-tertiary)">&#8594;</div>
+        </div>
+        <div class="layer-col">
+          <div class="layer-label">Output</div>
+          <div class="node-circle" style="background:var(--color-background-success)"><span class="node-val">${out1.toFixed(2)}</span></div>
+        </div>
+      </div>
+      <div class="highlight-box highlight-amber">
+        Each arrow is a <strong>weight</strong>. The value in each node = sigmoid(sum of inputs &times; weights). This output score gets converted into a probability distribution over the entire vocabulary.
+      </div>
+    `;
+  }
+  else if (phases[cur].id === 'loss') {
+    const probs = softmax([2.1, 0.5, 1.8, 0.3, 0.9]);
+    const words = ['mat','floor','couch','roof','bed'];
+    const maxP = Math.max(...probs);
+    const loss = -Math.log(probs[0]);
+    container.innerHTML = `
+      <div class="highlight-box highlight-amber">The <strong>loss function</strong> measures how wrong the prediction is. For language models, we use <strong>cross-entropy loss</strong>: &minus;log(probability assigned to the correct token). Lower = better.</div>
+      <div class="token-row" style="margin:1rem 0">
+        <span class="token input-tok">The cat sat on the</span>
+        <span style="font-size:13px;color:var(--color-text-secondary);padding:4px 6px">&#8594;</span>
+        <span class="token target-tok">mat</span>
+        <span style="font-size:11px;color:var(--color-text-secondary);padding:4px 0">(correct answer)</span>
+      </div>
+      <div style="font-size:13px;font-weight:500;margin:0.75rem 0">Model's probability distribution:</div>
+      <div class="prob-bar-container">
+        ${words.map((w,i) => `
+          <div class="prob-row">
+            <span class="prob-word">${w}</span>
+            <div style="flex:1;background:var(--color-background-secondary);border-radius:4px;overflow:hidden">
+              <div class="prob-bar" style="width:${Math.round(probs[i]/maxP*100)}%;background:${i===0?'var(--color-background-success)':'var(--color-background-secondary)'};color:${i===0?'var(--color-text-success)':'var(--color-text-secondary)'}">${Math.round(probs[i]*100)}%</div>
+            </div>
+            ${i===0?'<span style="font-size:11px;color:var(--color-text-success)">correct</span>':''}
+          </div>
+        `).join('')}
+      </div>
+      <div class="metrics-row">
+        <div class="metric-card"><div class="metric-label">P(mat)</div><div class="metric-value">${Math.round(probs[0]*100)}%</div></div>
+        <div class="metric-card"><div class="metric-label">Loss = &minus;log(P)</div><div class="metric-value" style="color:var(--color-text-danger)">${loss.toFixed(2)}</div></div>
+        <div class="metric-card"><div class="metric-label">Perfect loss</div><div class="metric-value" style="color:var(--color-text-success)">0.00</div></div>
+      </div>
+      <div class="highlight-box highlight-green">If the model assigned 100% to "mat", loss would be 0. The further off it is, the higher the loss. A loss of ${loss.toFixed(2)} means the model needs improvement — which is what the next steps do.</div>
+    `;
+  }
+  else if (phases[cur].id === 'backprop') {
+    container.innerHTML = `
+      <div class="highlight-box highlight-red">
+        <strong>Backpropagation</strong> calculates the <em>gradient</em> of the loss with respect to every single weight. The gradient tells us: "if I nudge this weight up slightly, does the loss go up or down, and by how much?"
+      </div>
+      <div style="margin:1.25rem 0">
+        <svg width="100%" viewBox="0 0 680 220">
+          <defs><marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+          <g class="c-green"><rect x="40" y="30" width="130" height="50" rx="8" stroke-width="0.5"/><text class="th" x="105" y="48" text-anchor="middle" dominant-baseline="central">Output</text><text class="ts" x="105" y="66" text-anchor="middle" dominant-baseline="central">dL/dy = &minus;0.63</text></g>
+          <g class="c-amber"><rect x="270" y="30" width="130" height="50" rx="8" stroke-width="0.5"/><text class="th" x="335" y="48" text-anchor="middle" dominant-baseline="central">Hidden</text><text class="ts" x="335" y="66" text-anchor="middle" dominant-baseline="central">dL/dh via chain rule</text></g>
+          <g class="c-blue"><rect x="500" y="30" width="130" height="50" rx="8" stroke-width="0.5"/><text class="th" x="565" y="48" text-anchor="middle" dominant-baseline="central">Input</text><text class="ts" x="565" y="66" text-anchor="middle" dominant-baseline="central">dL/dx (if needed)</text></g>
+          <line x1="268" y1="55" x2="172" y2="55" stroke="#E24B4A" stroke-width="2" marker-end="url(#arr2)"/>
+          <line x1="498" y1="55" x2="402" y2="55" stroke="#E24B4A" stroke-width="2" marker-end="url(#arr2)"/>
+          <text class="ts" x="220" y="48" text-anchor="middle" style="fill:#E24B4A">gradients</text>
+          <text class="ts" x="450" y="48" text-anchor="middle" style="fill:#E24B4A">gradients</text>
+          <text class="ts" x="340" y="120" text-anchor="middle">The chain rule decomposes the total gradient into local pieces:</text>
+          <text class="t" x="340" y="148" text-anchor="middle" style="font-family:var(--font-mono);font-size:13px">dL/dw = dL/dy &times; dy/dh &times; dh/dw</text>
+          <text class="ts" x="340" y="180" text-anchor="middle">"How does loss change" &times; "how does output change" &times; "how does hidden change"</text>
+          <text class="ts" x="340" y="200" text-anchor="middle">= the gradient for weight w</text>
+        </svg>
+      </div>
+      <div style="font-size:13px;font-weight:500;margin:0.75rem 0">Computed gradients for our 6 weights:</div>
+      <table class="weight-table">
+        <tr><th>Weight</th><th>Current value</th><th>Gradient (dL/dw)</th><th>Meaning</th></tr>
+        <tr><td>w<sub>1</sub></td><td style="font-family:var(--font-mono)">${weights[0].toFixed(2)}</td><td style="font-family:var(--font-mono);color:var(--color-text-danger)">+0.12</td><td style="font-size:11px">loss rises if w<sub>1</sub> increases</td></tr>
+        <tr><td>w<sub>2</sub></td><td style="font-family:var(--font-mono)">${weights[1].toFixed(2)}</td><td style="font-family:var(--font-mono);color:var(--color-text-success)">&minus;0.08</td><td style="font-size:11px">loss drops if w<sub>2</sub> increases</td></tr>
+        <tr><td>w<sub>3</sub></td><td style="font-family:var(--font-mono)">${weights[2].toFixed(2)}</td><td style="font-family:var(--font-mono);color:var(--color-text-danger)">+0.21</td><td style="font-size:11px">loss rises if w<sub>3</sub> increases</td></tr>
+        <tr><td>w<sub>4</sub></td><td style="font-family:var(--font-mono)">${weights[3].toFixed(2)}</td><td style="font-family:var(--font-mono);color:var(--color-text-success)">&minus;0.15</td><td style="font-size:11px">loss drops if w<sub>4</sub> increases</td></tr>
+        <tr><td>w<sub>5</sub></td><td style="font-family:var(--font-mono)">${weights[4].toFixed(2)}</td><td style="font-family:var(--font-mono);color:var(--color-text-danger)">+0.05</td><td style="font-size:11px">loss rises if w<sub>5</sub> increases</td></tr>
+        <tr><td>w<sub>6</sub></td><td style="font-family:var(--font-mono)">${weights[5].toFixed(2)}</td><td style="font-family:var(--font-mono);color:var(--color-text-success)">&minus;0.18</td><td style="font-size:11px">loss drops if w<sub>6</sub> increases</td></tr>
+      </table>
+      <div class="highlight-box highlight-green">Positive gradient means "this weight is making things worse — decrease it." Negative gradient means "this weight is helping — increase it." The magnitude tells us how sensitive the loss is to that weight.</div>
+    `;
+  }
+  else if (phases[cur].id === 'optim') {
+    const grads = [0.12, -0.08, 0.21, -0.15, 0.05, -0.18];
+    const newW = weights.map((w,i) => Math.round((w - lr * grads[i]) * 1000) / 1000);
+    container.innerHTML = `
+      <div class="highlight-box highlight-green">The <strong>optimizer</strong> uses the gradients to update every weight. The simplest rule (SGD): <code>w_new = w_old &minus; learning_rate &times; gradient</code></div>
+      <div class="slider-row">
+        <label>Learning rate</label>
+        <input type="range" min="1" max="50" value="${Math.round(lr*100)}" step="1" oninput="updateLR(this.value)">
+        <span class="slider-out" id="lr-out">${lr.toFixed(2)}</span>
+      </div>
+      <div style="font-size:12px;color:var(--color-text-secondary);margin:-0.5rem 0 1rem 0">Too high = overshooting. Too low = slow learning. Try moving it!</div>
+      <table class="weight-table" id="optim-table">
+        <tr><th>Weight</th><th>Old</th><th>Gradient</th><th>&minus; lr &times; grad</th><th>New</th></tr>
+        ${weights.map((w,i) => `
+          <tr>
+            <td>w<sub>${i+1}</sub></td>
+            <td style="font-family:var(--font-mono)">${w.toFixed(3)}</td>
+            <td style="font-family:var(--font-mono);color:${grads[i]>0?'var(--color-text-danger)':'var(--color-text-success)'}">${grads[i]>0?'+':''}${grads[i].toFixed(2)}</td>
+            <td style="font-family:var(--font-mono)">${(-lr*grads[i]>0?'+':'') + (-lr*grads[i]).toFixed(3)}</td>
+            <td class="changed" style="font-family:var(--font-mono)">${newW[i].toFixed(3)}</td>
+          </tr>
+        `).join('')}
+      </table>
+      <div class="highlight-box highlight-amber">Modern LLMs use <strong>Adam</strong> instead of plain SGD — it adapts the learning rate per-weight using momentum (running average of past gradients) and scales down updates for weights that change a lot. Same idea, smarter stepping.</div>
+      <button style="margin-top:0.5rem" onclick="applyUpdate()">Apply this update to weights</button>
+    `;
+  }
+  else if (phases[cur].id === 'loop') {
+    if (lossHistory.length === 0) lossHistory.push(2.3);
+    container.innerHTML = `
+      <div class="highlight-box highlight-blue">That was <strong>one step</strong>. Real training repeats this millions of times across billions of tokens. Each batch of data: forward pass &#8594; loss &#8594; backprop &#8594; update. The loss gradually decreases as weights converge to good values.</div>
+      <div class="metrics-row">
+        <div class="metric-card"><div class="metric-label">Steps completed</div><div class="metric-value" id="epoch-val">${epoch}</div></div>
+        <div class="metric-card"><div class="metric-label">Current loss</div><div class="metric-value" id="loss-val">${lossHistory[lossHistory.length-1].toFixed(3)}</div></div>
+        <div class="metric-card"><div class="metric-label">Learning rate</div><div class="metric-value">${lr.toFixed(2)}</div></div>
+      </div>
+      <canvas id="loss-chart" class="epoch-chart"></canvas>
+      <button onclick="trainStep()" style="margin-top:0.5rem">Run 10 training steps</button>
+      <button onclick="resetTraining()" style="margin-left:8px">Reset</button>
+      <div class="highlight-box highlight-green" style="margin-top:1rem">
+        <strong>Key insight:</strong> LLM training is this loop at massive scale. GPT-3 has 175 billion weights. Each training step processes a batch of ~500k tokens. Training runs for hundreds of thousands of steps across trillions of tokens. The math is the same — just much, much bigger.
+      </div>
+    `;
+    drawLossChart();
+  }
+}
+
+function updateLR(v) {
+  lr = v / 100;
+  document.getElementById('lr-out').textContent = lr.toFixed(2);
+  const grads = [0.12, -0.08, 0.21, -0.15, 0.05, -0.18];
+  const rows = document.querySelectorAll('#optim-table tr');
+  for (let i = 1; i < rows.length; i++) {
+    const cells = rows[i].querySelectorAll('td');
+    const nudge = -lr * grads[i-1];
+    const newW = Math.round((weights[i-1] + nudge) * 1000) / 1000;
+    cells[3].textContent = (nudge > 0 ? '+' : '') + nudge.toFixed(3);
+    cells[4].textContent = newW.toFixed(3);
+  }
+}
+
+function applyUpdate() {
+  const grads = [0.12, -0.08, 0.21, -0.15, 0.05, -0.18];
+  weights = weights.map((w,i) => Math.round((w - lr * grads[i]) * 1000) / 1000);
+  epoch++;
+  const newLoss = Math.max(0.05, 2.3 * Math.exp(-0.08 * epoch) + (Math.random() * 0.15 - 0.07));
+  lossHistory.push(Math.round(newLoss * 1000) / 1000);
+  cur = 5;
+  render();
+}
+
+function trainStep() {
+  for (let i = 0; i < 10; i++) {
+    epoch++;
+    const newLoss = Math.max(0.05, 2.3 * Math.exp(-0.08 * epoch) + (Math.random() * 0.15 - 0.07));
+    lossHistory.push(Math.round(newLoss * 1000) / 1000);
+  }
+  document.getElementById('epoch-val').textContent = epoch;
+  document.getElementById('loss-val').textContent = lossHistory[lossHistory.length-1].toFixed(3);
+  drawLossChart();
+}
+
+function resetTraining() {
+  epoch = 0; lossHistory = [2.3]; weights = [...origWeights]; render();
+}
+
+function drawLossChart() {
+  const canvas = document.getElementById('loss-chart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = rect.height;
+  const pad = { t: 10, r: 10, b: 24, l: 40 };
+  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+  ctx.clearRect(0, 0, W, H);
+  const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+  const txtCol = isDark ? '#c2c0b6' : '#73726c';
+  const gridCol = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  const lineCol = isDark ? '#5DCAA5' : '#1D9E75';
+  const maxL = Math.max(...lossHistory, 2.5);
+  ctx.font = '11px system-ui';
+  ctx.fillStyle = txtCol;
+  ctx.textAlign = 'right';
+  for (let v = 0; v <= maxL; v += 0.5) {
+    const y = pad.t + ch - (v / maxL) * ch;
+    ctx.fillText(v.toFixed(1), pad.l - 6, y + 4);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + cw, y);
+    ctx.strokeStyle = gridCol; ctx.lineWidth = 0.5; ctx.stroke();
+  }
+  ctx.textAlign = 'center';
+  ctx.fillText('Training steps', W / 2, H - 2);
+  if (lossHistory.length < 2) return;
+  ctx.beginPath();
+  lossHistory.forEach((l, i) => {
+    const x = pad.l + (i / (lossHistory.length - 1)) * cw;
+    const y = pad.t + ch - (l / maxL) * ch;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = lineCol; ctx.lineWidth = 2; ctx.stroke();
+  const lastX = pad.l + cw;
+  const lastY = pad.t + ch - (lossHistory[lossHistory.length-1] / maxL) * ch;
+  ctx.beginPath(); ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+  ctx.fillStyle = lineCol; ctx.fill();
+}
+
+function go(d) {
+  if (d === 1 && cur === phases.length - 1) { resetTraining(); cur = 0; }
+  else { cur = Math.max(0, Math.min(phases.length - 1, cur + d)); }
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
