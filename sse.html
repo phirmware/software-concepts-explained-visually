@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Server-Sent Events — Interactive Study Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #FAFAF7;
+  --bg2: #F0EFEB;
+  --bg3: #E8E7E2;
+  --text: #1A1A18;
+  --text2: #6B6A65;
+  --text3: #9C9B95;
+  --accent: #1D6B4F;
+  --accent-light: #E1F5EE;
+  --accent2: #2B5EA7;
+  --accent2-light: #E6F1FB;
+  --warn: #BA7517;
+  --warn-light: #FAEEDA;
+  --err: #A32D2D;
+  --err-light: #FCEBEB;
+  --purple: #534AB7;
+  --purple-light: #EEEDFE;
+  --border: rgba(0,0,0,0.1);
+  --radius: 10px;
+  --radius-lg: 14px;
+  --font-body: 'DM Sans', sans-serif;
+  --font-display: 'Instrument Serif', serif;
+  --font-mono: 'DM Mono', monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141413;
+    --bg2: #1E1E1C;
+    --bg3: #2A2A27;
+    --text: #E8E7E2;
+    --text2: #9C9B95;
+    --text3: #6B6A65;
+    --accent: #5DCAA5;
+    --accent-light: #0F2E24;
+    --accent2: #85B7EB;
+    --accent2-light: #0C2440;
+    --warn: #F2A623;
+    --warn-light: #2A1F08;
+    --err: #F09595;
+    --err-light: #2E1212;
+    --purple: #AFA9EC;
+    --purple-light: #1E1B38;
+    --border: rgba(255,255,255,0.1);
+  }
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+.container { max-width: 780px; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
+
+/* Header */
+header { margin-bottom: 3.5rem; padding-bottom: 2.5rem; border-bottom: 1px solid var(--border); }
+header h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 5vw, 3.2rem);
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.75rem;
+}
+header h1 em { font-style: italic; color: var(--accent); }
+header .subtitle { font-size: 15px; color: var(--text2); max-width: 520px; }
+header .tag-row { display: flex; gap: 8px; margin-top: 1rem; flex-wrap: wrap; }
+.tag {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--bg2);
+  color: var(--text2);
+}
+
+/* Sections */
+section { margin-bottom: 3rem; }
+section h2 {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 400;
+  margin-bottom: 1rem;
+  color: var(--text);
+}
+section h3 {
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text3);
+  margin-bottom: 0.75rem;
+}
+p { margin-bottom: 1rem; color: var(--text); }
+p + p { margin-top: -0.25rem; }
+
+/* Code blocks */
+pre {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  overflow-x: auto;
+  margin-bottom: 1.5rem;
+}
+code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--bg2);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+pre code { background: none; padding: 0; }
+.kw { color: var(--purple); }
+.str { color: var(--accent); }
+.cm { color: var(--text3); font-style: italic; }
+.fn { color: var(--accent2); }
+
+/* Concept cards */
+.concept-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
+.concept-card {
+  padding: 1rem 1.15rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.concept-card .label { font-size: 12px; color: var(--text3); margin-bottom: 4px; font-weight: 500; letter-spacing: 0.03em; }
+.concept-card .value { font-size: 15px; font-weight: 500; }
+
+/* Wire format box */
+.wire-box {
+  background: var(--bg2);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border);
+}
+.wire-line { font-family: var(--font-mono); font-size: 13px; line-height: 2; }
+.wire-field { color: var(--accent2); font-weight: 500; }
+.wire-value { color: var(--text); }
+.wire-comment { color: var(--text3); font-style: italic; }
+.wire-blank { color: var(--text3); font-size: 11px; }
+
+/* Comparison table */
+.compare-table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: 14px; }
+.compare-table th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text3);
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--border);
+}
+.compare-table td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+.compare-table tr:last-child td { border-bottom: none; }
+.check { color: var(--accent); font-weight: 500; }
+.cross { color: var(--err); }
+
+/* Interactive simulator */
+.sim-section {
+  background: var(--bg2);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem;
+  border: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+.sim-section h3 { margin-bottom: 1rem; }
+.cols { display: flex; gap: 20px; margin-bottom: 16px; }
+.col { flex: 1; min-width: 0; }
+.col-label { font-size: 11px; color: var(--text3); margin-bottom: 6px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
+.endpoint-box {
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  min-height: 120px;
+  border: 1px solid var(--border);
+}
+.status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: middle; transition: background .3s; }
+.status-dot.closed { background: var(--text3); }
+.status-dot.connecting { background: var(--warn); }
+.status-dot.open { background: var(--accent); }
+.meta-line { font-size: 12px; color: var(--text2); margin-top: 6px; }
+.meta-line span { font-family: var(--font-mono); font-weight: 500; color: var(--text); }
+
+.pipe-vis {
+  margin: 0 0 16px;
+  position: relative;
+  height: 40px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+.pipe-label { font-size: 11px; color: var(--text3); position: relative; z-index: 1; letter-spacing: 0.03em; }
+.pipe-arrow { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--text3); z-index: 1; }
+.packet {
+  position: absolute; left: -70px; top: 50%; transform: translateY(-50%);
+  color: #fff; font-size: 10px; font-weight: 500; font-family: var(--font-mono);
+  padding: 3px 10px; border-radius: 10px; white-space: nowrap; z-index: 2; opacity: 0;
+}
+.packet.animate { transition: left 1.2s ease-in-out, opacity .3s; left: calc(100% + 20px); opacity: 0; }
+.packet.show { opacity: 1; }
+
+.sim-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.sim-btns button {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  transition: all .15s;
+}
+.sim-btns button:hover:not(:disabled) { background: var(--bg3); }
+.sim-btns button:active:not(:disabled) { transform: scale(0.97); }
+.sim-btns button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.event-log {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 10px 14px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  line-height: 1.9;
+}
+.event-line { opacity: 0; animation: fadeIn .3s forwards; }
+@keyframes fadeIn { to { opacity: 1; } }
+.ev-field { color: var(--accent2); }
+.ev-data { color: var(--text); }
+.ev-comment { color: var(--text3); font-style: italic; }
+
+.phase-box {
+  margin-top: 14px;
+  padding: 12px 16px;
+  background: var(--accent-light);
+  border-radius: var(--radius);
+  border-left: 3px solid var(--accent);
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.65;
+  min-height: 40px;
+  transition: all .3s;
+}
+.phase-box strong { font-weight: 500; color: var(--text); }
+
+/* Callout */
+.callout {
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius);
+  margin-bottom: 1.5rem;
+  font-size: 14px;
+  line-height: 1.65;
+}
+.callout.tip { background: var(--accent-light); border-left: 3px solid var(--accent); }
+.callout.warn { background: var(--warn-light); border-left: 3px solid var(--warn); }
+.callout strong { font-weight: 500; }
+
+/* Footer */
+footer {
+  margin-top: 4rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text3);
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>Server-Sent <em>Events</em></h1>
+  <p class="subtitle">A one-way real-time communication protocol from server to client, over a single persistent HTTP connection.</p>
+  <div class="tag-row">
+    <span class="tag">HTTP</span>
+    <span class="tag">Real-time</span>
+    <span class="tag">Event streaming</span>
+    <span class="tag">text/event-stream</span>
+  </div>
+</header>
+
+<!-- The big idea -->
+<section>
+  <h2>The big idea</h2>
+  <p>The client makes a single HTTP GET request. Instead of the server sending one response and closing the connection, it <strong>keeps the connection open</strong> and pushes plain-text events down the wire whenever it has something new to say.</p>
+  <p>That's the entire trick. No special protocol negotiation, no binary framing, no upgrade handshake. Just an HTTP response that never ends.</p>
+
+  <div class="concept-grid">
+    <div class="concept-card">
+      <div class="label">Direction</div>
+      <div class="value">Server → Client only</div>
+    </div>
+    <div class="concept-card">
+      <div class="label">Transport</div>
+      <div class="value">Plain HTTP/1.1 or HTTP/2</div>
+    </div>
+    <div class="concept-card">
+      <div class="label">Content type</div>
+      <div class="value" style="font-family:var(--font-mono);font-size:14px">text/event-stream</div>
+    </div>
+    <div class="concept-card">
+      <div class="label">Browser API</div>
+      <div class="value" style="font-family:var(--font-mono);font-size:14px">EventSource</div>
+    </div>
+  </div>
+</section>
+
+<!-- Wire format -->
+<section>
+  <h2>The wire format</h2>
+  <p>Each event is a block of <code>field: value</code> lines, terminated by a blank line. There are only four possible fields:</p>
+
+  <div class="wire-box">
+    <div class="wire-line"><span class="wire-field">id:</span> <span class="wire-value">42</span></div>
+    <div class="wire-line"><span class="wire-field">event:</span> <span class="wire-value">notification</span></div>
+    <div class="wire-line"><span class="wire-field">data:</span> <span class="wire-value">{"user":"alice","msg":"hello"}</span></div>
+    <div class="wire-line"><span class="wire-field">retry:</span> <span class="wire-value">5000</span></div>
+    <div class="wire-line"><span class="wire-blank">↵ (blank line = end of event)</span></div>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="wire-line"><span class="wire-comment">: this is a comment (keepalive)</span></div>
+      <div class="wire-line"><span class="wire-blank">↵</span></div>
+    </div>
+  </div>
+
+  <div class="concept-grid">
+    <div class="concept-card">
+      <div class="label"><code>data:</code></div>
+      <div class="value" style="font-size:13px;font-weight:400;color:var(--text2)">The event payload. Multiple <code>data:</code> lines are joined with newlines.</div>
+    </div>
+    <div class="concept-card">
+      <div class="label"><code>event:</code></div>
+      <div class="value" style="font-size:13px;font-weight:400;color:var(--text2)">Custom event type. Defaults to "message" if omitted.</div>
+    </div>
+    <div class="concept-card">
+      <div class="label"><code>id:</code></div>
+      <div class="value" style="font-size:13px;font-weight:400;color:var(--text2)">Sets the last event ID. Sent back on reconnection.</div>
+    </div>
+    <div class="concept-card">
+      <div class="label"><code>retry:</code></div>
+      <div class="value" style="font-size:13px;font-weight:400;color:var(--text2)">Reconnection delay in ms. Browser respects this.</div>
+    </div>
+  </div>
+</section>
+
+<!-- Client code -->
+<section>
+  <h2>Client-side API</h2>
+  <p>The browser's <code>EventSource</code> API handles connection management, parsing, and reconnection. The entire client is a few lines:</p>
+
+<pre><code><span class="kw">const</span> source = <span class="kw">new</span> <span class="fn">EventSource</span>(<span class="str">'/events'</span>);
+
+<span class="cm">// Default "message" events</span>
+source.<span class="fn">onmessage</span> = (e) => {
+  console.<span class="fn">log</span>(e.data);       <span class="cm">// the payload string</span>
+  console.<span class="fn">log</span>(e.lastEventId); <span class="cm">// the id: field</span>
+};
+
+<span class="cm">// Named events (event: notification)</span>
+source.<span class="fn">addEventListener</span>(<span class="str">'notification'</span>, (e) => {
+  console.<span class="fn">log</span>(<span class="str">'Custom:'</span>, e.data);
+});
+
+<span class="cm">// Connection lifecycle</span>
+source.<span class="fn">onopen</span> = () => console.<span class="fn">log</span>(<span class="str">'Connected'</span>);
+source.<span class="fn">onerror</span> = () => console.<span class="fn">log</span>(<span class="str">'Reconnecting...'</span>);
+
+<span class="cm">// Explicitly close (no auto-reconnect)</span>
+source.<span class="fn">close</span>();</code></pre>
+
+  <div class="callout tip">
+    <strong>Tip:</strong> <code>EventSource</code> automatically reconnects on network failures. The browser sends a <code>Last-Event-ID</code> header with the last <code>id:</code> value it received, so the server can resume from where it left off.
+  </div>
+</section>
+
+<!-- Server code -->
+<section>
+  <h2>Server-side (Node.js example)</h2>
+<pre><code><span class="kw">const</span> http = require(<span class="str">'http'</span>);
+
+http.<span class="fn">createServer</span>((req, res) => {
+  <span class="kw">if</span> (req.url === <span class="str">'/events'</span>) {
+    res.<span class="fn">writeHead</span>(200, {
+      <span class="str">'Content-Type'</span>:  <span class="str">'text/event-stream'</span>,
+      <span class="str">'Cache-Control'</span>: <span class="str">'no-cache'</span>,
+      <span class="str">'Connection'</span>:    <span class="str">'keep-alive'</span>,
+    });
+
+    <span class="kw">let</span> id = 0;
+    <span class="kw">const</span> interval = <span class="fn">setInterval</span>(() => {
+      id++;
+      res.<span class="fn">write</span>(<span class="str">`id: ${id}\n`</span>);
+      res.<span class="fn">write</span>(<span class="str">`data: ${JSON.stringify({ time: Date.now() })}\n\n`</span>);
+    }, 2000);
+
+    <span class="cm">// Clean up on disconnect</span>
+    req.<span class="fn">on</span>(<span class="str">'close'</span>, () => <span class="fn">clearInterval</span>(interval));
+  }
+}).<span class="fn">listen</span>(3000);</code></pre>
+
+  <div class="callout warn">
+    <strong>Important:</strong> Set <code>Cache-Control: no-cache</code> to prevent proxies from buffering the stream. If you're behind Nginx, you'll also need <code>X-Accel-Buffering: no</code>.
+  </div>
+</section>
+
+<!-- Interactive simulator -->
+<section>
+  <h2>Interactive simulator</h2>
+  <p>Open a simulated SSE connection and watch the protocol in action. Send events, trigger disconnects, and observe auto-reconnection.</p>
+
+  <div class="sim-section">
+    <div class="cols">
+      <div class="col">
+        <div class="col-label">Client (browser)</div>
+        <div class="endpoint-box" id="client-box">
+          <div style="font-size:13px"><span class="status-dot closed" id="status-dot"></span><span id="status-text" style="font-size:12px">Disconnected</span></div>
+          <div class="meta-line">Last event ID: <span id="last-id">none</span></div>
+          <div class="meta-line">Events received: <span id="ev-count">0</span></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="col-label">Server</div>
+        <div class="endpoint-box" id="server-box">
+          <div style="font-size:13px"><span class="status-dot closed" id="srv-dot"></span><span id="srv-text" style="font-size:12px">Idle</span></div>
+          <div class="meta-line">Connection: <span id="srv-conn">none</span></div>
+          <div class="meta-line">Events sent: <span id="srv-count">0</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipe-vis" id="pipe">
+      <span class="pipe-label">HTTP connection (text/event-stream)</span>
+      <span class="pipe-arrow" id="pipe-arrow"></span>
+    </div>
+
+    <div class="sim-btns">
+      <button id="btn-connect" onclick="doConnect()">Connect</button>
+      <button id="btn-send" onclick="doSendEvent()" disabled>Send event</button>
+      <button id="btn-named" onclick="doNamedEvent()" disabled>Send named event</button>
+      <button id="btn-disconnect" onclick="doDisconnect()" disabled>Simulate drop</button>
+      <button id="btn-close" onclick="doClose()" disabled>Close</button>
+    </div>
+
+    <div class="col-label" style="margin-bottom:6px">Event stream (raw bytes on the wire)</div>
+    <div class="event-log" id="log"></div>
+    <div class="phase-box" id="phase"><strong>Click "Connect"</strong> to open an SSE connection and watch the protocol in action.</div>
+  </div>
+</section>
+
+<!-- How it compares -->
+<section>
+  <h2>SSE vs alternatives</h2>
+  <table class="compare-table">
+    <thead>
+      <tr><th>Feature</th><th>SSE</th><th>WebSockets</th><th>Polling</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Direction</td><td>Server → Client</td><td>Bidirectional</td><td>Client → Server</td></tr>
+      <tr><td>Protocol</td><td>HTTP</td><td>WS (upgrade)</td><td>HTTP</td></tr>
+      <tr><td>Auto-reconnect</td><td><span class="check">Built in</span></td><td><span class="cross">Manual</span></td><td><span class="cross">N/A</span></td></tr>
+      <tr><td>Event IDs</td><td><span class="check">Built in</span></td><td><span class="cross">Manual</span></td><td><span class="cross">Manual</span></td></tr>
+      <tr><td>Binary data</td><td><span class="cross">No (text only)</span></td><td><span class="check">Yes</span></td><td><span class="check">Yes</span></td></tr>
+      <tr><td>Complexity</td><td>Very low</td><td>Medium</td><td>Low</td></tr>
+      <tr><td>Best for</td><td>Live feeds, notifications, streaming AI</td><td>Chat, gaming, collaboration</td><td>Infrequent updates</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- Lifecycle -->
+<section>
+  <h2>Connection lifecycle</h2>
+  <h3>1. Opening</h3>
+  <p>Client sends a GET with <code>Accept: text/event-stream</code>. Server responds <code>200 OK</code> with <code>Content-Type: text/event-stream</code> and keeps the connection open.</p>
+
+  <h3>2. Streaming</h3>
+  <p>Server writes events as plain text, each terminated by a blank line. The browser parses each chunk and fires the appropriate event handler. Keepalive comments (<code>: ping</code>) prevent proxy timeouts.</p>
+
+  <h3>3. Reconnection</h3>
+  <p>If the connection drops, the browser waits (default ~3s, configurable via <code>retry:</code>) and automatically re-opens it. The <code>Last-Event-ID</code> header lets the server resume from the right point.</p>
+
+  <h3>4. Closing</h3>
+  <p>Calling <code>source.close()</code> terminates the connection permanently — no auto-reconnect. The server sees the TCP connection close and should clean up resources.</p>
+</section>
+
+<!-- Gotchas -->
+<section>
+  <h2>Common gotchas</h2>
+  <div class="callout warn">
+    <strong>HTTP/1.1 connection limit:</strong> Browsers allow only ~6 connections per domain on HTTP/1.1. Each SSE stream uses one. Use HTTP/2 (which multiplexes) or a dedicated subdomain for your event stream.
+  </div>
+  <div class="callout warn">
+    <strong>Proxy buffering:</strong> Many reverse proxies (Nginx, CloudFront) buffer responses by default, which delays event delivery. Set <code>X-Accel-Buffering: no</code> for Nginx, or use chunked transfer encoding.
+  </div>
+  <div class="callout tip">
+    <strong>Multi-line data:</strong> To send multi-line payloads, use multiple <code>data:</code> lines — the browser joins them with <code>\n</code>. Or just JSON-encode your payload in a single <code>data:</code> line.
+  </div>
+</section>
+
+<footer>
+  Server-Sent Events study guide &middot; Built for offline reference
+</footer>
+
+</div>
+
+<script>
+let state='closed',evCount=0,srvCount=0,lastId='none',autoTimer=null,reconnTimer=null,packetId=0;
+const $=id=>document.getElementById(id);
+const dot=$('status-dot'),stxt=$('status-text'),sdot=$('srv-dot'),stxtS=$('srv-text'),sconn=$('srv-conn'),log=$('log'),phase=$('phase'),lastIdEl=$('last-id'),evCountEl=$('ev-count'),srvCountEl=$('srv-count'),pipe=$('pipe'),pipeArrow=$('pipe-arrow');
+
+function setState(s){
+  state=s;
+  dot.className='status-dot '+s;
+  sdot.className='status-dot '+(s==='open'?'open':s==='connecting'?'connecting':'closed');
+  stxt.textContent=s==='open'?'Connected':s==='connecting'?'Connecting...':'Disconnected';
+  stxtS.textContent=s==='open'?'Streaming':s==='connecting'?'Accepting...':'Idle';
+  sconn.textContent=s==='open'?'keep-alive':'none';
+  pipeArrow.textContent=s==='open'?'\u2192':'';
+  $('btn-connect').disabled=s!=='closed';
+  $('btn-send').disabled=s!=='open';
+  $('btn-named').disabled=s!=='open';
+  $('btn-disconnect').disabled=s!=='open';
+  $('btn-close').disabled=s==='closed';
+}
+
+function addLog(html){const d=document.createElement('div');d.className='event-line';d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight}
+function sendPacket(label,color){
+  packetId++;const p=document.createElement('div');p.className='packet';p.id='pkt-'+packetId;p.textContent=label;p.style.background=color||'#1D9E75';
+  pipe.appendChild(p);
+  requestAnimationFrame(()=>{p.style.left='0px';p.classList.add('show');
+  requestAnimationFrame(()=>{p.classList.add('animate');setTimeout(()=>p.remove(),1400)})})
+}
+function setPhase(html){phase.innerHTML=html}
+
+function formatEvent(fields){
+  let lines=[];
+  fields.forEach(f=>{
+    if(f[0]==='comment')lines.push('<span class="ev-comment">: '+f[1]+'</span>');
+    else lines.push('<span class="ev-field">'+f[0]+':</span> <span class="ev-data">'+f[1]+'</span>');
+  });
+  lines.push('<span class="ev-comment">(blank line = end of event)</span>');
+  return lines.join('<br>');
+}
+
+function doConnect(){
+  if(state!=='closed')return;
+  setState('connecting');
+  addLog('<span class="ev-comment">-- Client sends GET /events --</span>');
+  addLog('<span class="ev-comment">-- Accept: text/event-stream --</span>');
+  if(lastId!=='none')addLog('<span class="ev-comment">-- Last-Event-ID: '+lastId+' --</span>');
+  sendPacket('GET /events','#2B5EA7');
+  setPhase('<strong>Step 1: Opening.</strong> The client sends a regular HTTP GET with <code>Accept: text/event-stream</code>. If reconnecting, it includes <code>Last-Event-ID</code> so the server can resume.');
+  setTimeout(()=>{
+    setState('open');
+    addLog('<span class="ev-comment">-- Server responds 200 OK --</span>');
+    addLog('<span class="ev-comment">-- Content-Type: text/event-stream --</span>');
+    addLog('<span class="ev-comment">-- Connection: keep-alive --</span>');
+    addLog('');
+    setPhase('<strong>Step 2: Connected.</strong> The server responds with <code>Content-Type: text/event-stream</code> and keeps the connection open. Now it can push events. Try the buttons.');
+    startAutoEvents();
+  },1200);
+}
+
+function doSendEvent(){
+  if(state!=='open')return;
+  srvCount++;srvCountEl.textContent=srvCount;evCount++;evCountEl.textContent=evCount;
+  const id=String(srvCount);lastId=id;lastIdEl.textContent=id;
+  const msgs=['Stock price updated: $142.38','New comment on your post','Build #847 passed','Temperature: 22.4\u00B0C','User joined the channel'];
+  const msg=msgs[srvCount%msgs.length];
+  addLog(formatEvent([['id',id],['data',JSON.stringify({message:msg,timestamp:new Date().toISOString()})]]));
+  addLog('');
+  sendPacket('data: '+msg.slice(0,22)+'...','#1D6B4F');
+  setPhase('<strong>Data event.</strong> Each event is plain text: field name, colon, value. The <code>id:</code> field lets the client track position. A blank line ends the event. The browser fires <code>onmessage</code>.');
+}
+
+function doNamedEvent(){
+  if(state!=='open')return;
+  srvCount++;srvCountEl.textContent=srvCount;evCount++;evCountEl.textContent=evCount;
+  const id=String(srvCount);lastId=id;lastIdEl.textContent=id;
+  const types=['notification','alert','heartbeat'];
+  const type=types[srvCount%types.length];
+  addLog(formatEvent([['id',id],['event',type],['data','{"type":"'+type+'","priority":"high"}']]));
+  addLog('');
+  sendPacket('event: '+type,'#534AB7');
+  setPhase('<strong>Named event.</strong> The <code>event:</code> field gives this a custom type. Listen with <code>source.addEventListener("'+type+'", ...)</code> instead of <code>onmessage</code>.');
+}
+
+function doDisconnect(){
+  if(state!=='open')return;
+  clearInterval(autoTimer);
+  setState('closed');
+  addLog('<span class="ev-comment">-- Connection dropped (network error) --</span>');
+  sendPacket('TCP RST','#A32D2D');
+  setPhase('<strong>Disconnected!</strong> SSE has built-in auto-reconnection \u2014 the browser will retry in ~3s, sending <code>Last-Event-ID: '+lastId+'</code>. Watch...');
+  reconnTimer=setTimeout(()=>{
+    addLog('<span class="ev-comment">-- Auto-reconnecting (retry after ~3s) --</span>');
+    doConnect();
+  },2500);
+}
+
+function doClose(){
+  clearInterval(autoTimer);clearTimeout(reconnTimer);
+  setState('closed');
+  addLog('<span class="ev-comment">-- Client called source.close() --</span>');
+  setPhase('<strong>Closed.</strong> The client explicitly closed with <code>source.close()</code>. Unlike a network drop, this does NOT trigger auto-reconnection.');
+}
+
+function startAutoEvents(){
+  clearInterval(autoTimer);let tick=0;
+  autoTimer=setInterval(()=>{
+    if(state!=='open'){clearInterval(autoTimer);return}
+    tick++;
+    if(tick%4===0){
+      addLog('<span class="ev-comment">: keepalive</span>');addLog('');
+      sendPacket(': keepalive','#6B6A65');
+      setPhase('<strong>Keepalive.</strong> Lines starting with <code>:</code> are comments \u2014 the browser ignores them, but they prevent proxies from closing idle connections.');
+    }
+  },6000);
+}
+</script>
+</body>
+</html>
