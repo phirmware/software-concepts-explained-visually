@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QLoRA — Fine-tuning LLMs on a single GPU</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0C0B0F;
+  --bg2: #14131A;
+  --bg3: #1C1B24;
+  --bg4: #24232E;
+  --text: #E8E6F0;
+  --text2: #9D9AAE;
+  --text3: #6B6880;
+  --border: rgba(255,255,255,0.06);
+  --accent: #A78BFA;
+  --accent2: #7C3AED;
+  --teal: #2DD4BF;
+  --teal-dim: rgba(45,212,191,0.12);
+  --coral: #FB923C;
+  --coral-dim: rgba(251,146,60,0.12);
+  --amber: #FBBF24;
+  --amber-dim: rgba(251,191,36,0.10);
+  --blue: #60A5FA;
+  --blue-dim: rgba(96,165,250,0.10);
+  --red: #F87171;
+  --red-dim: rgba(248,113,113,0.10);
+  --green: #4ADE80;
+  --green-dim: rgba(74,222,128,0.10);
+  --purple-dim: rgba(167,139,250,0.10);
+  --serif: 'DM Serif Display', Georgia, serif;
+  --sans: 'DM Sans', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ─── Grain overlay ─── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ─── Navigation ─── */
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(12,11,15,0.85);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+  transition: transform 0.3s var(--ease);
+}
+.nav-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  height: 56px;
+}
+.nav-logo {
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+.nav-links { display: flex; gap: 4px; flex: 1; }
+.nav-links a {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text3);
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.nav-links a:hover, .nav-links a.active { color: var(--text); background: var(--bg3); }
+
+/* ─── Hero ─── */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 6rem 2rem 4rem;
+  position: relative;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(ellipse, rgba(124,58,237,0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-badge {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--purple-dim);
+  padding: 6px 16px;
+  border-radius: 100px;
+  border: 1px solid rgba(167,139,250,0.15);
+  margin-bottom: 2rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0;
+  animation: fadeUp 0.8s var(--ease) 0.2s forwards;
+}
+.hero h1 {
+  font-family: var(--serif);
+  font-size: clamp(2.8rem, 7vw, 5.5rem);
+  line-height: 1.05;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  max-width: 800px;
+  opacity: 0;
+  animation: fadeUp 0.8s var(--ease) 0.4s forwards;
+}
+.hero h1 em { font-style: italic; color: var(--accent); }
+.hero-sub {
+  font-size: 1.15rem;
+  color: var(--text2);
+  max-width: 520px;
+  margin: 1.5rem auto 0;
+  opacity: 0;
+  animation: fadeUp 0.8s var(--ease) 0.6s forwards;
+}
+.hero-stats {
+  display: flex;
+  gap: 3rem;
+  margin-top: 3rem;
+  opacity: 0;
+  animation: fadeUp 0.8s var(--ease) 0.8s forwards;
+}
+.hero-stat { text-align: center; }
+.hero-stat-val {
+  font-family: var(--serif);
+  font-size: 2.2rem;
+  color: var(--text);
+}
+.hero-stat-lbl {
+  font-size: 12px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+.scroll-cue {
+  margin-top: 4rem;
+  opacity: 0;
+  animation: fadeUp 0.8s var(--ease) 1s forwards;
+}
+.scroll-cue span {
+  display: block;
+  width: 1px;
+  height: 40px;
+  background: linear-gradient(to bottom, var(--accent), transparent);
+  margin: 0 auto;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes fadeUp { to { opacity: 1; transform: translateY(0); } from { opacity: 0; transform: translateY(20px); } }
+@keyframes pulse { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+/* ─── Sections ─── */
+section {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 6rem 2rem;
+}
+.section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 3rem;
+}
+.section-num {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.section-title {
+  font-family: var(--serif);
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  line-height: 1.15;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+.section-desc {
+  color: var(--text2);
+  font-size: 1.05rem;
+  max-width: 640px;
+  margin-bottom: 2.5rem;
+  line-height: 1.8;
+}
+
+/* ─── Cards ─── */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+  transition: border-color 0.3s;
+}
+.card:hover { border-color: rgba(255,255,255,0.1); }
+.card-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text3);
+  margin-bottom: 0.75rem;
+}
+
+/* ─── Metrics Row ─── */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 1.5rem 0;
+}
+.metric-card {
+  background: var(--bg3);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  text-align: center;
+}
+.metric-val {
+  font-family: var(--serif);
+  font-size: 1.6rem;
+  color: var(--text);
+  line-height: 1.2;
+}
+.metric-lbl {
+  font-size: 12px;
+  color: var(--text3);
+  margin-top: 4px;
+  letter-spacing: 0.02em;
+}
+
+/* ─── SVG containers ─── */
+.diagram-wrap {
+  background: var(--bg3);
+  border-radius: 16px;
+  padding: 2rem;
+  margin: 1.5rem 0;
+  overflow: hidden;
+}
+.diagram-wrap svg { display: block; width: 100%; height: auto; }
+.diagram-wrap svg text { font-family: var(--sans); }
+.diagram-wrap svg .lbl { fill: var(--text); font-size: 14px; font-weight: 500; }
+.diagram-wrap svg .lbl-s { fill: var(--text2); font-size: 12px; }
+.diagram-wrap svg .lbl-xs { fill: var(--text3); font-size: 11px; }
+
+/* ─── Interactive slider area ─── */
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 1rem 0;
+  font-size: 13px;
+  color: var(--text2);
+}
+.control-row label { white-space: nowrap; }
+.control-row input[type=range] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--bg4);
+  border-radius: 2px;
+  outline: none;
+}
+.control-row input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid var(--bg);
+}
+.control-val {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  min-width: 32px;
+  text-align: right;
+}
+
+/* ─── Tabs ─── */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+.tab-btn {
+  background: none;
+  border: none;
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--text3);
+  padding: 10px 20px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.tab-btn:hover { color: var(--text2); }
+.tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ─── Comparison bars ─── */
+.bar-chart { margin: 1rem 0; }
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 10px 0;
+}
+.bar-label {
+  width: 120px;
+  font-size: 13px;
+  color: var(--text2);
+  text-align: right;
+  flex-shrink: 0;
+}
+.bar-track {
+  flex: 1;
+  height: 32px;
+  background: var(--bg3);
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 8px;
+  transition: width 1.2s var(--ease);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--bg);
+}
+
+/* ─── Legend ─── */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 1rem 0;
+  font-size: 12px;
+  color: var(--text3);
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+/* ─── Callout ─── */
+.callout {
+  background: var(--purple-dim);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 10px 10px 0;
+  padding: 1rem 1.25rem;
+  font-size: 14px;
+  color: var(--text2);
+  margin: 1.5rem 0;
+  line-height: 1.7;
+}
+.callout strong { color: var(--text); font-weight: 500; }
+
+/* ─── Divider ─── */
+.divider {
+  height: 1px;
+  background: var(--border);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* ─── Footer ─── */
+footer {
+  text-align: center;
+  padding: 3rem 2rem 4rem;
+  font-size: 13px;
+  color: var(--text3);
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 640px) {
+  .hero-stats { flex-direction: column; gap: 1.5rem; }
+  .nav-links a { font-size: 11px; padding: 6px 6px; }
+  section { padding: 4rem 1.25rem; }
+  .card { padding: 1.25rem; }
+  .diagram-wrap { padding: 1rem; }
+}
+
+/* ─── Scroll reveal ─── */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="nav-logo">QLoRA</div>
+    <div class="nav-links">
+      <a href="#problem">Problem</a>
+      <a href="#lora">LoRA</a>
+      <a href="#quantization">Quantize</a>
+      <a href="#qlora">QLoRA</a>
+      <a href="#compare">Compare</a>
+      <a href="#inference">Inference</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════ HERO ═══════════ -->
+<div class="hero">
+  <div class="hero-badge">Interactive explainer</div>
+  <h1>Fine-tune an LLM<br>on a <em>single GPU</em></h1>
+  <p class="hero-sub">QLoRA combines 4-bit quantization with low-rank adapters to make fine-tuning large language models accessible to everyone.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><div class="hero-stat-val">7×</div><div class="hero-stat-lbl">Memory reduction</div></div>
+    <div class="hero-stat"><div class="hero-stat-val">0.06%</div><div class="hero-stat-lbl">Params trained</div></div>
+    <div class="hero-stat"><div class="hero-stat-val">1 GPU</div><div class="hero-stat-lbl">All you need</div></div>
+  </div>
+  <div class="scroll-cue"><span></span></div>
+</div>
+
+<!-- ═══════════ 01 THE PROBLEM ═══════════ -->
+<div class="divider"></div>
+<section id="problem">
+  <div class="section-header reveal">
+    <span class="section-num">01</span>
+    <h2 class="section-title">The problem with full fine-tuning</h2>
+  </div>
+  <p class="section-desc reveal">Fine-tuning means updating a pre-trained model on your own data. But with billions of parameters, every single weight needs a gradient, an optimizer state, and memory — it adds up fast.</p>
+  <div class="diagram-wrap reveal">
+    <svg viewBox="0 0 680 240">
+      <rect x="40" y="20" width="600" height="180" rx="16" fill="rgba(167,139,250,0.08)" stroke="rgba(167,139,250,0.2)" stroke-width="0.5"/>
+      <text class="lbl" x="340" y="48" text-anchor="middle">Pre-trained LLM — every parameter must be updated</text>
+      <g id="full-grid"></g>
+    </svg>
+  </div>
+  <div class="metrics reveal">
+    <div class="metric-card"><div class="metric-val">~28 GB</div><div class="metric-lbl">GPU memory (7B, FP32)</div></div>
+    <div class="metric-card"><div class="metric-val">7 billion</div><div class="metric-lbl">Trainable parameters</div></div>
+    <div class="metric-card"><div class="metric-val">Multi-GPU</div><div class="metric-lbl">Hardware required</div></div>
+  </div>
+  <div class="callout reveal"><strong>The bottleneck isn't compute — it's memory.</strong> Storing weights, gradients, and optimizer states for billions of parameters requires expensive multi-GPU setups that most teams don't have.</div>
+</section>
+
+<!-- ═══════════ 02 LORA ═══════════ -->
+<div class="divider"></div>
+<section id="lora">
+  <div class="section-header reveal">
+    <span class="section-num">02</span>
+    <h2 class="section-title">LoRA: low-rank adapters</h2>
+  </div>
+  <p class="section-desc reveal">Instead of updating the full weight matrix W, freeze it entirely and train two tiny matrices A and B. The adapted output is W + A×B — a low-rank update that captures task-specific knowledge with a fraction of the parameters.</p>
+  <div class="diagram-wrap reveal">
+    <svg viewBox="0 0 680 280">
+      <defs>
+        <marker id="arr-lora" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+      </defs>
+      <!-- Frozen -->
+      <rect x="40" y="20" width="340" height="200" rx="14" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>
+      <text class="lbl" x="210" y="48" text-anchor="middle">Frozen base weights W</text>
+      <text class="lbl-s" x="210" y="68" text-anchor="middle">7B parameters — not updated</text>
+      <g id="frozen-dots"></g>
+      <!-- Adapters -->
+      <rect x="430" y="20" width="210" height="90" rx="10" fill="rgba(45,212,191,0.08)" stroke="rgba(45,212,191,0.25)" stroke-width="0.5"/>
+      <text class="lbl" x="535" y="50" text-anchor="middle" fill="#2DD4BF">Adapter A</text>
+      <text class="lbl-s" x="535" y="70" text-anchor="middle">d × r  (down-project)</text>
+
+      <rect x="430" y="130" width="210" height="90" rx="10" fill="rgba(251,146,60,0.08)" stroke="rgba(251,146,60,0.25)" stroke-width="0.5"/>
+      <text class="lbl" x="535" y="160" text-anchor="middle" fill="#FB923C">Adapter B</text>
+      <text class="lbl-s" x="535" y="180" text-anchor="middle">r × d  (up-project)</text>
+
+      <line x1="535" y1="110" x2="535" y2="128" stroke="var(--text3)" stroke-width="1" marker-end="url(#arr-lora)"/>
+      <text class="lbl-s" x="535" y="248" text-anchor="middle">W' = W + A × B</text>
+      <text class="lbl-xs" x="535" y="268" text-anchor="middle">r is tiny (4–64), making A×B very small</text>
+    </svg>
+  </div>
+  <div class="control-row reveal">
+    <label>Rank r</label>
+    <input type="range" min="1" max="64" value="8" step="1" oninput="updateRank(this.value)">
+    <span class="control-val" id="rank-val">8</span>
+  </div>
+  <div class="metrics reveal">
+    <div class="metric-card"><div class="metric-val" id="lora-mem">~14 GB</div><div class="metric-lbl">GPU memory (FP16 base)</div></div>
+    <div class="metric-card"><div class="metric-val" id="lora-params">~4.2M</div><div class="metric-lbl">Trainable parameters</div></div>
+    <div class="metric-card"><div class="metric-val" id="lora-pct">0.06%</div><div class="metric-lbl">Of total params</div></div>
+  </div>
+  <div class="legend reveal">
+    <span><span class="legend-dot" style="background:#2DD4BF"></span> Adapter A (down-project)</span>
+    <span><span class="legend-dot" style="background:#FB923C"></span> Adapter B (up-project)</span>
+    <span><span class="legend-dot" style="background:rgba(255,255,255,0.15)"></span> Frozen base</span>
+  </div>
+</section>
+
+<!-- ═══════════ 03 QUANTIZATION ═══════════ -->
+<div class="divider"></div>
+<section id="quantization">
+  <div class="section-header reveal">
+    <span class="section-num">03</span>
+    <h2 class="section-title">NF4 quantization</h2>
+  </div>
+  <p class="section-desc reveal">Neural network weights follow a roughly Gaussian distribution. NormalFloat4 maps them to 16 optimally-spaced fixed points, compressing from 16 bits down to 4 bits per weight — a 4× memory reduction with minimal quality loss.</p>
+  <div class="diagram-wrap reveal">
+    <svg viewBox="0 0 680 280">
+      <defs>
+        <marker id="arr-q" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+      </defs>
+      <!-- FP16 block -->
+      <rect x="40" y="20" width="260" height="130" rx="12" fill="rgba(96,165,250,0.08)" stroke="rgba(96,165,250,0.2)" stroke-width="0.5"/>
+      <text class="lbl" x="170" y="48" text-anchor="middle" fill="#60A5FA">FP16 weights</text>
+      <text class="lbl-s" x="170" y="68" text-anchor="middle">16 bits per parameter</text>
+      <g id="fp16-bars"></g>
+      <!-- Arrow -->
+      <line x1="300" y1="85" x2="370" y2="85" stroke="var(--text3)" stroke-width="1" marker-end="url(#arr-q)"/>
+      <text class="lbl-xs" x="335" y="76" text-anchor="middle">NF4</text>
+      <!-- 4-bit block -->
+      <rect x="380" y="20" width="260" height="130" rx="12" fill="rgba(251,191,36,0.08)" stroke="rgba(251,191,36,0.2)" stroke-width="0.5"/>
+      <text class="lbl" x="510" y="48" text-anchor="middle" fill="#FBBF24">4-bit weights</text>
+      <text class="lbl-s" x="510" y="68" text-anchor="middle">4 bits per parameter</text>
+      <g id="nf4-bars"></g>
+      <!-- Explanation -->
+      <rect x="40" y="170" width="600" height="90" rx="12" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.05)" stroke-width="0.5"/>
+      <text class="lbl-s" x="340" y="198" text-anchor="middle">Values mapped to 16 fixed points on a normal distribution</text>
+      <text class="lbl-s" x="340" y="220" text-anchor="middle">Optimal for neural net weights (roughly Gaussian)</text>
+      <text class="lbl-s" x="340" y="242" text-anchor="middle">4× memory reduction with minimal quality loss</text>
+    </svg>
+  </div>
+  <div class="metrics reveal">
+    <div class="metric-card"><div class="metric-val">~3.5 GB</div><div class="metric-lbl">GPU memory (7B, NF4)</div></div>
+    <div class="metric-card"><div class="metric-val">4×</div><div class="metric-lbl">Memory savings</div></div>
+    <div class="metric-card"><div class="metric-val">~1%</div><div class="metric-lbl">Quality loss</div></div>
+  </div>
+</section>
+
+<!-- ═══════════ 04 QLORA ═══════════ -->
+<div class="divider"></div>
+<section id="qlora">
+  <div class="section-header reveal">
+    <span class="section-num">04</span>
+    <h2 class="section-title">QLoRA: the full picture</h2>
+  </div>
+  <p class="section-desc reveal">Combine NF4 quantization with LoRA adapters. The base model is stored in 4-bit, keeping memory tiny. During forward passes, weights are dequantized to FP16 on the fly. Gradients only flow through the small A and B matrices — so you get full fine-tuning quality at a fraction of the cost.</p>
+  <div class="diagram-wrap reveal">
+    <svg viewBox="0 0 680 380">
+      <defs>
+        <marker id="arr-ql" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+      </defs>
+      <!-- Quantized base -->
+      <rect x="40" y="20" width="340" height="180" rx="16" fill="rgba(251,191,36,0.06)" stroke="rgba(251,191,36,0.18)" stroke-width="0.5"/>
+      <text class="lbl" x="210" y="48" text-anchor="middle" fill="#FBBF24">4-bit quantized base (NF4)</text>
+      <text class="lbl-s" x="210" y="68" text-anchor="middle">Frozen — ~3.5 GB for 7B model</text>
+      <g id="qlora-dots"></g>
+      <!-- Adapters -->
+      <rect x="430" y="20" width="210" height="78" rx="10" fill="rgba(45,212,191,0.08)" stroke="rgba(45,212,191,0.25)" stroke-width="0.5"/>
+      <text class="lbl" x="535" y="50" text-anchor="middle" fill="#2DD4BF">Adapter A</text>
+      <text class="lbl-s" x="535" y="68" text-anchor="middle">FP16 precision</text>
+      <rect x="430" y="118" width="210" height="78" rx="10" fill="rgba(251,146,60,0.08)" stroke="rgba(251,146,60,0.25)" stroke-width="0.5"/>
+      <text class="lbl" x="535" y="148" text-anchor="middle" fill="#FB923C">Adapter B</text>
+      <text class="lbl-s" x="535" y="166" text-anchor="middle">FP16 precision</text>
+      <line x1="535" y1="98" x2="535" y2="116" stroke="var(--text3)" stroke-width="1" marker-end="url(#arr-ql)"/>
+      <!-- Tricks -->
+      <rect x="40" y="224" width="600" height="136" rx="14" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.05)" stroke-width="0.5"/>
+      <text class="lbl" x="340" y="256" text-anchor="middle">Three QLoRA innovations</text>
+      <text class="lbl-s" x="340" y="282" text-anchor="middle">1. NF4 data type — quantization levels optimal for Gaussian weights</text>
+      <text class="lbl-s" x="340" y="304" text-anchor="middle">2. Double quantization — quantize the quantization constants too</text>
+      <text class="lbl-s" x="340" y="326" text-anchor="middle">3. Paged optimizers — offload states to CPU when GPU memory spikes</text>
+    </svg>
+  </div>
+  <div class="metrics reveal">
+    <div class="metric-card" style="border:1px solid rgba(167,139,250,0.2)"><div class="metric-val" style="color:var(--accent)">~4 GB</div><div class="metric-lbl">Total GPU memory</div></div>
+    <div class="metric-card"><div class="metric-val">~4M</div><div class="metric-lbl">Trainable params</div></div>
+    <div class="metric-card"><div class="metric-val">1 GPU</div><div class="metric-lbl">Hardware needed</div></div>
+    <div class="metric-card"><div class="metric-val">97%</div><div class="metric-lbl">Of full fine-tune quality</div></div>
+  </div>
+</section>
+
+<!-- ═══════════ 05 COMPARE ═══════════ -->
+<div class="divider"></div>
+<section id="compare">
+  <div class="section-header reveal">
+    <span class="section-num">05</span>
+    <h2 class="section-title">Side-by-side comparison</h2>
+  </div>
+  <p class="section-desc reveal">Three approaches to fine-tuning a 7B-parameter model, measured by GPU memory. QLoRA achieves near-identical quality to full fine-tuning at a fraction of the cost.</p>
+  <div class="card reveal">
+    <div class="bar-chart">
+      <div class="bar-row">
+        <span class="bar-label">Full fine-tune</span>
+        <div class="bar-track"><div class="bar-fill" id="bar-full" style="width:0;background:linear-gradient(90deg,#F87171,#EF4444)">28 GB</div></div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">LoRA (FP16)</span>
+        <div class="bar-track"><div class="bar-fill" id="bar-lora" style="width:0;background:linear-gradient(90deg,#60A5FA,#3B82F6)">14 GB</div></div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">QLoRA (NF4)</span>
+        <div class="bar-track"><div class="bar-fill" id="bar-qlora" style="width:0;background:linear-gradient(90deg,#A78BFA,#7C3AED)">4 GB</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="callout reveal"><strong>The sweet spot.</strong> QLoRA gives you 97% of full fine-tuning quality while using 7× less memory. A 65B model that previously required a multi-node cluster can now be fine-tuned on a single 48 GB GPU.</div>
+</section>
+
+<!-- ═══════════ 06 INFERENCE ═══════════ -->
+<div class="divider"></div>
+<section id="inference">
+  <div class="section-header reveal">
+    <span class="section-num">06</span>
+    <h2 class="section-title">Deploying for inference</h2>
+  </div>
+  <p class="section-desc reveal">After training, you have two deployment strategies depending on whether you're serving one task or many.</p>
+
+  <div class="card reveal">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab(0)">Merge adapters</button>
+      <button class="tab-btn" onclick="showTab(1)">Hot-swap adapters</button>
+    </div>
+
+    <div class="tab-panel active" id="tab0">
+      <div class="diagram-wrap" style="margin-top:0">
+        <svg viewBox="0 0 680 340">
+          <defs>
+            <marker id="arr-inf" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+          </defs>
+          <!-- Step 1: dequant -->
+          <rect x="30" y="20" width="150" height="66" rx="10" fill="rgba(251,191,36,0.08)" stroke="rgba(251,191,36,0.2)" stroke-width="0.5"/>
+          <text class="lbl" x="105" y="46" text-anchor="middle" fill="#FBBF24">W</text>
+          <text class="lbl-xs" x="105" y="66" text-anchor="middle">4-bit base</text>
+          <line x1="180" y1="53" x2="210" y2="53" stroke="var(--text3)" stroke-width="1" marker-end="url(#arr-inf)"/>
+          <text class="lbl-xs" x="195" y="44" text-anchor="middle">dequant</text>
+          <!-- Step 2: fp16 -->
+          <rect x="220" y="20" width="140" height="66" rx="10" fill="rgba(96,165,250,0.08)" stroke="rgba(96,165,250,0.2)" stroke-width="0.5"/>
+          <text class="lbl" x="290" y="46" text-anchor="middle" fill="#60A5FA">W</text>
+          <text class="lbl-xs" x="290" y="66" text-anchor="middle">FP16</text>
+          <!-- + adapters -->
+          <rect x="420" y="12" width="90" height="38" rx="8" fill="rgba(45,212,191,0.08)" stroke="rgba(45,212,191,0.2)" stroke-width="0.5"/>
+          <text class="lbl-s" x="465" y="36" text-anchor="middle" fill="#2DD4BF">A</text>
+          <text class="lbl-xs" x="520" y="28" text-anchor="middle">×</text>
+          <rect x="540" y="12" width="90" height="38" rx="8" fill="rgba(251,146,60,0.08)" stroke="rgba(251,146,60,0.2)" stroke-width="0.5"/>
+          <text class="lbl-s" x="585" y="36" text-anchor="middle" fill="#FB923C">B</text>
+          <text class="lbl-xs" x="520" y="74" text-anchor="middle">= ΔW</text>
+          <!-- Merge -->
+          <line x1="290" y1="86" x2="290" y2="120" stroke="var(--text3)" stroke-width="1" marker-end="url(#arr-inf)"/>
+          <line x1="520" y1="82" x2="380" y2="140" stroke="var(--text3)" stroke-width="1" marker-end="url(#arr-inf)"/>
+          <text class="lbl-xs" x="350" y="112" text-anchor="middle">+</text>
+          <!-- Merged -->
+          <rect x="170" y="130" width="260" height="66" rx="12" fill="rgba(167,139,250,0.1)" stroke="rgba(167,139,250,0.25)" stroke-width="0.5"/>
+          <text class="lbl" x="300" y="156" text-anchor="middle" fill="#A78BFA">W' = W + A×B</text>
+          <text class="lbl-xs" x="300" y="176" text-anchor="middle">Merged FP16</text>
+          <!-- Re-quantize -->
+          <line x1="300" y1="196" x2="300" y2="226" stroke="var(--text3)" stroke-width="1" marker-end="url(#arr-inf)"/>
+          <text class="lbl-xs" x="330" y="214" text-anchor="middle">re-quantize</text>
+          <!-- Final -->
+          <rect x="120" y="236" width="360" height="80" rx="14" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>
+          <text class="lbl" x="300" y="266" text-anchor="middle">Single merged model</text>
+          <text class="lbl-s" x="300" y="290" text-anchor="middle">Same speed as the original — adapters are gone</text>
+        </svg>
+      </div>
+      <div class="callout" style="margin-top:0"><strong>Best for single-task deployment.</strong> Merge A×B into the base weights, export one model file. Inference cost is identical to the original — no adapter overhead at all.</div>
+    </div>
+
+    <div class="tab-panel" id="tab1">
+      <div class="diagram-wrap" style="margin-top:0">
+        <svg viewBox="0 0 680 340">
+          <defs>
+            <marker id="arr-sw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+          </defs>
+          <!-- Shared base -->
+          <rect x="160" y="14" width="360" height="70" rx="14" fill="rgba(251,191,36,0.08)" stroke="rgba(251,191,36,0.2)" stroke-width="0.5"/>
+          <text class="lbl" x="340" y="42" text-anchor="middle" fill="#FBBF24">Shared 4-bit base model</text>
+          <text class="lbl-xs" x="340" y="64" text-anchor="middle">Loaded once in GPU memory</text>
+          <!-- Fan-out lines -->
+          <line x1="240" y1="84" x2="120" y2="118" stroke="var(--text3)" stroke-width="0.5" marker-end="url(#arr-sw)"/>
+          <line x1="340" y1="84" x2="340" y2="118" stroke="var(--text3)" stroke-width="0.5" marker-end="url(#arr-sw)"/>
+          <line x1="440" y1="84" x2="560" y2="118" stroke="var(--text3)" stroke-width="0.5" marker-end="url(#arr-sw)"/>
+          <!-- Adapters -->
+          <rect x="40" y="124" width="160" height="56" rx="10" fill="rgba(45,212,191,0.08)" stroke="rgba(45,212,191,0.25)" stroke-width="0.5"/>
+          <text class="lbl-s" x="120" y="148" text-anchor="middle" fill="#2DD4BF">Chat adapter</text>
+          <text class="lbl-xs" x="120" y="166" text-anchor="middle">~8 MB</text>
+
+          <rect x="260" y="124" width="160" height="56" rx="10" fill="rgba(251,146,60,0.08)" stroke="rgba(251,146,60,0.25)" stroke-width="0.5"/>
+          <text class="lbl-s" x="340" y="148" text-anchor="middle" fill="#FB923C">Code adapter</text>
+          <text class="lbl-xs" x="340" y="166" text-anchor="middle">~8 MB</text>
+
+          <rect x="480" y="124" width="160" height="56" rx="10" fill="rgba(167,139,250,0.08)" stroke="rgba(167,139,250,0.25)" stroke-width="0.5"/>
+          <text class="lbl-s" x="560" y="148" text-anchor="middle" fill="#A78BFA">Medical adapter</text>
+          <text class="lbl-xs" x="560" y="166" text-anchor="middle">~8 MB</text>
+
+          <!-- Down to requests -->
+          <line x1="120" y1="180" x2="120" y2="214" stroke="var(--text3)" stroke-width="0.5" marker-end="url(#arr-sw)"/>
+          <line x1="340" y1="180" x2="340" y2="214" stroke="var(--text3)" stroke-width="0.5" marker-end="url(#arr-sw)"/>
+          <line x1="560" y1="180" x2="560" y2="214" stroke="var(--text3)" stroke-width="0.5" marker-end="url(#arr-sw)"/>
+
+          <rect x="40" y="220" width="160" height="44" rx="8" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+          <text class="lbl-xs" x="120" y="247" text-anchor="middle">"tell me a joke"</text>
+          <rect x="260" y="220" width="160" height="44" rx="8" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+          <text class="lbl-xs" x="340" y="247" text-anchor="middle">"fix this bug"</text>
+          <rect x="480" y="220" width="160" height="44" rx="8" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+          <text class="lbl-xs" x="560" y="247" text-anchor="middle">"diagnose this"</text>
+
+          <text class="lbl-s" x="340" y="300" text-anchor="middle">Each adapter is a few MB — hot-swap per request type</text>
+          <text class="lbl-xs" x="340" y="322" text-anchor="middle">One GPU serves many specialised models. PEFT and vLLM support this natively.</text>
+        </svg>
+      </div>
+      <div class="callout" style="margin-top:0"><strong>Best for multi-task serving.</strong> Load the base model once, swap tiny adapter files on demand per request. One GPU effectively serves many specialised models — each adapter adds only a few megabytes.</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+<footer>
+  QLoRA explainer — based on Dettmers et al. 2023
+</footer>
+
+<script>
+// ─── Populate dot grids ───
+function makeDots(id, cols, rows, color, opacity, ox, oy, r) {
+  const g = document.getElementById(id);
+  if (!g) return;
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      c.setAttribute('cx', ox + col * 22);
+      c.setAttribute('cy', oy + row * 22);
+      c.setAttribute('r', r || 5);
+      c.setAttribute('fill', color);
+      c.setAttribute('opacity', opacity);
+      g.appendChild(c);
+    }
+  }
+}
+makeDots('full-grid', 26, 6, '#A78BFA', '0.5', 54, 76, 5);
+makeDots('frozen-dots', 14, 5, '#ffffff', '0.1', 60, 90, 4.5);
+makeDots('qlora-dots', 14, 4, '#FBBF24', '0.3', 60, 90, 4);
+
+// FP16 bars
+(function() {
+  const g = document.getElementById('fp16-bars');
+  for (let i = 0; i < 5; i++) {
+    const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    r.setAttribute('x', 60 + i * 44);
+    r.setAttribute('y', 88);
+    r.setAttribute('width', 34);
+    r.setAttribute('height', 48);
+    r.setAttribute('rx', 4);
+    r.setAttribute('fill', '#60A5FA');
+    r.setAttribute('opacity', '0.3');
+    g.appendChild(r);
+  }
+})();
+// NF4 bars
+(function() {
+  const g = document.getElementById('nf4-bars');
+  for (let i = 0; i < 5; i++) {
+    const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    r.setAttribute('x', 400 + i * 44);
+    r.setAttribute('y', 108);
+    r.setAttribute('width', 24);
+    r.setAttribute('height', 28);
+    r.setAttribute('rx', 4);
+    r.setAttribute('fill', '#FBBF24');
+    r.setAttribute('opacity', '0.3');
+    g.appendChild(r);
+  }
+})();
+
+// ─── LoRA rank slider ───
+function updateRank(v) {
+  document.getElementById('rank-val').textContent = v;
+  const d = 4096, r = parseInt(v);
+  const params = 2 * d * r * 32;
+  const pct = (params / 7e9 * 100).toFixed(2);
+  const label = params >= 1e6 ? (params / 1e6).toFixed(1) + 'M' : Math.round(params / 1e3) + 'K';
+  document.getElementById('lora-params').textContent = '~' + label;
+  document.getElementById('lora-pct').textContent = pct + '%';
+}
+
+// ─── Tab switching ───
+function showTab(i) {
+  document.querySelectorAll('.tab-panel').forEach((p, j) => p.classList.toggle('active', j === i));
+  document.querySelectorAll('.tab-btn').forEach((t, j) => t.classList.toggle('active', j === i));
+}
+
+// ─── Scroll reveal ───
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.15 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// ─── Active nav ───
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.nav-links a');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 200) current = s.id;
+  });
+  navLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + current));
+});
+
+// ─── Animate comparison bars on scroll ───
+const barObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      setTimeout(() => { document.getElementById('bar-full').style.width = '100%'; }, 100);
+      setTimeout(() => { document.getElementById('bar-lora').style.width = '50%'; }, 250);
+      setTimeout(() => { document.getElementById('bar-qlora').style.width = '14.3%'; }, 400);
+    }
+  });
+}, { threshold: 0.3 });
+const barChart = document.querySelector('.bar-chart');
+if (barChart) barObserver.observe(barChart);
+</script>
+</body>
+</html>
