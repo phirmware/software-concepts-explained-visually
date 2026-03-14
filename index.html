@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Software Concepts</title>
+  <style>
+    :root {
+      --bg: #FAFAF7;
+      --bg2: #F0EFEB;
+      --text: #1A1A18;
+      --text2: #6B6A65;
+      --accent: #1D6B4F;
+      --accent-light: #E1F5EE;
+      --border: rgba(0, 0, 0, 0.1);
+      --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 4rem 1.5rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    header p {
+      margin-top: 0.5rem;
+      color: var(--text2);
+      font-size: 1rem;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.25rem;
+      width: 100%;
+      max-width: 860px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-decoration: none;
+      color: inherit;
+      transition: box-shadow 0.15s ease, transform 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .card:hover {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      transform: translateY(-2px);
+    }
+
+    .card-tag {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-light);
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      width: fit-content;
+    }
+
+    .card h2 {
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+
+    .card p {
+      font-size: 0.9rem;
+      color: var(--text2);
+      line-height: 1.5;
+    }
+
+    .card.coming-soon {
+      opacity: 0.6;
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .card-tag.soon {
+      color: var(--text2);
+      background: var(--bg2);
+    }
+
+    .section-label {
+      width: 100%;
+      max-width: 860px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text2);
+      margin-top: 2.5rem;
+      margin-bottom: 0.25rem;
+    }
+
+    footer {
+      margin-top: 4rem;
+      color: var(--text2);
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Software Concepts</h1>
+    <p>Interactive explainers and study guides</p>
+  </header>
+
+  <div class="cards">
+    <a class="card" href="how-llms-work.html">
+      <span class="card-tag">Interactive Explainer</span>
+      <h2>How LLMs Work</h2>
+      <p>A visual walkthrough of how large language models process and generate text.</p>
+    </a>
+
+    <a class="card" href="llm-training.html">
+      <span class="card-tag">Interactive Explainer</span>
+      <h2>How LLM Training Works</h2>
+      <p>Explore the training pipeline behind large language models, from data to deployment.</p>
+    </a>
+
+    <a class="card" href="sse.html">
+      <span class="card-tag">Study Guide</span>
+      <h2>Server-Sent Events</h2>
+      <p>An interactive study guide covering SSE — how it works, when to use it, and how it compares to WebSockets.</p>
+    </a>
+  </div>
+
+  <p class="section-label">Coming soon</p>
+
+  <!-- <div class="cards">
+    <div class="card coming-soon">
+      <span class="card-tag soon">Coming Soon</span>
+      <h2>Transformers & Attention</h2>
+      <p>A deep dive into the self-attention mechanism and how transformer architectures process sequences.</p>
+    </div> -->
+
+    <div class="card coming-soon">
+      <span class="card-tag soon">Coming Soon</span>
+      <h2>Retrieval-Augmented Generation (RAG)</h2>
+      <p>How RAG extends LLMs with external knowledge — embeddings, vector stores, and retrieval pipelines.</p>
+    </div>
+
+    <div class="card coming-soon">
+      <span class="card-tag soon">Coming Soon</span>
+      <h2>Prompt Engineering</h2>
+      <p>Techniques for writing effective prompts — zero-shot, few-shot, chain-of-thought, and beyond.</p>
+    </div>
+
+    <!-- <div class="card coming-soon">
+      <span class="card-tag soon">Coming Soon</span>
+      <h2>Tokenisation</h2>
+      <p>How text is broken into tokens, why it matters for LLM behaviour, and how BPE and other algorithms work.</p>
+    </div> -->
+
+    <div class="card coming-soon">
+      <span class="card-tag soon">Coming Soon</span>
+      <h2>Fine-tuning & RLHF</h2>
+      <p>How models are adapted for specific tasks using supervised fine-tuning and reinforcement learning from human feedback.</p>
+    </div>
+
+    <div class="card coming-soon">
+      <span class="card-tag soon">Coming Soon</span>
+      <h2>LLM Agents & Tool Use</h2>
+      <p>How LLMs are turned into autonomous agents that can reason, plan, and call external tools.</p>
+    </div>
+  </div>
+
+  <footer>
+    <p>Enjoyed these? <a href="https://www.linkedin.com/in/phirmware/" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: none; font-weight: 500;">Connect with me on LinkedIn ↗</a></p>
+  </footer>
+</body>
+</html>
