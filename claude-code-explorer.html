@@ -640,6 +640,248 @@
   .stagger-2 { animation-delay: 0.2s; }
   .stagger-3 { animation-delay: 0.3s; }
   .stagger-4 { animation-delay: 0.4s; }
+
+  /* === EXECUTION FLOW DIAGRAMS === */
+  .ef-selector {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+  .ef-selector button {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.8em;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .ef-selector button:hover { border-color: var(--accent); color: var(--text); }
+  .ef-selector button.active {
+    background: var(--accent-glow);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .ef-panel { display: none; }
+  .ef-panel.active { display: block; }
+
+  .ef-flowchart {
+    position: relative;
+    padding: 0 0 0 32px;
+  }
+  .ef-flowchart::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+  }
+  .ef-node {
+    position: relative;
+    margin-bottom: 4px;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.25s;
+  }
+  .ef-node:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+  .ef-node::before {
+    content: '';
+    position: absolute;
+    left: -24px;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    transform: translateY(-50%);
+    border: 2px solid var(--border);
+    background: var(--bg);
+    z-index: 1;
+    transition: all 0.2s;
+  }
+  .ef-node:hover::before, .ef-node.active::before {
+    border-color: var(--accent);
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .ef-node .ef-label {
+    font-weight: 600;
+    font-size: 0.88em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ef-node .ef-file {
+    font-size: 0.72em;
+    color: var(--cyan);
+    margin-top: 2px;
+  }
+  .ef-node .ef-brief {
+    font-size: 0.78em;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+  .ef-node .ef-expand {
+    display: none;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-size: 0.8em;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+  .ef-node.active .ef-expand { display: block; }
+
+  .ef-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .ef-badge.condition { background: rgba(210,153,34,0.15); color: var(--orange); }
+  .ef-badge.action { background: rgba(63,185,80,0.15); color: var(--green); }
+  .ef-badge.error { background: rgba(248,81,73,0.15); color: var(--red); }
+  .ef-badge.loop { background: rgba(188,140,255,0.15); color: var(--purple); }
+  .ef-badge.emit { background: rgba(88,166,255,0.15); color: var(--accent); }
+
+  .ef-branch {
+    margin: 8px 0;
+    padding-left: 16px;
+    border-left: 3px solid var(--border);
+  }
+  .ef-branch.yes { border-color: var(--green); }
+  .ef-branch.no { border-color: var(--red); }
+  .ef-branch.recover { border-color: var(--orange); }
+  .ef-branch.path { border-color: var(--purple); }
+  .ef-branch-label {
+    font-size: 0.75em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .ef-branch.yes .ef-branch-label { color: var(--green); }
+  .ef-branch.no .ef-branch-label { color: var(--red); }
+  .ef-branch.recover .ef-branch-label { color: var(--orange); }
+  .ef-branch.path .ef-branch-label { color: var(--purple); }
+  .ef-branch p { font-size: 0.82em; color: var(--text-muted); }
+  .ef-branch code {
+    background: var(--bg-tertiary);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.9em;
+    color: var(--cyan);
+  }
+
+  .ef-decision {
+    background: var(--bg-secondary);
+    border: 2px dashed var(--orange);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin: 8px 0;
+    position: relative;
+  }
+  .ef-decision::before {
+    content: '';
+    position: absolute;
+    left: -24px;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    transform: translateY(-50%) rotate(45deg);
+    border: 2px solid var(--orange);
+    background: var(--bg);
+    z-index: 1;
+  }
+  .ef-decision .ef-label { color: var(--orange); }
+
+  .ef-group {
+    margin: 16px 0;
+    padding: 16px;
+    background: rgba(88,166,255,0.03);
+    border: 1px solid rgba(88,166,255,0.1);
+    border-radius: 10px;
+  }
+  .ef-group-title {
+    font-size: 0.75em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .ef-legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 0.75em;
+  }
+  .ef-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+  }
+  .ef-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .ef-swimlane {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .ef-swimlane-label {
+    background: var(--bg-tertiary);
+    padding: 14px 12px;
+    font-size: 0.72em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+  }
+  .ef-swimlane-content {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.82em;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .ef-swimlane-content:hover { background: var(--bg-tertiary); }
+  .ef-swimlane-label:last-of-type, .ef-swimlane-content:last-of-type { border-bottom: none; }
 </style>
 </head>
 <body>
@@ -674,6 +916,7 @@
   <a href="#config">Config</a>
   <a href="#directory">Directory</a>
   <a href="#concepts">Key Concepts</a>
+  <a href="#execution-flows">Execution Flows</a>
   <a href="#learning">Learning Path</a>
 </nav>
 
@@ -2177,6 +2420,1105 @@
   </div>
 </div>
 
+<!-- ======================== EXECUTION FLOWS ======================== -->
+<div class="section" id="execution-flows">
+  <h2>Execution Flows &mdash; Visual Walkthrough</h2>
+  <p class="section-desc">Trace exactly how code executes through the system. Select a workflow, then click any node to expand its details and decision branches.</p>
+
+  <div class="ef-legend">
+    <div class="ef-legend-item"><span class="ef-badge action" style="font-size:1em;">&#9679;</span> Action</div>
+    <div class="ef-legend-item"><span class="ef-badge condition" style="font-size:1em;">&#9670;</span> Decision</div>
+    <div class="ef-legend-item"><span class="ef-badge loop" style="font-size:1em;">&#8635;</span> Loop</div>
+    <div class="ef-legend-item"><span class="ef-badge error" style="font-size:1em;">&#9888;</span> Error / Recovery</div>
+    <div class="ef-legend-item"><span class="ef-badge emit" style="font-size:1em;">&#8594;</span> Emit / Yield</div>
+  </div>
+
+  <div class="ef-selector" id="ef-selector">
+    <button class="active" onclick="showEfPanel('ef-entry')">1. CLI Entry &amp; Routing</button>
+    <button onclick="showEfPanel('ef-query')">2. The Agent Loop</button>
+    <button onclick="showEfPanel('ef-tool-exec')">3. Tool Execution</button>
+    <button onclick="showEfPanel('ef-permissions')">4. Permission Checking</button>
+    <button onclick="showEfPanel('ef-streaming')">5. Streaming &amp; Content</button>
+    <button onclick="showEfPanel('ef-context')">6. Context Management</button>
+    <button onclick="showEfPanel('ef-agent-spawn')">7. Agent Spawning</button>
+    <button onclick="showEfPanel('ef-slash')">8. Slash Commands</button>
+    <button onclick="showEfPanel('ef-mcp-flow')">9. MCP Connection</button>
+    <button onclick="showEfPanel('ef-hooks-flow')">10. Hook Lifecycle</button>
+  </div>
+
+  <!-- ====== PANEL 1: CLI ENTRY ====== -->
+  <div class="ef-panel active" id="ef-entry">
+    <div class="tip-box" style="margin-bottom:20px;">
+      <div class="tip-header">&#127937; CLI Entry &amp; Routing</div>
+      <p>When you run <code>claude</code> in the terminal, the CLI has to decide <strong>which mode to launch</strong>. There are 12+ fast paths that exit before loading the full app, plus the main interactive path. This decision tree runs in under 50ms for fast paths.</p>
+    </div>
+
+    <div class="ef-flowchart">
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Entry</span> Process starts</div>
+        <div class="ef-file">entrypoints/cli.tsx : line 33</div>
+        <div class="ef-brief">CLI binary is invoked. Args are parsed from process.argv.</div>
+        <div class="ef-expand">
+          The entry point is the compiled <code>cli.tsx</code> file. Before loading <strong>any</strong> modules, it checks for fast-path flags. This is a critical performance optimization &mdash; <code>claude --version</code> returns instantly instead of waiting for the full app to load.
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Check</span> Is it a fast-path flag?</div>
+        <div class="ef-brief">--version, --dump-system-prompt, --daemon-worker, etc.</div>
+        <div class="ef-expand">
+          <div class="ef-branch yes">
+            <div class="ef-branch-label">Yes &mdash; Fast Path (zero/minimal module loading)</div>
+            <p><code>--version</code> / <code>-v</code> &rarr; Print version from <code>MACRO.VERSION</code> (build-time constant), exit immediately.</p>
+            <p><code>--dump-system-prompt</code> &rarr; Load just the prompt builder, print the full system prompt, exit.</p>
+            <p><code>--daemon-worker</code> &rarr; Launch as lean background worker process. Skips all UI.</p>
+          </div>
+          <div class="ef-branch no">
+            <div class="ef-branch-label">No &mdash; Continue checking</div>
+            <p>Fall through to check for server modes and specialized entries.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Check</span> Is it a server/integration mode?</div>
+        <div class="ef-brief">MCP server, Chrome extension, bridge, computer use</div>
+        <div class="ef-expand">
+          <div class="ef-branch path">
+            <div class="ef-branch-label">MCP Server Mode</div>
+            <p><code>--claude-in-chrome-mcp</code> &rarr; Run as MCP server for Chrome extension.</p>
+            <p><code>--chrome-native-host</code> &rarr; Chrome native messaging host.</p>
+            <p><code>--computer-use-mcp</code> &rarr; Computer use MCP server (feature-gated: CHICAGO_MCP).</p>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Bridge / Remote Control Mode</div>
+            <p>Commands: <code>remote-control</code>, <code>rc</code>, <code>bridge</code>, <code>sync</code></p>
+            <p>Checks: auth status &rarr; GrowthBook gate &rarr; policy (<code>allow_remote_control</code>) &rarr; <code>bridgeMain(args)</code></p>
+            <p>This enables controlling Claude Code from external tools (IDE extensions, web UI).</p>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Daemon Mode</div>
+            <p>Command: <code>daemon [subcommand]</code> &rarr; Loads configs, inits sinks, runs <code>daemonMain()</code>.</p>
+            <p>Manages background processes and persistent sessions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Check</span> Is it a background/template/runner mode?</div>
+        <div class="ef-brief">Background sessions, templates, BYOC, self-hosted</div>
+        <div class="ef-expand">
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Background Sessions</div>
+            <p>Commands: <code>ps</code>, <code>logs</code>, <code>attach</code>, <code>kill</code>, <code>--bg</code></p>
+            <p>Manages sessions running in background. <code>ps</code> lists them, <code>attach</code> reconnects, <code>kill</code> terminates.</p>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Template Jobs</div>
+            <p>Commands: <code>new</code>, <code>list</code>, <code>reply</code> &rarr; Job template management.</p>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Runner Modes</div>
+            <p>BYOC environment runner, self-hosted runner &mdash; for enterprise cloud deployments.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Check</span> Tmux worktree fast path?</div>
+        <div class="ef-brief">--tmux + --worktree flags for isolated agent execution</div>
+        <div class="ef-expand">
+          <div class="ef-branch yes">
+            <div class="ef-branch-label">Yes &mdash; Worktree in Tmux</div>
+            <p>Checks <code>isWorktreeModeEnabled()</code>, then calls <code>execIntoTmuxWorktree(args)</code>.</p>
+            <p>This creates an isolated git worktree inside a tmux session &mdash; used by the Agent system for parallel work.</p>
+          </div>
+          <div class="ef-branch no">
+            <div class="ef-branch-label">No &mdash; Main interactive path</div>
+            <p>We've exhausted all fast paths. Time to load the full application.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Load</span> Capture early input &amp; dynamic import main.tsx</div>
+        <div class="ef-file">entrypoints/cli.tsx : line 287</div>
+        <div class="ef-brief">Start capturing keystrokes immediately, then load the 804KB main module.</div>
+        <div class="ef-expand">
+          <code>startCapturingEarlyInput()</code> begins buffering user keystrokes before the app is ready. This means the user can start typing immediately &mdash; the input will be replayed when the UI is ready. Then <code>main.tsx</code> is dynamically imported (lazy loaded) to begin full initialization.
+          <div class="tip-box" style="margin-top:8px;">
+            <div class="tip-header">&#128161; Pattern: Early Input Capture</div>
+            <p>Buffering user input during boot is a UX pattern that makes apps <em>feel</em> instant even when they're not. The perceived latency drops because the user's intent isn't lost during startup.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Init</span> Full initialization sequence</div>
+        <div class="ef-file">entrypoints/init.ts &rarr; main.tsx</div>
+        <div class="ef-brief">Config, telemetry, LSP, OAuth, tools, commands, permissions, memory, UI mount.</div>
+        <div class="ef-expand">
+          <strong>Initialization order (matters!):</strong>
+          <ol style="padding-left:16px;margin-top:6px;">
+            <li>Validate configs from all 6 sources</li>
+            <li>Set environment variables</li>
+            <li>Initialize OpenTelemetry</li>
+            <li>Start LSP server manager</li>
+            <li>Create scratchpad directory</li>
+            <li>Populate OAuth account info</li>
+            <li>Register 44+ tools &amp; 104 commands</li>
+            <li>Connect MCP servers &amp; discover tools</li>
+            <li>Load plugins</li>
+            <li>Set up permission mode &amp; rules</li>
+            <li>Load memory (MEMORY.md + relevant topics)</li>
+            <li>Build system context (git status, etc.)</li>
+            <li>Mount React/Ink UI</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge loop">Loop</span> Enter the main REPL &mdash; waiting for user input</div>
+        <div class="ef-file">main.tsx &rarr; launchRepl()</div>
+        <div class="ef-brief">The main <code>while(true)</code> loop that processes commands until the session ends.</div>
+        <div class="ef-expand">
+          The REPL loop dequeues commands from a priority queue. Priority order: <code>now</code> &gt; <code>next</code> &gt; <code>later</code>. It checks if each command is a slash command or regular input, routes accordingly, and handles the query lifecycle. The loop exits when the user quits or the session is terminated.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== PANEL 2: AGENT LOOP ====== -->
+  <div class="ef-panel" id="ef-query">
+    <div class="tip-box" style="margin-bottom:20px;">
+      <div class="tip-header">&#128260; The Agent Loop (query.ts)</div>
+      <p>This is the <strong>heart of the system</strong>. An async generator that drives the entire Reason-Act-Observe cycle. Each iteration: call the API, stream the response, execute any tools, then decide whether to continue. Click nodes to see decision branches and error recovery paths.</p>
+    </div>
+
+    <div class="ef-flowchart">
+      <div class="ef-group">
+        <div class="ef-group-title">&#128257; Query Loop Iteration Start</div>
+
+        <div class="ef-node" onclick="toggleEfNode(this)">
+          <div class="ef-label"><span class="ef-badge action">Setup</span> Prepare iteration</div>
+          <div class="ef-file">query.ts &mdash; queryLoop()</div>
+          <div class="ef-brief">Increment depth counter, apply compaction strategies, create tool executor.</div>
+          <div class="ef-expand">
+            At the start of each iteration:
+            <ul style="padding-left:16px;margin-top:6px;">
+              <li><strong>Snip compact</strong> (HISTORY_SNIP) &mdash; Remove old tool_use/tool_result pairs</li>
+              <li><strong>Microcompact</strong> &mdash; Compress tool pairs, preserve thinking blocks</li>
+              <li><strong>Context collapse</strong> &mdash; Apply staged collapses to save tokens</li>
+              <li><strong>Autocompact</strong> &mdash; Proactive summarization of old messages</li>
+              <li><strong>Create StreamingToolExecutor</strong> &mdash; Fresh executor for this turn</li>
+              <li><strong>Hard limit check</strong> &mdash; Block if at absolute context limit</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-group">
+        <div class="ef-group-title">&#9729; API Call &amp; Streaming</div>
+
+        <div class="ef-node" onclick="toggleEfNode(this)">
+          <div class="ef-label"><span class="ef-badge emit">Stream</span> Call Anthropic API with streaming</div>
+          <div class="ef-file">deps.callModel() &rarr; services/api/claude.ts</div>
+          <div class="ef-brief">Sends messages + system prompt + tool schemas. Receives stream events.</div>
+          <div class="ef-expand">
+            The API call includes:
+            <ul style="padding-left:16px;margin-top:6px;">
+              <li>Full message history (after compaction)</li>
+              <li>System prompt (dynamically built)</li>
+              <li>All available tool schemas</li>
+              <li>Betas: extended thinking, prompt caching, structured outputs</li>
+              <li>Model selection (may differ from default if fallback occurred)</li>
+              <li>Max tokens budget</li>
+            </ul>
+            <p style="margin-top:6px;">Wrapped in <code>attemptWithFallback</code> &mdash; if the primary model fails, it can switch to a fallback model and retry.</p>
+          </div>
+        </div>
+
+        <div class="ef-node" onclick="toggleEfNode(this)">
+          <div class="ef-label"><span class="ef-badge loop">Process</span> For each stream event...</div>
+          <div class="ef-file">query.ts &mdash; inner streaming loop</div>
+          <div class="ef-brief">Process content blocks: text, thinking, tool_use. Feed tools to executor.</div>
+          <div class="ef-expand">
+            <strong>Stream events processed:</strong>
+            <ul style="padding-left:16px;margin-top:6px;">
+              <li><code>message_start</code> &rarr; Extract metadata, model info</li>
+              <li><code>content_block_start</code> &rarr; New block: text, tool_use, or thinking</li>
+              <li><code>content_block_delta</code> &rarr; Incremental text chunks (rendered live in UI)</li>
+              <li><code>content_block_stop</code> &rarr; Block complete</li>
+              <li><code>message_delta</code> &rarr; Token usage updates</li>
+              <li><code>message_stop</code> &rarr; Response complete</li>
+            </ul>
+            <p style="margin-top:8px;"><strong>During streaming, tool_use blocks are detected and immediately fed to the StreamingToolExecutor</strong> &mdash; tools can start executing <em>before the full response is complete</em>.</p>
+          </div>
+        </div>
+
+        <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+          <div class="ef-label"><span class="ef-badge condition">Check</span> Recoverable error withheld?</div>
+          <div class="ef-brief">Prompt too long, media size error, max output tokens</div>
+          <div class="ef-expand">
+            <p>Some errors are "withheld" &mdash; not surfaced immediately because the system can try to recover:</p>
+            <div class="ef-branch recover">
+              <div class="ef-branch-label">Prompt Too Long (413)</div>
+              <p>The context exceeded the model's limit. Recovery: context collapse drain &rarr; reactive compact &rarr; retry. See "Context Management" flow.</p>
+            </div>
+            <div class="ef-branch recover">
+              <div class="ef-branch-label">Max Output Tokens</div>
+              <p>Claude's response was truncated. Recovery: if count &lt; 3, retry with 64K max tokens. Then inject TRUNCATE_MESSAGE for multi-turn recovery.</p>
+            </div>
+            <div class="ef-branch recover">
+              <div class="ef-branch-label">Media Size Error</div>
+              <p>Image/file too large. Recovery: strip media from messages and retry.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+          <div class="ef-label"><span class="ef-badge condition">Check</span> Streaming fallback triggered?</div>
+          <div class="ef-brief">FallbackTriggeredError caught &mdash; switch model and retry</div>
+          <div class="ef-expand">
+            <div class="ef-branch yes">
+              <div class="ef-branch-label">Yes &mdash; Model Fallback</div>
+              <p>Switch <code>currentModel</code> to fallback model. Strip thinking blocks (model may not support them). Yield tombstones for orphaned messages. Create fresh executor. Log analytics event. Yield "switched model" notification. <strong>Retry the entire API call.</strong></p>
+            </div>
+            <div class="ef-branch no">
+              <div class="ef-branch-label">No &mdash; Continue to post-streaming</div>
+              <p>All stream events processed successfully.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-group">
+        <div class="ef-group-title">&#9881; Tool Execution &amp; Continuation</div>
+
+        <div class="ef-node" onclick="toggleEfNode(this)">
+          <div class="ef-label"><span class="ef-badge action">Hooks</span> Execute post-sampling hooks</div>
+          <div class="ef-file">executePostSamplingHooks()</div>
+          <div class="ef-brief">Fire-and-forget hooks after Claude's response. Non-blocking.</div>
+        </div>
+
+        <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+          <div class="ef-label"><span class="ef-badge condition">Check</span> Was the request aborted?</div>
+          <div class="ef-brief">User pressed Ctrl+C or Escape during streaming</div>
+          <div class="ef-expand">
+            <div class="ef-branch yes">
+              <div class="ef-branch-label">Yes &mdash; Abort</div>
+              <p>Get remaining results from executor (generate synthetic results for unfinished tools). Clean up computer use session. Return <code>{ reason: 'aborted_streaming' }</code>.</p>
+            </div>
+            <div class="ef-branch no">
+              <div class="ef-branch-label">No &mdash; Check for tool calls</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+          <div class="ef-label"><span class="ef-badge condition">Decision</span> Did Claude request any tool calls?</div>
+          <div class="ef-brief">Check: does the response contain tool_use content blocks?</div>
+          <div class="ef-expand">
+            <div class="ef-branch yes">
+              <div class="ef-branch-label">Yes &mdash; Execute tools (needsFollowUp = true)</div>
+              <p>The StreamingToolExecutor already started executing tools during streaming. Now we wait for all remaining tools to complete:</p>
+              <ol style="padding-left:16px;margin-top:4px;">
+                <li><code>processQueue()</code> &mdash; Execute any queued tools</li>
+                <li><code>getCompletedResults()</code> &mdash; Yield results in order</li>
+                <li>Race: completing tools vs. progress messages</li>
+                <li>Collect all tool_result messages</li>
+              </ol>
+              <p style="margin-top:6px;">After all tools complete: run <strong>stop hooks</strong>, check continuation conditions, then <strong>loop back to the top</strong> with tool results appended to messages.</p>
+            </div>
+            <div class="ef-branch no">
+              <div class="ef-branch-label">No &mdash; Claude responded with text only</div>
+              <p>No tools to execute. Check for withheld errors that need recovery. If no recovery needed, this is a <strong>normal completion</strong>.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+          <div class="ef-label"><span class="ef-badge condition">Check</span> Continuation conditions</div>
+          <div class="ef-brief">Should the loop continue, or is the turn complete?</div>
+          <div class="ef-expand">
+            <div class="ef-branch no">
+              <div class="ef-branch-label">Stop &mdash; Turn Complete</div>
+              <p><code>preventContinuation</code> from stop hooks &rarr; <code>{ reason: 'stop_hook_blocked' }</code></p>
+              <p><code>maxTurns</code> reached &rarr; <code>{ reason: 'max_turns_exceeded' }</code></p>
+              <p>No tool calls and no recovery needed &rarr; <code>{ reason: 'complete' }</code> <strong>(normal exit)</strong></p>
+              <p>Token budget exceeded &rarr; <code>{ reason: 'token_budget_exceeded' }</code></p>
+            </div>
+            <div class="ef-branch yes">
+              <div class="ef-branch-label">Continue &mdash; Next Iteration</div>
+              <p>Tool results are appended to messages. State is updated. <strong>Loop back to the top.</strong></p>
+              <p>This is the ReAct cycle: Claude reasons &rarr; calls tools &rarr; sees results &rarr; reasons again.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tip-box" style="margin-top:16px;">
+        <div class="tip-header">&#128161; How Many Turns?</div>
+        <p>A simple question might complete in 1 turn (text only). A coding task might take 5&ndash;20 turns (read files, edit, run tests, fix errors). Complex tasks can hit 50+ turns. The loop continues until Claude stops calling tools, hits the max turn limit, or the context runs out.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== PANEL 3: TOOL EXECUTION ====== -->
+  <div class="ef-panel" id="ef-tool-exec">
+    <div class="tip-box" style="margin-bottom:20px;">
+      <div class="tip-header">&#128295; Tool Execution Pipeline</div>
+      <p>When Claude decides to call a tool, it goes through validation, permission checking, execution, and result collection. The <strong>StreamingToolExecutor</strong> manages concurrency &mdash; read-only tools run in parallel, mutating tools run exclusively.</p>
+    </div>
+
+    <div class="ef-flowchart">
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge emit">Receive</span> Tool use block detected in stream</div>
+        <div class="ef-file">StreamingToolExecutor.addTool()</div>
+        <div class="ef-brief">A tool_use content block is extracted from Claude's response.</div>
+        <div class="ef-expand">
+          The tool_use block contains: <code>{ id, name, input }</code>. The executor finds the tool definition, parses the input against the JSON Schema, checks if the tool is concurrency-safe, and adds it to the queue with status <code>'queued'</code>. Then <code>processQueue()</code> is called immediately.
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Concurrency</span> Can this tool run now?</div>
+        <div class="ef-brief">Concurrency-safe tools can overlap; exclusive tools must wait.</div>
+        <div class="ef-expand">
+          <div class="ef-branch yes">
+            <div class="ef-branch-label">Concurrent-safe (e.g., Read, Glob, Grep)</div>
+            <p><strong>No tools executing:</strong> Any tool can start.</p>
+            <p><strong>Only concurrent-safe tools executing:</strong> Another concurrent-safe tool can join.</p>
+            <p>Multiple reads and searches run in parallel for speed.</p>
+          </div>
+          <div class="ef-branch no">
+            <div class="ef-branch-label">Exclusive (e.g., Edit, Write, Bash) or blocked</div>
+            <p><strong>A non-concurrent tool is already executing:</strong> Wait.</p>
+            <p><strong>This tool is non-concurrent and others are running:</strong> Wait for all to finish.</p>
+            <p>This prevents race conditions (e.g., two edits to the same file).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Pre-check</span> Any abort conditions?</div>
+        <div class="ef-brief">Check for discard, sibling error, user interrupt before executing.</div>
+        <div class="ef-expand">
+          <div class="ef-branch no">
+            <div class="ef-branch-label">Discarded (streaming fallback occurred)</div>
+            <p>Generate synthetic error: <code>'streaming_fallback'</code>. Tool never runs.</p>
+          </div>
+          <div class="ef-branch no">
+            <div class="ef-branch-label">Sibling error (another tool's Bash command failed)</div>
+            <p>Generate synthetic error: <code>'sibling_error'</code>. When one Bash fails, remaining tools are cancelled to avoid cascading failures.</p>
+          </div>
+          <div class="ef-branch no">
+            <div class="ef-branch-label">User interrupted (Ctrl+C)</div>
+            <p>Check <code>tool.interruptBehavior</code>: <code>'cancel'</code> &rarr; reject immediately. <code>'block'</code> &rarr; wait for current operation to finish.</p>
+          </div>
+          <div class="ef-branch yes">
+            <div class="ef-branch-label">All clear &mdash; proceed to permission check</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Validate</span> Parse input against JSON Schema</div>
+        <div class="ef-file">tool.inputSchema.safeParse()</div>
+        <div class="ef-brief">Zod validation ensures the tool receives correctly-typed parameters.</div>
+        <div class="ef-expand">
+          Uses Zod's <code>safeParse()</code> for type-safe validation. If parsing fails, the tool returns an error result immediately &mdash; Claude will see the validation error and can retry with corrected parameters.
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge condition">Permission</span> Check permission to use this tool</div>
+        <div class="ef-file">canUseTool() &rarr; see "Permission Checking" flow</div>
+        <div class="ef-brief">Full permission cascade: rules &rarr; classifier &rarr; hooks &rarr; user prompt.</div>
+        <div class="ef-expand">
+          <div class="ef-branch yes">
+            <div class="ef-branch-label">Allowed &mdash; Execute tool</div>
+            <p>Permission granted by rule, classifier, or user approval.</p>
+          </div>
+          <div class="ef-branch no">
+            <div class="ef-branch-label">Denied &mdash; Return rejection</div>
+            <p>Execute <code>permissionDeniedHooks()</code>. Yield <code>REJECT_MESSAGE</code> back to Claude. Claude sees "Permission denied" and adjusts its approach.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Execute</span> Run tool.call()</div>
+        <div class="ef-file">tool.call({ input, context, abortSignal })</div>
+        <div class="ef-brief">The tool's actual implementation runs. Returns an async generator of results.</div>
+        <div class="ef-expand">
+          Each tool is an async generator that can yield multiple results:
+          <ul style="padding-left:16px;margin-top:6px;">
+            <li><strong>Progress messages</strong> &mdash; Yielded immediately to UI (e.g., "Reading file...")</li>
+            <li><strong>Tool result blocks</strong> &mdash; Text content, images, errors</li>
+            <li><strong>State updates</strong> &mdash; File state caching, content replacement</li>
+          </ul>
+          <p style="margin-top:6px;">The tool receives an <code>abortSignal</code> so it can be cancelled mid-execution if the user interrupts.</p>
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Post</span> Run post-tool-use hooks</div>
+        <div class="ef-file">runPostToolUseHooks()</div>
+        <div class="ef-brief">After execution: logging, analytics, hook triggers, state updates.</div>
+        <div class="ef-expand">
+          Post-tool hooks can: log the tool call for audit, send webhooks to external services, update analytics, trigger file change watchers. Tool results are also stored for the session history.
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge emit">Return</span> Result yielded back to query loop</div>
+        <div class="ef-file">StreamingToolExecutor.getCompletedResults()</div>
+        <div class="ef-brief">Results collected in order, appended as tool_result messages.</div>
+        <div class="ef-expand">
+          <strong>Order preservation is critical:</strong> even though tools may complete out of order (parallel execution), results are yielded in the same order they were requested. The executor stops yielding at the first incomplete non-concurrent tool to maintain this guarantee.
+          <div class="tip-box" style="margin-top:8px;">
+            <div class="tip-header">&#128161; Why Order Matters</div>
+            <p>The API expects tool_result messages in the same order as tool_use blocks. Out-of-order results would confuse the model. This is a subtle but critical detail in multi-tool execution.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== PANEL 4: PERMISSIONS ====== -->
+  <div class="ef-panel" id="ef-permissions">
+    <div class="tip-box" style="margin-bottom:20px;">
+      <div class="tip-header">&#128274; Permission Checking Decision Tree</div>
+      <p>Every tool call passes through this multi-layer security cascade. The system balances safety with usability &mdash; read-only operations need less scrutiny than <code>rm -rf</code>.</p>
+    </div>
+
+    <div class="ef-flowchart">
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Input</span> Tool call received for permission check</div>
+        <div class="ef-file">utils/permissions/permissions.ts</div>
+        <div class="ef-brief">Tool name, input parameters, and current permission context.</div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Layer 1</span> Check DENY rules</div>
+        <div class="ef-brief">Scan all rule sources for explicit deny rules matching this tool.</div>
+        <div class="ef-expand">
+          <p>Rule sources checked (in priority order):</p>
+          <ol style="padding-left:16px;margin-top:6px;">
+            <li><code>policySettings</code> &mdash; Enterprise policies (highest priority)</li>
+            <li><code>projectSettings</code> &mdash; .claude/settings.json</li>
+            <li><code>flagSettings</code> &mdash; Feature flags</li>
+            <li><code>userSettings</code> &mdash; ~/.claude/settings.json</li>
+            <li><code>cliArg</code> &mdash; Command-line flags</li>
+            <li><code>command</code> &mdash; Per-command overrides</li>
+            <li><code>session</code> &mdash; Runtime rules set during session</li>
+          </ol>
+          <div class="ef-branch no" style="margin-top:8px;">
+            <div class="ef-branch-label">Match found &rarr; DENIED</div>
+            <p>Return <code>PermissionDenyDecision</code> immediately. No further checks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Layer 2</span> Check ASK rules</div>
+        <div class="ef-brief">Any rule forcing this tool to always require user confirmation?</div>
+        <div class="ef-expand">
+          <div class="ef-branch yes">
+            <div class="ef-branch-label">Match found &rarr; Must ASK user</div>
+            <p>Skip classifier and go directly to interactive prompt.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Layer 3</span> Check ALLOW rules</div>
+        <div class="ef-brief">Explicit allow rules matching this tool + input pattern.</div>
+        <div class="ef-expand">
+          <p>Allow rules can match on:</p>
+          <ul style="padding-left:16px;margin-top:4px;">
+            <li>Tool name (exact or glob: <code>mcp__server1__*</code>)</li>
+            <li>Input patterns (e.g., allow Bash only for <code>npm test</code>)</li>
+            <li>File paths (e.g., allow Edit only in <code>src/**</code>)</li>
+          </ul>
+          <div class="ef-branch yes" style="margin-top:6px;">
+            <div class="ef-branch-label">Match found &rarr; ALLOWED</div>
+            <p>Return <code>PermissionAllowDecision</code>. Tool can execute.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Layer 4</span> Permission mode check</div>
+        <div class="ef-brief">What mode is the session in? This determines the next step.</div>
+        <div class="ef-expand">
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Mode: "auto" &rarr; Run ML classifier</div>
+            <p>The YOLO classifier (<code>yoloClassifier.ts</code>, 52KB) analyzes the tool call:</p>
+            <ul style="padding-left:16px;margin-top:4px;">
+              <li>Is the tool read-only? &rarr; Likely safe</li>
+              <li>Bash command classification &mdash; pattern match against known safe/dangerous commands</li>
+              <li>File path analysis &mdash; is it writing to sensitive paths?</li>
+              <li>Dangerous pattern database &mdash; <code>rm -rf</code>, <code>git push --force</code>, etc.</li>
+            </ul>
+            <p style="margin-top:4px;">Result: <strong>approved</strong> (allow), <strong>denied</strong> (deny), or <strong>uncertain</strong> (fall through to ask).</p>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Mode: "default" / "ask" &rarr; Skip to user prompt</div>
+            <p>No classifier. Every unmatched tool goes to the user.</p>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Mode: "unlimited" &rarr; Auto-allow everything</div>
+            <p>No checks. Immediate approval. Use with caution.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Layer 5</span> Pre-tool-use hooks</div>
+        <div class="ef-brief">Custom hooks can override the permission decision.</div>
+        <div class="ef-expand">
+          <p><code>executePermissionRequestHooks()</code> runs user-defined hooks that can:</p>
+          <div class="ef-branch yes">
+            <div class="ef-branch-label">Hook allows &rarr; ALLOWED</div>
+          </div>
+          <div class="ef-branch no">
+            <div class="ef-branch-label">Hook denies &rarr; DENIED</div>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">No hook decision &rarr; Fall through to user prompt</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Layer 6</span> Interactive user prompt</div>
+        <div class="ef-brief">Last resort: ask the user to approve or deny.</div>
+        <div class="ef-expand">
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Interactive session (terminal)</div>
+            <p>Show permission dialog with tool details. User choices:</p>
+            <ul style="padding-left:16px;margin-top:4px;">
+              <li><strong>Allow once</strong> &mdash; Grant for this call only</li>
+              <li><strong>Allow always</strong> &mdash; Create a persistent allow rule</li>
+              <li><strong>Deny</strong> &mdash; Reject this call</li>
+              <li><strong>Deny always</strong> &mdash; Create a persistent deny rule</li>
+            </ul>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Headless session (non-interactive)</div>
+            <p>Run <code>runPermissionRequestHooksForHeadlessAgent()</code>. If no hook allows it: <strong>auto-deny</strong>. Headless agents can't prompt a user.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge emit">Result</span> Final permission decision</div>
+        <div class="ef-brief">allow / deny / ask &mdash; with reason and source for audit trail.</div>
+        <div class="ef-expand">
+          The result includes:
+          <ul style="padding-left:16px;margin-top:4px;">
+            <li><code>behavior</code>: allow, deny, or ask</li>
+            <li><code>decision</code>: the specific decision object</li>
+            <li><code>reason</code>: which layer made the decision (rule, classifier, hook, user)</li>
+          </ul>
+          <p style="margin-top:6px;">Everything is logged for the audit trail via <code>permissionLogging.ts</code>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== PANEL 5: STREAMING ====== -->
+  <div class="ef-panel" id="ef-streaming">
+    <div class="tip-box" style="margin-bottom:20px;">
+      <div class="tip-header">&#9889; Streaming &amp; Content Block Processing</div>
+      <p>How stream events from the Anthropic API are processed, rendered, and fed into the tool executor in real-time.</p>
+    </div>
+
+    <div class="ef-swimlane">
+      <div class="ef-swimlane-label" style="color:var(--accent);">API Layer</div>
+      <div class="ef-swimlane-content" onclick="this.classList.toggle('expanded')">
+        <strong>SDK Stream</strong> &mdash; <code>@anthropic-ai/sdk</code> emits <code>Stream&lt;BetaRawMessageStreamEvent&gt;</code> objects. Connection uses HTTP/2 with SSE (Server-Sent Events). Keep-alive pings maintain the connection. Automatic reconnection on transient failures.
+      </div>
+
+      <div class="ef-swimlane-label" style="color:var(--purple);">Event Router</div>
+      <div class="ef-swimlane-content" onclick="this.classList.toggle('expanded')">
+        <strong>Message Type Dispatch</strong><br>
+        <code style="color:var(--cyan);">message_start</code> &rarr; Extract model, usage metadata, create AssistantMessage shell<br>
+        <code style="color:var(--cyan);">content_block_start</code> &rarr; Allocate new block: <span style="color:var(--green);">text</span> | <span style="color:var(--purple);">thinking</span> | <span style="color:var(--orange);">tool_use</span> | <span style="color:var(--text-muted);">redacted_thinking</span><br>
+        <code style="color:var(--cyan);">content_block_delta</code> &rarr; Append chunk to current block. <strong>Text deltas render immediately in terminal.</strong><br>
+        <code style="color:var(--cyan);">content_block_stop</code> &rarr; Finalize block. If tool_use: send to StreamingToolExecutor<br>
+        <code style="color:var(--cyan);">message_delta</code> &rarr; Update token counts (input, output, cache read/write)<br>
+        <code style="color:var(--cyan);">message_stop</code> &rarr; Complete message. Trigger post-processing.
+      </div>
+
+      <div class="ef-swimlane-label" style="color:var(--green);">Text Blocks</div>
+      <div class="ef-swimlane-content" onclick="this.classList.toggle('expanded')">
+        <strong>Real-time rendering</strong> &mdash; Each text delta is immediately pushed to the React/Ink renderer. The terminal updates character-by-character as Claude "types." Markdown is parsed and formatted on-the-fly. Code blocks get syntax highlighting. This is the streaming UX users see.
+      </div>
+
+      <div class="ef-swimlane-label" style="color:var(--orange);">Tool Use Blocks</div>
+      <div class="ef-swimlane-content" onclick="this.classList.toggle('expanded')">
+        <strong>Progressive parsing</strong> &mdash; Tool use blocks stream their JSON input incrementally. The executor receives the tool as soon as <code>content_block_stop</code> fires. For concurrent-safe tools, execution begins <em>while other blocks are still streaming</em>. This overlap is a key performance optimization.
+      </div>
+
+      <div class="ef-swimlane-label" style="color:var(--pink);">Thinking Blocks</div>
+      <div class="ef-swimlane-content" onclick="this.classList.toggle('expanded')">
+        <strong>Extended thinking</strong> &mdash; When enabled (beta), Claude can emit thinking blocks showing its reasoning process. These are rendered differently in the UI (collapsible, dimmed). They may be stripped during model fallback if the fallback model doesn't support thinking.
+      </div>
+
+      <div class="ef-swimlane-label" style="color:var(--red);">Error Handling</div>
+      <div class="ef-swimlane-content" onclick="this.classList.toggle('expanded')">
+        <strong>Stream errors are classified:</strong><br>
+        &bull; <strong>Transient</strong> (network, 429, 503) &rarr; <code>withRetry.ts</code> retries with exponential backoff + jitter<br>
+        &bull; <strong>Prompt too long</strong> (413) &rarr; Withheld for recovery (context collapse / compact)<br>
+        &bull; <strong>Max output tokens</strong> &rarr; Withheld for retry with higher limit<br>
+        &bull; <strong>Auth error</strong> (401, 403) &rarr; Surface to user, suggest re-auth<br>
+        &bull; <strong>Model overloaded</strong> (529) &rarr; Trigger model fallback<br>
+        &bull; <strong>Unrecoverable</strong> &rarr; Surface error, end turn
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== PANEL 6: CONTEXT MANAGEMENT ====== -->
+  <div class="ef-panel" id="ef-context">
+    <div class="tip-box" style="margin-bottom:20px;">
+      <div class="tip-header">&#129504; Context Window Management</div>
+      <p>As conversations grow, the context window fills up. Claude Code uses 4 layers of compaction to keep conversations going &mdash; each more aggressive than the last. This is one of the most sophisticated parts of the system.</p>
+    </div>
+
+    <div class="ef-flowchart">
+      <div class="ef-group">
+        <div class="ef-group-title">&#128218; Proactive Compaction (every iteration)</div>
+
+        <div class="ef-node" onclick="toggleEfNode(this)">
+          <div class="ef-label"><span class="ef-badge action">Layer 1</span> Snip Compact</div>
+          <div class="ef-file">HISTORY_SNIP feature</div>
+          <div class="ef-brief">Remove old tool_use + tool_result message pairs entirely.</div>
+          <div class="ef-expand">
+            The simplest strategy: old tool interactions are removed wholesale. The model doesn't need to see that you searched for a file 30 turns ago. Tracks tokens freed. This is cheap and fast but lossy &mdash; the model loses all memory of those tool calls.
+          </div>
+        </div>
+
+        <div class="ef-node" onclick="toggleEfNode(this)">
+          <div class="ef-label"><span class="ef-badge action">Layer 2</span> Microcompact</div>
+          <div class="ef-file">microcompact()</div>
+          <div class="ef-brief">Compress tool_use/tool_result pairs in-place. Preserve thinking blocks.</div>
+          <div class="ef-expand">
+            More surgical than snip: keeps the tool interaction but compresses the content. For example, a 500-line file read result might be replaced with a 5-line summary. Thinking blocks are protected (configurable). Uses prompt cache editing (CACHED_MICROCOMPACT) to avoid re-processing unchanged messages.
+          </div>
+        </div>
+
+        <div class="ef-node" onclick="toggleEfNode(this)">
+          <div class="ef-label"><span class="ef-badge action">Layer 3</span> Context Collapse</div>
+          <div class="ef-file">contextCollapse.applyCollapsesIfNeeded()</div>
+          <div class="ef-brief">Stage and commit collapses &mdash; replace message ranges with summaries.</div>
+          <div class="ef-expand">
+            Context collapse works in two phases:
+            <ol style="padding-left:16px;margin-top:6px;">
+              <li><strong>Stage</strong> &mdash; Identify candidate message ranges for collapse</li>
+              <li><strong>Commit</strong> &mdash; Replace ranges with generated summaries</li>
+            </ol>
+            <p style="margin-top:6px;">The model sees a "collapsed" view where old conversations are summarized. This preserves the gist while freeing tokens for new content.</p>
+          </div>
+        </div>
+
+        <div class="ef-node" onclick="toggleEfNode(this)">
+          <div class="ef-label"><span class="ef-badge action">Layer 4</span> Autocompact</div>
+          <div class="ef-file">deps.autocompact()</div>
+          <div class="ef-brief">Call a separate Claude instance to summarize old messages.</div>
+          <div class="ef-expand">
+            The most sophisticated strategy: a <strong>forked assistant call</strong> generates a summary of older messages. Recent messages (the "tail") are preserved verbatim. The summary replaces everything before the tail. Tracks a turn counter for periodic re-compaction. Logs token savings to analytics.
+            <div class="tip-box" style="margin-top:8px;">
+              <div class="tip-header">&#128161; Meta: Using AI to Manage AI Context</div>
+              <p>Autocompact uses Claude to summarize Claude's own conversation. This is a powerful pattern: the model summarizes what it needs to remember, then continues with the summary instead of the full history. It's recursive self-management.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-group">
+        <div class="ef-group-title">&#9888; Reactive Recovery (on error)</div>
+
+        <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+          <div class="ef-label"><span class="ef-badge error">Error</span> Prompt Too Long (413) received</div>
+          <div class="ef-brief">The API rejected the request &mdash; context exceeded model limits.</div>
+          <div class="ef-expand">
+            This error is <strong>withheld</strong> (not surfaced immediately). The system attempts recovery in order:
+
+            <div class="ef-branch recover" style="margin-top:8px;">
+              <div class="ef-branch-label">Recovery 1: Context Collapse Drain</div>
+              <p><code>contextCollapse.recoverFromOverflow()</code> &mdash; Force-commit all staged collapses. If tokens freed &gt; 0, retry the API call.</p>
+            </div>
+            <div class="ef-branch recover">
+              <div class="ef-branch-label">Recovery 2: Reactive Compact</div>
+              <p><code>reactiveCompact.tryReactiveCompact()</code> &mdash; Emergency compaction. Aggressively summarizes old messages. Strips images (media recovery). If successful, retry.</p>
+            </div>
+            <div class="ef-branch no">
+              <div class="ef-branch-label">Both failed: Surface error to user</div>
+              <p>The conversation is truly too long. User needs to start a new session or manually clear history.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+          <div class="ef-label"><span class="ef-badge error">Error</span> Max Output Tokens hit</div>
+          <div class="ef-brief">Claude's response was truncated mid-generation.</div>
+          <div class="ef-expand">
+            <div class="ef-branch recover">
+              <div class="ef-branch-label">Attempt 1 (count &lt; 3, 8K cap)</div>
+              <p>Override max output tokens to 64K. Retry same request. Claude gets more room to finish.</p>
+            </div>
+            <div class="ef-branch recover">
+              <div class="ef-branch-label">Attempt 2 (already at 64K)</div>
+              <p>Inject <code>TRUNCATE_MESSAGE</code> into the conversation: "Your response was truncated. Please continue." Claude resumes where it left off in the next turn.</p>
+            </div>
+            <div class="ef-branch no">
+              <div class="ef-branch-label">Attempt 3+ &mdash; Give up</div>
+              <p>Surface the error. The response is genuinely too long.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== PANEL 7: AGENT SPAWNING ====== -->
+  <div class="ef-panel" id="ef-agent-spawn">
+    <div class="tip-box" style="margin-bottom:20px;">
+      <div class="tip-header">&#128640; Agent Spawning Flow</div>
+      <p>When Claude decides it needs a sub-agent, the AgentTool creates an isolated child process with its own context window, tools, and permissions.</p>
+    </div>
+
+    <div class="ef-flowchart">
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Request</span> Claude calls AgentTool</div>
+        <div class="ef-file">tools/AgentTool/AgentTool.tsx</div>
+        <div class="ef-brief">Parameters: prompt, agent type, model override, isolation mode, background flag.</div>
+        <div class="ef-expand">
+          Agent types available: <code>general-purpose</code>, <code>Explore</code> (fast search), <code>Plan</code> (architecture), <code>statusline-setup</code>, <code>claude-code-guide</code>. Each type has a curated tool set &mdash; e.g., Explore agents can't Edit or Write files.
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Validate</span> Check permissions and policy limits</div>
+        <div class="ef-brief">Agent deny rules, policy limits on concurrent agents, resource budgets.</div>
+        <div class="ef-expand">
+          Deny rules can block specific agent types: <code>Agent(Explore)</code> could be denied. Policy limits cap the number of concurrent agents (preventing runaway spawning). Resource budgets ensure agents don't consume unlimited tokens.
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Decision</span> Isolation mode?</div>
+        <div class="ef-brief">How should the agent be isolated from the parent?</div>
+        <div class="ef-expand">
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Worktree isolation</div>
+            <p>Create an isolated git worktree: <code>git worktree add</code> into a temp directory. The agent works on a separate branch. Changes can be merged back or discarded. The worktree is auto-cleaned if no changes are made.</p>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">No isolation (default)</div>
+            <p>Agent works in the same directory as the parent. Shares the filesystem but has its own context window. Concurrent file edits could conflict.</p>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Remote (async)</div>
+            <p>Agent runs on Anthropic's cloud infrastructure (CCR). Fully isolated compute and storage. Used for long-running tasks.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Fork</span> Create sub-agent with isolated context</div>
+        <div class="ef-file">forkSubagent()</div>
+        <div class="ef-brief">New context window, curated tool set, inherited permissions, memory snapshot.</div>
+        <div class="ef-expand">
+          The sub-agent receives:
+          <ul style="padding-left:16px;margin-top:6px;">
+            <li><strong>Fresh context window</strong> &mdash; Not polluted by parent's conversation</li>
+            <li><strong>Curated tools</strong> &mdash; Based on agent type (Explore gets read-only tools)</li>
+            <li><strong>Inherited permissions</strong> &mdash; Can't exceed parent's permission level</li>
+            <li><strong>Memory snapshot</strong> &mdash; Relevant memories from parent, read-only</li>
+            <li><strong>Agent prompt</strong> &mdash; The task description + agent type instructions</li>
+            <li><strong>Working directory</strong> &mdash; Parent's dir or isolated worktree</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Decision</span> Foreground or background?</div>
+        <div class="ef-expand">
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Foreground (default)</div>
+            <p>Parent blocks and waits. Sub-agent's query loop runs to completion. Results stream back to parent. Parent sees the final output when done.</p>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Background</div>
+            <p>Parent continues immediately. Sub-agent runs asynchronously. Parent receives a notification when the agent completes. Can check status via <code>TaskGetTool</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge loop">Execute</span> Sub-agent runs its own query loop</div>
+        <div class="ef-brief">Full ReAct cycle: API calls, tool execution, multiple turns.</div>
+        <div class="ef-expand">
+          The sub-agent is a <strong>complete, independent agent</strong>. It runs the same query loop, can call tools, and iterates until done. It can even spawn its own sub-agents (nested spawning), though this is limited by policy to prevent infinite recursion.
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge emit">Return</span> Results collected and returned to parent</div>
+        <div class="ef-brief">Final text, modified files list, tool usage summary.</div>
+        <div class="ef-expand">
+          The parent receives: final response text, list of files modified (important for worktree merging), tool usage statistics, and any memory update suggestions. For worktree agents, the worktree path and branch name are returned so the parent can decide whether to merge.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== PANEL 8: SLASH COMMANDS ====== -->
+  <div class="ef-panel" id="ef-slash">
+    <div class="tip-box" style="margin-bottom:20px;">
+      <div class="tip-header">&#9000; Slash Command Routing</div>
+      <p>When input starts with <code>/</code>, it's routed to the command system instead of the query engine. Commands are a different execution path from tools.</p>
+    </div>
+
+    <div class="ef-flowchart">
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Input</span> User types /command [args]</div>
+        <div class="ef-brief">Input starts with "/" and isn't marked as skipSlashCommands.</div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Parse</span> Extract command name and arguments</div>
+        <div class="ef-file">parseSlashCommand(inputString)</div>
+        <div class="ef-brief">Split on first space: "/commit -m fix" &rarr; name="commit", args="-m fix"</div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Find</span> Match command in registry</div>
+        <div class="ef-file">findCommand(name, commands)</div>
+        <div class="ef-expand">
+          <div class="ef-branch yes">
+            <div class="ef-branch-label">Found &mdash; by name or alias</div>
+            <p>104 registered commands. Checked by exact name first, then aliases. Bridge-mode sessions only allow bridge-safe commands.</p>
+          </div>
+          <div class="ef-branch no">
+            <div class="ef-branch-label">Not found &mdash; check if it's a skill</div>
+            <p>If no command matches, check the skills registry. Skills are invokable via <code>/skill-name</code> syntax.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Type</span> What kind of command is it?</div>
+        <div class="ef-expand">
+          <div class="ef-branch path">
+            <div class="ef-branch-label">LocalJSX command (has React component)</div>
+            <p>Commands like <code>/mcp</code>, <code>/config</code>, <code>/permissions</code> render interactive React UIs in the terminal. The JSX component mounts, the user interacts, and the result is captured when the component unmounts.</p>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Regular command</div>
+            <p>Commands like <code>/commit</code>, <code>/clear</code>, <code>/help</code> execute their handler function. May add messages to history, modify state, or trigger side effects.</p>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">Skill command</div>
+            <p>Skills like <code>/simplify</code>, <code>/commit</code> (skill version) expand into full prompts that are then processed by the query engine. The <code>shouldQuery</code> flag is set to <code>true</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Result</span> Does the command trigger a query?</div>
+        <div class="ef-expand">
+          <div class="ef-branch yes">
+            <div class="ef-branch-label">shouldQuery = true</div>
+            <p>The command's output becomes a user message sent to Claude. Example: <code>/commit</code> skill expands into a detailed prompt about creating a git commit, which Claude then executes via the normal agent loop.</p>
+          </div>
+          <div class="ef-branch no">
+            <div class="ef-branch-label">shouldQuery = false</div>
+            <p>The command handled everything itself. Messages (if any) are added to history. The REPL loops back to wait for the next input. Example: <code>/clear</code> just clears the screen.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== PANEL 9: MCP CONNECTION ====== -->
+  <div class="ef-panel" id="ef-mcp-flow">
+    <div class="tip-box" style="margin-bottom:20px;">
+      <div class="tip-header">&#128268; MCP Server Connection Flow</div>
+      <p>How Claude Code discovers, connects to, authenticates with, and registers tools from MCP servers.</p>
+    </div>
+
+    <div class="ef-flowchart">
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Config</span> Read MCP server configurations</div>
+        <div class="ef-file">services/mcp/config.ts</div>
+        <div class="ef-brief">Load from settings.json (project + user + enterprise).</div>
+        <div class="ef-expand">
+          MCP servers are configured in <code>settings.json</code> under the <code>mcpServers</code> key. Each entry specifies: server name, transport type, connection details (command/url/port), environment variables, and optional auth config. Configs are merged across all settings sources.
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Transport</span> What transport type?</div>
+        <div class="ef-expand">
+          <div class="ef-branch path">
+            <div class="ef-branch-label">stdio &mdash; Most common for local tools</div>
+            <p>Spawn the server as a child process. Communicate via stdin (requests) and stdout (responses). Environment variables expanded from config. Process lifecycle managed by Claude Code.</p>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">SSE / HTTP &mdash; Web-based servers</div>
+            <p>Connect to a URL. SSE uses Server-Sent Events for streaming responses. HTTP uses standard request/response. Headers and auth tokens attached per config.</p>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">WebSocket &mdash; Full-duplex</div>
+            <p>Connect via ws:// or wss://. Best for servers that push updates. Reconnection logic handles dropped connections.</p>
+          </div>
+          <div class="ef-branch path">
+            <div class="ef-branch-label">SDK (in-process) &mdash; Zero overhead</div>
+            <p>Direct function calls within the same process. Used for built-in MCP integrations. No serialization overhead.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-decision" onclick="toggleEfNode(this)" style="cursor:pointer;">
+        <div class="ef-label"><span class="ef-badge condition">Auth</span> Does the server require authentication?</div>
+        <div class="ef-expand">
+          <div class="ef-branch yes">
+            <div class="ef-branch-label">Yes &mdash; OAuth / Token flow</div>
+            <p><code>services/mcp/auth.ts</code> (88KB) handles: token retrieval from credential store, OAuth authorization code flow (opens browser), token refresh, IDP (Identity Provider) login via <code>xaaIdpLogin.ts</code>, credential persistence. Each server has its own auth context.</p>
+          </div>
+          <div class="ef-branch no">
+            <div class="ef-branch-label">No &mdash; Connect directly</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Connect</span> Initialize MCP client &amp; negotiate capabilities</div>
+        <div class="ef-file">MCPConnectionManager.tsx</div>
+        <div class="ef-brief">Handshake: client sends capabilities, server responds with its capabilities.</div>
+        <div class="ef-expand">
+          The MCP handshake establishes: protocol version, supported features (tools, resources, prompts, elicitation), server name and version. If capability negotiation fails, the connection is rejected gracefully.
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge emit">Discover</span> Fetch tools, resources, and prompts</div>
+        <div class="ef-file">tools/list, resources/list, prompts/list</div>
+        <div class="ef-brief">Query the server for all available capabilities. Convert to Claude Code tool format.</div>
+        <div class="ef-expand">
+          <ul style="padding-left:16px;">
+            <li><strong>tools/list</strong> &rarr; Get tool definitions (name, description, input schema). Converted to <code>Tool</code> objects with <code>mcp__serverName__toolName</code> naming convention.</li>
+            <li><strong>resources/list</strong> &rarr; Available resources (files, data). Accessible via <code>ReadMcpResourceTool</code>.</li>
+            <li><strong>prompts/list</strong> &rarr; Prompt templates the server provides.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="ef-node" onclick="toggleEfNode(this)">
+        <div class="ef-label"><span class="ef-badge action">Register</span> Add MCP tools to available tool set</div>
+        <div class="ef-brief">MCP tools appear alongside built-in tools. Claude can call them like any other tool.</div>
+        <div class="ef-expand">
+          MCP tools are dynamically registered into the tool registry. They get permission rules just like built-in tools (you can allow/deny <code>mcp__github__create_issue</code>). When Claude calls an MCP tool, the MCPTool proxy forwards the call to the appropriate server.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== PANEL 10: HOOK LIFECYCLE ====== -->
+  <div class="ef-panel" id="ef-hooks-flow">
+    <div class="tip-box" style="margin-bottom:20px;">
+      <div class="tip-header">&#128268; Hook Lifecycle &amp; Execution</div>
+      <p>Hooks fire at specific moments in the execution lifecycle. They enable custom behavior without modifying core code. Here's exactly <em>when</em> each hook type fires.</p>
+    </div>
+
+    <div style="position:relative;padding:20px 0;">
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+
+        <div style="background:var(--bg-tertiary);padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--accent);">
+          Session Start
+        </div>
+        <div style="padding:16px;border-bottom:1px solid var(--border);font-size:0.82em;color:var(--text-muted);">
+          <strong style="color:var(--text);">Session hooks</strong> fire when the interactive session begins. Use for: environment setup, git branch checks, starting background services, logging session start.
+        </div>
+
+        <div style="background:var(--bg-tertiary);padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--purple);">
+          Pre-sampling
+        </div>
+        <div style="padding:16px;border-bottom:1px solid var(--border);font-size:0.82em;color:var(--text-muted);">
+          <strong style="color:var(--text);">Pre-sampling hooks</strong> fire <em>before</em> each API call. The hook receives the messages array and can <strong>modify</strong> it. Use for: injecting dynamic context, enforcing guardrails, adding system instructions, logging prompts. <span style="color:var(--orange);">Can block the API call.</span>
+        </div>
+
+        <div style="background:var(--bg-tertiary);padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--cyan);">
+          API Call
+        </div>
+        <div style="padding:16px;border-bottom:1px solid var(--border);font-size:0.82em;color:var(--text-muted);">
+          <span style="color:var(--text-muted);font-style:italic;">No hooks here &mdash; the API call is atomic.</span> Streaming begins and content blocks arrive.
+        </div>
+
+        <div style="background:var(--bg-tertiary);padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--green);">
+          Post-sampling
+        </div>
+        <div style="padding:16px;border-bottom:1px solid var(--border);font-size:0.82em;color:var(--text-muted);">
+          <strong style="color:var(--text);">Post-sampling hooks</strong> fire after Claude's full response is received (fire-and-forget, non-blocking). Use for: analytics, response logging, output filtering, triggering notifications.
+        </div>
+
+        <div style="background:var(--bg-tertiary);padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--orange);">
+          Pre-tool-use
+        </div>
+        <div style="padding:16px;border-bottom:1px solid var(--border);font-size:0.82em;color:var(--text-muted);">
+          <strong style="color:var(--text);">Permission hooks</strong> fire before each tool executes (part of permission check, Layer 5). Hook receives: tool name, input, context. <span style="color:var(--orange);">Can ALLOW or DENY the tool call.</span> Use for: custom permission logic, audit logging, input sanitization.
+        </div>
+
+        <div style="background:var(--bg-tertiary);padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--pink);">
+          Tool Executes
+        </div>
+        <div style="padding:16px;border-bottom:1px solid var(--border);font-size:0.82em;color:var(--text-muted);">
+          <span style="color:var(--text-muted);font-style:italic;">The tool runs. Progress messages stream to UI.</span>
+        </div>
+
+        <div style="background:var(--bg-tertiary);padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--green);">
+          Post-tool-use
+        </div>
+        <div style="padding:16px;border-bottom:1px solid var(--border);font-size:0.82em;color:var(--text-muted);">
+          <strong style="color:var(--text);">Post-tool hooks</strong> fire after each tool completes. Hook receives: tool name, input, result, duration. Use for: Slack notifications, CI triggers, audit logs, tool result caching, file change notifications.
+        </div>
+
+        <div style="background:var(--bg-tertiary);padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--red);">
+          Stop Hooks
+        </div>
+        <div style="padding:16px;border-bottom:1px solid var(--border);font-size:0.82em;color:var(--text-muted);">
+          <strong style="color:var(--text);">Stop hooks</strong> fire when Claude's turn ends (no more tool calls). Use for: auto-formatting, running linters, test execution, generating summaries, memory extraction. <span style="color:var(--orange);">Can PREVENT continuation</span> (block the next query iteration).
+        </div>
+
+        <div style="background:var(--bg-tertiary);padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--yellow);">
+          File Change
+        </div>
+        <div style="padding:16px;border-bottom:1px solid var(--border);font-size:0.82em;color:var(--text-muted);">
+          <strong style="color:var(--text);">File change hooks</strong> fire when files are modified on disk (by tools or externally). Use for: auto-formatting on save, linting, test re-runs, live reload triggers.
+        </div>
+
+        <div style="background:var(--bg-tertiary);padding:16px;display:flex;align-items:center;font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--accent);">
+          Session End
+        </div>
+        <div style="padding:16px;font-size:0.82em;color:var(--text-muted);">
+          <strong style="color:var(--text);">Session hooks</strong> fire on session end. Use for: cleanup, saving state, final analytics flush, stopping background services.
+        </div>
+
+      </div>
+    </div>
+
+    <div class="tip-box" style="margin-top:16px;">
+      <div class="tip-header">&#128161; Hook Execution Model</div>
+      <p>Hooks can be <strong>shell commands</strong> (run in a subprocess) or <strong>HTTP webhooks</strong> (POST to a URL). Shell hooks receive context via environment variables and stdin. HTTP hooks receive a JSON payload. Both can return structured responses that influence the system's behavior. Hooks are configured in <code>settings.json</code> and managed via <code>/hooks</code> command.</p>
+    </div>
+  </div>
+</div>
+
 <!-- ======================== FOOTER ======================== -->
 <div class="footer">
   <p>Claude Code Architecture Explorer &mdash; Generated from source analysis of the Claude Code CLI codebase</p>
@@ -2280,6 +3622,19 @@
   }
   window.addEventListener('scroll', updateNav, { passive: true });
   updateNav();
+
+  // Execution flow panel switcher
+  function showEfPanel(panelId) {
+    document.querySelectorAll('.ef-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('#ef-selector button').forEach(b => b.classList.remove('active'));
+    document.getElementById(panelId).classList.add('active');
+    event.target.classList.add('active');
+  }
+
+  // Execution flow node toggle
+  function toggleEfNode(node) {
+    node.classList.toggle('active');
+  }
 
   // Smooth scroll for nav links
   navLinks.forEach(link => {
