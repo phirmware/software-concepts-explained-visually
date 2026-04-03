@@ -151,6 +151,21 @@ body{font-family:'SF Mono','Fira Code','JetBrains Mono',monospace;background:var
 .stat-row .stat-k{color:var(--muted);}
 .stat-row .stat-v{color:var(--text);font-weight:600;}
 
+/* Source reference panel */
+.src-entry{margin-bottom:12px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;transition:all 0.3s;opacity:0;transform:translateX(10px);}
+.src-entry.visible{opacity:1;transform:translateX(0);}
+.src-entry.active{border-color:var(--accent);box-shadow:0 0 12px rgba(59,130,246,0.1);}
+.src-entry .src-step{font-size:0.68em;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px;}
+.src-entry .src-file{font-size:0.82em;color:var(--cyan);font-weight:600;word-break:break-all;}
+.src-entry .src-fn{font-size:0.78em;color:var(--purple);margin-top:2px;}
+.src-entry .src-line{font-size:0.72em;color:var(--muted);margin-top:1px;}
+.src-entry .src-desc{font-size:0.72em;color:var(--muted);margin-top:4px;line-height:1.5;border-top:1px solid var(--border);padding-top:4px;}
+
+/* Source ref badge on flow step */
+.fstep-src{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:3px 8px;background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.15);border-radius:5px;font-size:0.68em;color:var(--cyan);cursor:default;transition:all 0.2s;}
+.fstep-src:hover{background:rgba(34,211,238,0.15);border-color:var(--cyan);}
+.fstep-src .src-icon{opacity:0.6;}
+
 /* Responsive */
 @media(max-width:1100px){.main-area{grid-template-columns:280px 1fr 0;}.inspector{display:none;}}
 @media(max-width:700px){.main-area{grid-template-columns:1fr;}.input-panel{display:none;}}
@@ -228,6 +243,7 @@ body{font-family:'SF Mono','Fira Code','JetBrains Mono',monospace;background:var
       <div class="inspector-tabs">
         <button class="active" onclick="switchInspTab(this,'insp-messages')">Messages</button>
         <button onclick="switchInspTab(this,'insp-stats')">Stats</button>
+        <button onclick="switchInspTab(this,'insp-source')">Source</button>
         <button onclick="switchInspTab(this,'insp-context')">Context</button>
       </div>
       <div class="inspector-body">
@@ -245,6 +261,9 @@ body{font-family:'SF Mono','Fira Code','JetBrains Mono',monospace;background:var
             <div class="stat-row"><span class="stat-k">Model</span><span class="stat-v" id="st-model">claude-sonnet-4-6</span></div>
             <div class="stat-row"><span class="stat-k">Duration</span><span class="stat-v" id="st-duration">0ms</span></div>
           </div>
+        </div>
+        <div class="insp-panel" id="insp-source">
+          <div id="source-stack" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
         <div class="insp-panel" id="insp-context">
           <div id="context-body" style="color:var(--muted);font-size:0.9em;">
@@ -268,6 +287,7 @@ let stepIndex = 0;
 let animTimer = null;
 const canvas = document.getElementById('flow-canvas');
 const msgStack = document.getElementById('msg-stack');
+const sourceStack = document.getElementById('source-stack');
 let messages = []; // inspector message array
 let stats = { turns:0, tools:0, input:0, output:0, cache:0, perms:0, cost:0, duration:0 };
 
@@ -276,12 +296,32 @@ function getDelay() {
   return 1200 - (v - 1) * 110; // 1200ms at 1, 210ms at 10
 }
 
+// ========== SOURCE REFERENCES ==========
+function addSourceEntry(stepLabel, src) {
+  if (!src) return;
+  // Deactivate previous
+  const prev = sourceStack.querySelector('.src-entry.active');
+  if (prev) prev.classList.remove('active');
+  const el = document.createElement('div');
+  el.className = 'src-entry';
+  let html = `<div class="src-step">${esc(stepLabel)}</div>`;
+  html += `<div class="src-file">${esc(src.file)}</div>`;
+  if (src.fn) html += `<div class="src-fn">&#9655; ${esc(src.fn)}</div>`;
+  if (src.line) html += `<div class="src-line">Line ~${src.line}</div>`;
+  if (src.desc) html += `<div class="src-desc">${esc(src.desc)}</div>`;
+  el.innerHTML = html;
+  sourceStack.appendChild(el);
+  requestAnimationFrame(() => { el.classList.add('visible', 'active'); });
+  sourceStack.parentElement.scrollTop = sourceStack.parentElement.scrollHeight;
+}
+
 // ========== RESET ==========
 function resetFlow() {
   if (animTimer) clearTimeout(animTimer);
   animTimer = null;
   canvas.innerHTML = '';
   msgStack.innerHTML = '';
+  sourceStack.innerHTML = '';
   messages = [];
   stats = { turns:0, tools:0, input:0, output:0, cache:0, perms:0, cost:0, duration:0 };
   updateStats();
@@ -335,13 +375,20 @@ function updateContext(html) {
 function esc(s) { return s.replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // ========== FLOW STEP BUILDER ==========
-function addStep(icon, title, subtitle, state, msgType, msgLabel, msgContent, onDone) {
+// src: { file, fn, line, desc } — optional source reference
+function addStep(icon, title, subtitle, state, msgType, msgLabel, msgContent, onDone, src) {
   return new Promise(resolve => {
     const step = document.createElement('div');
     step.className = 'fstep';
     let msgHtml = '';
     if (msgContent) {
       msgHtml = `<div class="fmsg ${msgType}"><span class="msg-label">${msgLabel}</span><span class="msg-text"></span></div>`;
+    }
+    let srcBadge = '';
+    if (src) {
+      const short = src.file.split('/').pop();
+      const fnLabel = src.fn ? ` → ${src.fn}` : '';
+      srcBadge = `<div class="fstep-src"><span class="src-icon">&#128196;</span>${short}${fnLabel}${src.line ? ':' + src.line : ''}</div>`;
     }
     step.innerHTML = `
       <div class="fstep-box">
@@ -351,8 +398,11 @@ function addStep(icon, title, subtitle, state, msgType, msgLabel, msgContent, on
           <span class="fstep-time"></span>
         </div>
         <div class="fstep-subtitle">${subtitle}</div>
+        ${srcBadge}
         ${msgHtml}
       </div>`;
+    // Track source
+    if (src) addSourceEntry(title, src);
     canvas.appendChild(step);
 
     // Animate in
@@ -514,19 +564,19 @@ const presets = {
       await phaseUserMessage(input);
       await phaseApiCall(1);
       // Simulate overflow
-      await addStep('&#9888;', 'Prompt Too Long (413)', 'API rejected: context exceeds 200K token limit', 'error', 'error', 'API Error', 'Error 413: prompt is too long: 204,831 tokens > 200,000 maximum', null);
+      await addStep('&#9888;', 'Prompt Too Long (413)', 'API rejected: context exceeds 200K token limit', 'error', 'error', 'API Error', 'Error 413: prompt is too long: 204,831 tokens > 200,000 maximum', null, SRC.apiClient);
       stats.input += 204831;
       updateStats();
       updateTokenBar(102);
       addMsgChip('system', '[ERROR] Prompt too long — attempting recovery...');
       // Recovery 1
-      await addStep('&#128257;', 'Recovery: Context Collapse Drain', 'Force-committing staged collapses to free tokens...', 'done', 'system', 'Context Collapse', 'Collapsing 12 old tool_use/tool_result pairs into summaries...\nFreed: 18,240 tokens\nNew total: 186,591 tokens', null);
+      await addStep('&#128257;', 'Recovery: Context Collapse Drain', 'Force-committing staged collapses to free tokens...', 'done', 'system', 'Context Collapse', 'Collapsing 12 old tool_use/tool_result pairs into summaries...\nFreed: 18,240 tokens\nNew total: 186,591 tokens', null, SRC.contextCollapse);
       stats.cache += 18240;
       updateStats();
       updateTokenBar(93);
       updateContext('<div style="margin-bottom:8px;"><strong style="color:var(--green);">Context Collapse Applied</strong></div><div class="stat-row"><span class="stat-k">Messages collapsed</span><span class="stat-v">24 &rarr; 12</span></div><div class="stat-row"><span class="stat-k">Tokens freed</span><span class="stat-v" style="color:var(--green);">18,240</span></div><div class="stat-row"><span class="stat-k">New total</span><span class="stat-v">186,591</span></div>');
       // Retry
-      await addStep('&#128260;', 'Retry API Call', 'Retrying with collapsed context...', 'done', null, null, null, null);
+      await addStep('&#128260;', 'Retry API Call', 'Retrying with collapsed context...', 'done', null, null, null, null, SRC.queryLoop);
       stats.turns++;
       await phaseAssistantText("I can see from our conversation history that we were working on migrating the payment module from Stripe v2 to v3. Let me continue from where we left off.\n\nI had updated 3 of 7 files. Let me continue with the remaining ones.", true);
       await phaseToolCall('FileReadTool', '{ "file_path": "src/payments/webhook.ts" }', true, 'allow_rule');
@@ -540,13 +590,13 @@ const presets = {
     input: "/commit",
     steps: async (input) => {
       // Slash command path
-      await addStep('&#9000;', 'Slash Command Detected', 'Input starts with "/" — routing to command system, not query engine', 'done', 'user', 'User Input', '/commit', null);
+      await addStep('&#9000;', 'Slash Command Detected', 'Input starts with "/" — routing to command system, not query engine', 'done', 'user', 'User Input', '/commit', null, SRC.processInput);
       addMsgChip('user', '/commit');
-      await addStep('&#128269;', 'Parse Command', 'parseSlashCommand("/commit") → name: "commit", args: ""', 'done', null, null, null, null);
-      await addStep('&#128270;', 'Find Command in Registry', 'Matched: "commit" skill (bundled skill, not a direct command)', 'done', null, null, null, null);
-      await addStep('&#128220;', 'Skill Expansion', 'The /commit skill expands into a full prompt with instructions', 'done', 'system', 'Skill Prompt', 'You are creating a git commit. Follow these steps:\n1. Run git status to see changes\n2. Run git diff to see what changed\n3. Run git log for commit style\n4. Draft a commit message\n5. Create the commit\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>', null);
+      await addStep('&#128269;', 'Parse Command', 'parseSlashCommand("/commit") → name: "commit", args: ""', 'done', null, null, null, null, SRC.slashCmd);
+      await addStep('&#128270;', 'Find Command in Registry', 'Matched: "commit" skill (bundled skill, not a direct command)', 'done', null, null, null, null, SRC.skillBundle);
+      await addStep('&#128220;', 'Skill Expansion', 'The /commit skill expands into a full prompt with instructions', 'done', 'system', 'Skill Prompt', 'You are creating a git commit. Follow these steps:\n1. Run git status to see changes\n2. Run git diff to see what changed\n3. Run git log for commit style\n4. Draft a commit message\n5. Create the commit\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>', null, SRC.skillLoad);
       addMsgChip('system', '[SKILL] commit instructions expanded');
-      await addStep('&#10003;', 'shouldQuery = true', 'Skill output becomes a user message sent to the query engine', 'done', null, null, null, null);
+      await addStep('&#10003;', 'shouldQuery = true', 'Skill output becomes a user message sent to the query engine', 'done', null, null, null, null, SRC.queryLoop);
       // Now normal query flow
       await phaseMemoryLoad('/commit (expanded)');
       await phaseSystemPrompt('/commit', true);
@@ -583,12 +633,12 @@ const presets = {
         stats.tools++;
         stats.perms++;
         addMsgChip('tool_use', 'mcp__github__create_issue({ repo: "myorg/myapp", ... })');
-      });
-      await addStep('&#128273;', 'MCP Auth Check', 'Checking OAuth token for GitHub MCP server...', 'done', null, null, null, null);
-      await addStep('&#128225;', 'MCP Server Transport: HTTP', 'POST https://api.github.com/repos/myorg/myapp/issues', 'done', null, null, null, null);
+      }, SRC.mcpClient);
+      await addStep('&#128273;', 'MCP Auth Check', 'Checking OAuth token for GitHub MCP server...', 'done', null, null, null, null, SRC.mcpAuth);
+      await addStep('&#128225;', 'MCP Server Transport: HTTP', 'POST https://api.github.com/repos/myorg/myapp/issues', 'done', null, null, null, null, SRC.mcpClient);
       await addStep('&#9989;', 'MCP Tool Result', 'GitHub API responded successfully', 'done', 'tool-result', 'Tool Result &mdash; mcp__github__create_issue', '{\n  "status": "created",\n  "number": 247,\n  "url": "https://github.com/myorg/myapp/issues/247"\n}', () => {
         addMsgChip('tool_result', 'Issue #247 created successfully');
-      });
+      }, SRC.streamExec);
       stats.output += 320;
       updateStats();
       await phaseApiCall(2);
@@ -596,6 +646,50 @@ const presets = {
       await phaseComplete();
     }
   }
+};
+
+// ========== SOURCE REFERENCE MAPS ==========
+// Real file paths, functions, and lines from the Claude Code CLI codebase
+const SRC = {
+  memoryScan:      { file: 'memdir/memoryScan.ts',             fn: 'scanMemoryFiles()',         line: null,  desc: 'Discovers MEMORY.md and topic files in .claude/memory/' },
+  memoryRelevance: { file: 'memdir/findRelevantMemories.ts',   fn: 'findRelevantMemories()',    line: null,  desc: 'Scores and selects which memories to include in context' },
+  memoryAttach:    { file: 'memdir/attachments.ts',            fn: 'createAttachmentMessages()', line: null, desc: 'Converts selected memories into system message attachments' },
+  systemPrompt:    { file: 'context.ts',                       fn: 'getSystemPrompt()',         line: null,  desc: 'Builds system prompt from base instructions, tools, memory, git status' },
+  toolRegistry:    { file: 'tools.ts',                         fn: 'assembleTools()',           line: null,  desc: 'Registers all 44+ tools and their JSON schemas for the API' },
+  processInput:    { file: 'utils/processUserInput.ts',        fn: 'processUserInput()',        line: null,  desc: 'Validates input, detects slash commands, creates UserMessage' },
+  queryLoop:       { file: 'query.ts',                         fn: 'queryLoop()',               line: null,  desc: 'The core async generator driving the Reason-Act-Observe loop' },
+  apiClient:       { file: 'services/api/claude.ts',           fn: 'callModel()',               line: null,  desc: 'Sends streaming request to Anthropic API with betas and tools' },
+  withRetry:       { file: 'services/api/withRetry.ts',        fn: 'withRetry()',               line: null,  desc: 'Wraps API calls with exponential backoff + jitter on transient errors' },
+  streamExec:      { file: 'services/tools/StreamingToolExecutor.ts', fn: 'addTool() / processQueue()', line: null, desc: 'Manages concurrent tool execution — parallel reads, exclusive writes' },
+  toolExec:        { file: 'services/tools/toolExecution.ts',  fn: 'runToolUse()',              line: null,  desc: 'Validates, permission-checks, and executes a single tool call' },
+  toolHooks:       { file: 'services/tools/toolHooks.ts',      fn: 'runPostToolUseHooks()',     line: null,  desc: 'Fires post-tool-use hooks for logging, webhooks, analytics' },
+  permissions:     { file: 'utils/permissions/permissions.ts',  fn: 'hasPermissionsToUseTool()', line: null,  desc: 'Multi-layer permission cascade: rules → classifier → hooks → prompt' },
+  yoloClassifier:  { file: 'utils/permissions/yoloClassifier.ts', fn: 'classifyToolCall()',     line: null,  desc: 'Pattern-matching classifier for auto-approving safe operations' },
+  dangerPatterns:  { file: 'utils/permissions/dangerousPatterns.ts', fn: 'isDangerousPattern()', line: null, desc: 'Detects rm -rf, force push, DROP TABLE, and other destructive patterns' },
+  permInteractive: { file: 'hooks/toolPermission/handlers/interactiveHandler.ts', fn: 'promptUserForPermission()', line: null, desc: 'Shows terminal dialog for user to approve/deny tool calls' },
+  fileReadTool:    { file: 'tools/FileReadTool/FileReadTool.ts', fn: 'call()',                  line: null,  desc: 'Reads files with line numbers. Supports images, PDFs, notebooks.' },
+  fileEditTool:    { file: 'tools/FileEditTool/FileEditTool.ts', fn: 'call()',                  line: null,  desc: 'Exact string replacement. Requires reading first. Sends only the diff.' },
+  bashTool:        { file: 'tools/BashTool/BashTool.ts',       fn: 'call()',                    line: null,  desc: 'Executes bash commands with timeout, background, persistent cwd.' },
+  grepTool:        { file: 'tools/GrepTool/GrepTool.ts',       fn: 'call()',                    line: null,  desc: 'Ripgrep-based content search with regex, file type filter, context lines.' },
+  agentTool:       { file: 'tools/AgentTool/AgentTool.tsx',     fn: 'call()',                   line: null,  desc: 'Spawns sub-agents with isolated context, model override, worktree isolation.' },
+  agentFork:       { file: 'tools/AgentTool/AgentTool.tsx',     fn: 'forkSubagent()',           line: null,  desc: 'Creates child process with own context window, tools, and permissions.' },
+  mcpClient:       { file: 'services/mcp/client.ts',            fn: 'connectToServer()',        line: null,  desc: 'MCP protocol client — connects, negotiates capabilities, discovers tools.' },
+  mcpAuth:         { file: 'services/mcp/auth.ts',              fn: 'authenticateServer()',     line: null,  desc: 'Per-server OAuth flow — token retrieval, refresh, IDP login.' },
+  mcpConfig:       { file: 'services/mcp/config.ts',            fn: 'loadMcpConfigs()',         line: null,  desc: 'Loads MCP server configs from settings.json (project + user + enterprise).' },
+  slashCmd:        { file: 'utils/processUserInput/processSlashCommand.tsx', fn: 'processSlashCommand()', line: null, desc: 'Parses "/" commands, finds in registry, routes to handler or skill.' },
+  skillLoad:       { file: 'skills/loadSkillsDir.ts',           fn: 'loadSkills()',             line: null,  desc: 'Loads bundled + user-defined skills from .claude/skills/ directory.' },
+  skillBundle:     { file: 'skills/bundledSkills.ts',            fn: 'getBundledSkills()',       line: null,  desc: '19 built-in skills: commit, simplify, loop, schedule, etc.' },
+  contextCollapse: { file: 'query.ts',                          fn: 'contextCollapse.recoverFromOverflow()', line: null, desc: 'Force-commits staged collapses to free tokens on 413 error.' },
+  reactiveCompact: { file: 'query.ts',                          fn: 'reactiveCompact.tryReactiveCompact()', line: null, desc: 'Emergency compaction — aggressively summarizes old messages.' },
+  autocompact:     { file: 'query.ts',                          fn: 'deps.autocompact()',       line: null,  desc: 'Proactive summarization using a forked Claude call to compress history.' },
+  microcompact:    { file: 'query.ts',                          fn: 'deps.microcompact()',      line: null,  desc: 'Compresses tool_use/tool_result pairs in-place. Preserves thinking blocks.' },
+  stopHooks:       { file: 'query.ts',                          fn: 'handleStopHooks()',        line: null,  desc: 'Fires stop hooks, memory extraction, prompt suggestions on turn end.' },
+  postSampling:    { file: 'utils/hooks/postSamplingHooks.ts',  fn: 'executePostSamplingHooks()', line: null, desc: 'Fire-and-forget hooks after Claude response. Non-blocking.' },
+  history:         { file: 'history.ts',                        fn: 'saveSession()',            line: null,  desc: 'Persists conversation to disk. Handles compaction and microcompact.' },
+  costTracker:     { file: 'cost-tracker.ts',                   fn: 'trackUsage()',             line: null,  desc: 'Per-request and session-wide token counting and cost calculation.' },
+  mainTsx:         { file: 'main.tsx',                          fn: 'cliMain()',                line: null,  desc: 'The 804KB main orchestrator — imports all subsystems, mounts React UI.' },
+  queryEngine:     { file: 'QueryEngine.ts',                    fn: 'ask()',                    line: null,  desc: 'Higher-level orchestrator managing tool availability and token budgets.' },
+  toolOrch:        { file: 'services/tools/toolOrchestration.ts', fn: 'orchestrateTools()',     line: null,  desc: 'Tool orchestration pipeline — coordinates streaming execution order.' },
 };
 
 // ========== FLOW PHASES (reusable building blocks) ==========
@@ -606,7 +700,7 @@ async function phaseMemoryLoad(input) {
     stats.input += 480;
     updateStats();
     updateTokenBar(0.5);
-  });
+  }, SRC.memoryScan);
 }
 
 async function phaseSystemPrompt(input, hasTools) {
@@ -619,7 +713,7 @@ async function phaseSystemPrompt(input, hasTools) {
     stats.cache += Math.round(tokens * 0.85);
     updateStats();
     updateTokenBar(Math.round(tokens / 2000));
-  });
+  }, SRC.systemPrompt);
 }
 
 async function phaseUserMessage(input) {
@@ -627,7 +721,7 @@ async function phaseUserMessage(input) {
     addMsgChip('user', input);
     stats.input += Math.round(input.length / 3.5);
     updateStats();
-  });
+  }, SRC.processInput);
 }
 
 async function phaseApiCall(turn) {
@@ -637,7 +731,7 @@ async function phaseApiCall(turn) {
   updateStats();
   await addStep('&#9729;', `API Call — Turn ${turn}`, `Streaming to claude-sonnet-4-6 | Beta: extended-thinking, prompt-caching`, 'done', null, null, null, () => {
     updateTokenBar(Math.min(95, stats.input / 2000));
-  });
+  }, SRC.apiClient);
 }
 
 async function phaseAssistantText(text, hasTools) {
@@ -647,7 +741,7 @@ async function phaseAssistantText(text, hasTools) {
   updateStats();
   await addStep(hasTools ? '&#129302;' : '&#9989;', hasTools ? 'Claude Responds (with tool calls)' : 'Claude Responds (final)', `Output: ${tokens} tokens`, 'done', 'assistant', 'Assistant', text, () => {
     addMsgChip('assistant', text.slice(0, 100));
-  });
+  }, SRC.queryLoop);
 }
 
 async function phaseToolCall(name, input, permitted, reason) {
@@ -661,12 +755,31 @@ async function phaseToolCall(name, input, permitted, reason) {
     'denied_dangerous': 'Dangerous pattern detected — DENIED'
   }[reason] || reason;
   const state = permitted ? 'done' : 'error';
-  const permColor = permitted ? '&#9989;' : '&#128683;';
+
+  // Pick the right source ref for the tool
+  const toolSrcMap = {
+    'FileReadTool': SRC.fileReadTool,
+    'FileEditTool': SRC.fileEditTool,
+    'BashTool': SRC.bashTool,
+    'GrepTool': SRC.grepTool,
+    'GlobTool': SRC.grepTool,
+    'AgentTool': SRC.agentTool,
+  };
+  const toolSrc = toolSrcMap[name] || SRC.toolExec;
+
   await addStep('&#128295;', `Tool: ${name}`, `Permission: ${reasonLabel}`, state, 'tool-call', `Tool Call — ${name}`, input, () => {
     addMsgChip('tool_use', `${name}(${input.slice(0, 60)}...)`);
-  });
+  }, toolSrc);
+
+  // Permission check step with its own source ref
+  const permSrcMap = {
+    'allow_rule': SRC.permissions,
+    'user_approved': SRC.permInteractive,
+    'classifier_approved': SRC.yoloClassifier,
+    'denied_dangerous': SRC.dangerPatterns,
+  };
   if (permitted) {
-    await addStep(permColor, `Permission: ALLOWED`, reasonLabel, 'done', null, null, null, null);
+    await addStep('&#9989;', `Permission: ALLOWED`, reasonLabel, 'done', null, null, null, null, permSrcMap[reason] || SRC.permissions);
   }
 }
 
@@ -676,30 +789,30 @@ async function phaseToolResult(name, result) {
   await addStep('&#128230;', `Result: ${name}`, `${result.length} chars returned`, 'done', 'tool-result', `Tool Result — ${name}`, result, () => {
     addMsgChip('tool_result', result.slice(0, 80));
     updateTokenBar(Math.min(95, stats.input / 2000));
-  });
+  }, SRC.streamExec);
 }
 
 async function phaseToolDenied(name, reason) {
   await addStep('&#128683;', `Permission DENIED: ${name}`, 'Dangerous pattern classifier blocked this tool call', 'error', 'error', `Denied — ${name}`, reason, () => {
     addMsgChip('tool_result', `[DENIED] ${name} — dangerous pattern`);
-  });
+  }, SRC.dangerPatterns);
 }
 
 async function phaseParallelTools(tools, results) {
-  // Show parallel execution
   await addStep('&#9881;', `Parallel Execution: ${tools.length} tools`, `Concurrent-safe tools running simultaneously`, 'done', null, null, null, () => {
     stats.tools += tools.length;
     stats.perms += tools.length;
-  });
+  }, SRC.streamExec);
   for (let i = 0; i < tools.length; i++) {
     const t = tools[i];
+    const toolSrc = t.name === 'GrepTool' ? SRC.grepTool : t.name === 'BashTool' ? SRC.bashTool : SRC.toolExec;
     await addStep('&#128295;', `${t.name} (parallel ${i+1}/${tools.length})`, `Classifier: safe read-only operation`, 'done', 'tool-call', `Tool Call — ${t.name}`, t.input, () => {
       addMsgChip('tool_use', `${t.name}(...)`);
-    });
+    }, toolSrc);
     stats.input += Math.round(results[i].length / 3.5);
     await addStep('&#128230;', `Result: ${t.name}`, `${results[i].length} chars`, 'done', 'tool-result', `Tool Result — ${t.name}`, results[i], () => {
       addMsgChip('tool_result', results[i].slice(0, 60));
-    });
+    }, SRC.streamExec);
   }
   updateStats();
   updateTokenBar(Math.min(95, stats.input / 2000));
@@ -709,8 +822,8 @@ async function phaseAgentSpawn(type, prompt, mode) {
   await addStep('&#128640;', `Spawn Agent: ${type}`, `Mode: ${mode} | Isolated context window`, 'done', 'tool-call', `AgentTool — ${type}`, `{\n  "subagent_type": "${type}",\n  "prompt": "${prompt}",\n  "run_in_background": ${mode === 'background'}\n}`, () => {
     stats.tools++;
     addMsgChip('tool_use', `AgentTool(${type}, ${mode})`);
-  });
-  await addStep('&#128260;', `Agent Running (${mode})`, `${type} agent has its own context window, tools, and permissions`, 'done', null, null, null, null);
+  }, SRC.agentTool);
+  await addStep('&#128260;', `Agent Running (${mode})`, `${type} agent has its own context window, tools, and permissions`, 'done', null, null, null, null, SRC.agentFork);
 }
 
 async function phaseAgentComplete(type, result) {
@@ -718,11 +831,11 @@ async function phaseAgentComplete(type, result) {
     addMsgChip('tool_result', `[Agent:${type}] ${result.slice(0, 60)}...`);
     stats.input += Math.round(result.length / 3.5);
     updateStats();
-  });
+  }, SRC.agentTool);
 }
 
 async function phaseComplete() {
-  await addStep('&#127937;', 'Turn Complete', `${stats.turns} turn(s), ${stats.tools} tool calls, $${stats.cost.toFixed(3)}`, 'done', null, null, null, null);
+  await addStep('&#127937;', 'Turn Complete', `${stats.turns} turn(s), ${stats.tools} tool calls, $${stats.cost.toFixed(3)}`, 'done', null, null, null, null, SRC.stopHooks);
   document.getElementById('send-btn').disabled = false;
 }
 
