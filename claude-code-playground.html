@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code Agent Flow Playground</title>
+<style>
+:root {
+  --bg: #0a0e14;
+  --bg2: #12171f;
+  --bg3: #1a2030;
+  --bg4: #232d3f;
+  --border: #2a3545;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --accent: #3b82f6;
+  --accent2: #60a5fa;
+  --green: #22c55e;
+  --green-dim: rgba(34,197,94,0.12);
+  --orange: #f59e0b;
+  --orange-dim: rgba(245,158,11,0.12);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.12);
+  --purple: #a78bfa;
+  --purple-dim: rgba(167,139,250,0.12);
+  --pink: #f472b6;
+  --cyan: #22d3ee;
+  --cyan-dim: rgba(34,211,238,0.12);
+  --yellow: #facc15;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'SF Mono','Fira Code','JetBrains Mono',monospace;background:var(--bg);color:var(--text);overflow:hidden;height:100vh;}
+
+/* Layout */
+.app{display:grid;grid-template-rows:auto 1fr;height:100vh;}
+.topbar{display:flex;align-items:center;gap:16px;padding:10px 20px;background:var(--bg2);border-bottom:1px solid var(--border);z-index:10;}
+.topbar h1{font-size:0.95em;background:linear-gradient(135deg,var(--accent),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.main-area{display:grid;grid-template-columns:320px 1fr 340px;overflow:hidden;}
+
+/* Left: Input Panel */
+.input-panel{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;}
+.input-panel h3{padding:14px 16px 8px;font-size:0.75em;text-transform:uppercase;letter-spacing:1px;color:var(--muted);}
+.input-area{padding:0 16px 16px;}
+.input-area textarea{width:100%;height:72px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:0.82em;padding:10px 12px;resize:none;outline:none;transition:border-color 0.2s;}
+.input-area textarea:focus{border-color:var(--accent);}
+.send-btn{width:100%;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:0.82em;font-weight:600;cursor:pointer;transition:all 0.2s;margin-top:8px;}
+.send-btn:hover{background:var(--accent2);}
+.send-btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+/* Scenario presets */
+.presets{padding:0 16px 12px;}
+.preset-btn{display:block;width:100%;text-align:left;padding:9px 12px;margin-bottom:4px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:0.78em;cursor:pointer;transition:all 0.15s;}
+.preset-btn:hover{border-color:var(--accent);background:var(--bg4);}
+.preset-btn .preset-tag{font-size:0.7em;color:var(--muted);display:block;margin-top:2px;}
+
+/* Controls */
+.controls{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--border);align-items:center;}
+.speed-label{font-size:0.7em;color:var(--muted);}
+.speed-slider{flex:1;accent-color:var(--accent);}
+.ctrl-btn{padding:6px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:0.75em;cursor:pointer;transition:all 0.15s;}
+.ctrl-btn:hover{border-color:var(--accent);}
+
+/* Center: Flow Canvas */
+.flow-canvas{position:relative;overflow-y:auto;overflow-x:hidden;padding:24px 32px;scroll-behavior:smooth;}
+
+/* Flow step */
+.fstep{position:relative;margin-bottom:8px;padding-left:40px;opacity:0;transform:translateY(12px);transition:all 0.4s cubic-bezier(0.16,1,0.3,1);}
+.fstep.visible{opacity:1;transform:translateY(0);}
+.fstep.active .fstep-box{border-color:var(--accent);box-shadow:0 0 24px rgba(59,130,246,0.15);}
+
+/* Timeline rail */
+.fstep::before{content:'';position:absolute;left:14px;top:0;bottom:-8px;width:2px;background:var(--border);transition:background 0.3s;}
+.fstep.done::before{background:var(--green);}
+.fstep.active::before{background:var(--accent);box-shadow:0 0 6px var(--accent);}
+.fstep:last-child::before{display:none;}
+
+/* Timeline dot */
+.fstep::after{content:'';position:absolute;left:8px;top:16px;width:14px;height:14px;border-radius:50%;border:2px solid var(--border);background:var(--bg);z-index:1;transition:all 0.3s;}
+.fstep.done::after{border-color:var(--green);background:var(--green);box-shadow:0 0 8px rgba(34,197,94,0.4);}
+.fstep.active::after{border-color:var(--accent);background:var(--accent);box-shadow:0 0 10px rgba(59,130,246,0.5);animation:pulse-dot 1.5s infinite;}
+.fstep.error::after{border-color:var(--red);background:var(--red);box-shadow:0 0 8px rgba(239,68,68,0.4);}
+.fstep.skip::after{border-color:var(--muted);background:var(--muted);}
+
+@keyframes pulse-dot{0%,100%{box-shadow:0 0 10px rgba(59,130,246,0.5);}50%{box-shadow:0 0 20px rgba(59,130,246,0.8);}}
+
+.fstep-box{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;transition:all 0.3s;}
+.fstep-header{display:flex;align-items:center;gap:8px;}
+.fstep-icon{font-size:1.1em;width:24px;text-align:center;flex-shrink:0;}
+.fstep-title{font-size:0.82em;font-weight:600;}
+.fstep-time{margin-left:auto;font-size:0.68em;color:var(--muted);}
+.fstep-subtitle{font-size:0.72em;color:var(--muted);margin-top:4px;}
+
+/* Message bubble inside step */
+.fmsg{margin-top:10px;padding:10px 14px;border-radius:8px;font-size:0.78em;line-height:1.6;max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;transition:all 0.4s;}
+.fmsg.system{background:var(--purple-dim);border-left:3px solid var(--purple);}
+.fmsg.user{background:var(--cyan-dim);border-left:3px solid var(--cyan);}
+.fmsg.assistant{background:var(--green-dim);border-left:3px solid var(--green);}
+.fmsg.tool-call{background:var(--orange-dim);border-left:3px solid var(--orange);}
+.fmsg.tool-result{background:rgba(59,130,246,0.1);border-left:3px solid var(--accent);}
+.fmsg.error{background:var(--red-dim);border-left:3px solid var(--red);}
+.fmsg.memory{background:rgba(250,204,21,0.08);border-left:3px solid var(--yellow);}
+.fmsg .msg-label{font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;display:block;}
+.fmsg.system .msg-label{color:var(--purple);}
+.fmsg.user .msg-label{color:var(--cyan);}
+.fmsg.assistant .msg-label{color:var(--green);}
+.fmsg.tool-call .msg-label{color:var(--orange);}
+.fmsg.tool-result .msg-label{color:var(--accent);}
+.fmsg.error .msg-label{color:var(--red);}
+.fmsg.memory .msg-label{color:var(--yellow);}
+
+/* Typing animation */
+.typing-cursor::after{content:'|';animation:blink 0.8s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+
+/* Right: Message Inspector */
+.inspector{background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.inspector h3{padding:14px 16px 8px;font-size:0.75em;text-transform:uppercase;letter-spacing:1px;color:var(--muted);}
+.inspector-tabs{display:flex;border-bottom:1px solid var(--border);padding:0 12px;}
+.inspector-tabs button{background:none;border:none;color:var(--muted);font-family:inherit;font-size:0.75em;padding:8px 12px;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s;}
+.inspector-tabs button:hover{color:var(--text);}
+.inspector-tabs button.active{color:var(--accent);border-bottom-color:var(--accent);}
+.inspector-body{flex:1;overflow-y:auto;padding:12px 16px;font-size:0.78em;}
+.insp-panel{display:none;}
+.insp-panel.active{display:block;}
+
+/* Message array vis */
+.msg-stack{display:flex;flex-direction:column;gap:4px;}
+.msg-chip{padding:6px 10px;border-radius:6px;font-size:0.8em;display:flex;align-items:center;gap:6px;transition:all 0.3s;opacity:0;transform:translateX(12px);}
+.msg-chip.visible{opacity:1;transform:translateX(0);}
+.msg-chip .chip-role{font-weight:700;font-size:0.72em;text-transform:uppercase;width:60px;flex-shrink:0;}
+.msg-chip .chip-text{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
+.msg-chip.r-system{background:var(--purple-dim);}.msg-chip.r-system .chip-role{color:var(--purple);}
+.msg-chip.r-user{background:var(--cyan-dim);}.msg-chip.r-user .chip-role{color:var(--cyan);}
+.msg-chip.r-assistant{background:var(--green-dim);}.msg-chip.r-assistant .chip-role{color:var(--green);}
+.msg-chip.r-tool-call{background:var(--orange-dim);}.msg-chip.r-tool-call .chip-role{color:var(--orange);}
+.msg-chip.r-tool-result{background:rgba(59,130,246,0.1);}.msg-chip.r-tool-result .chip-role{color:var(--accent);}
+
+/* Token counter */
+.token-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--border);font-size:0.72em;color:var(--muted);}
+.token-fill{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;}
+.token-fill-inner{height:100%;background:var(--accent);border-radius:3px;transition:width 0.5s cubic-bezier(0.16,1,0.3,1);}
+.token-fill-inner.warn{background:var(--orange);}
+.token-fill-inner.danger{background:var(--red);}
+
+/* Cost badge */
+.cost-badge{padding:4px 10px;background:var(--bg3);border-radius:12px;font-size:0.72em;color:var(--green);border:1px solid rgba(34,197,94,0.2);}
+
+/* Stat row */
+.stat-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(42,53,69,0.5);font-size:0.82em;}
+.stat-row:last-child{border-bottom:none;}
+.stat-row .stat-k{color:var(--muted);}
+.stat-row .stat-v{color:var(--text);font-weight:600;}
+
+/* Responsive */
+@media(max-width:1100px){.main-area{grid-template-columns:280px 1fr 0;}.inspector{display:none;}}
+@media(max-width:700px){.main-area{grid-template-columns:1fr;}.input-panel{display:none;}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <h1>Claude Code &mdash; Agent Flow Playground</h1>
+    <span style="color:var(--muted);font-size:0.75em;">Watch messages transform as they flow through the system</span>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+      <span class="cost-badge" id="cost-display">$0.000</span>
+    </div>
+  </div>
+
+  <div class="main-area">
+    <!-- LEFT: Input -->
+    <div class="input-panel">
+      <h3>Your Message</h3>
+      <div class="input-area">
+        <textarea id="user-input" placeholder="Type a message to Claude Code...">Fix the bug in auth.ts where the token refresh is failing</textarea>
+        <button class="send-btn" id="send-btn" onclick="runSimulation()">Send &amp; Watch Flow</button>
+      </div>
+
+      <h3>Scenarios</h3>
+      <div class="presets">
+        <button class="preset-btn" onclick="loadPreset('simple')">
+          Simple question (no tools)
+          <span class="preset-tag">Text only &mdash; 1 turn</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('read-edit')">
+          Read &amp; edit a file
+          <span class="preset-tag">2 tools, permission check &mdash; 2 turns</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('multi-tool')">
+          Search, read, edit, test
+          <span class="preset-tag">4 tools, parallel reads &mdash; 3 turns</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('permission-denied')">
+          Dangerous command denied
+          <span class="preset-tag">Permission denied path</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('agent-spawn')">
+          Sub-agent spawned
+          <span class="preset-tag">Agent delegation &mdash; background</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('context-overflow')">
+          Context overflow recovery
+          <span class="preset-tag">Compaction + retry</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('slash-cmd')">
+          Slash command: /commit
+          <span class="preset-tag">Command &rarr; skill expansion &rarr; query</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('mcp-tool')">
+          MCP tool call (GitHub)
+          <span class="preset-tag">External server integration</span>
+        </button>
+      </div>
+
+      <div style="flex:1;"></div>
+      <div class="controls">
+        <span class="speed-label">Speed</span>
+        <input type="range" class="speed-slider" id="speed" min="1" max="10" value="5">
+        <button class="ctrl-btn" onclick="resetFlow()">Reset</button>
+      </div>
+    </div>
+
+    <!-- CENTER: Flow Canvas -->
+    <div class="flow-canvas" id="flow-canvas"></div>
+
+    <!-- RIGHT: Inspector -->
+    <div class="inspector">
+      <h3>Live Inspector</h3>
+      <div class="inspector-tabs">
+        <button class="active" onclick="switchInspTab(this,'insp-messages')">Messages</button>
+        <button onclick="switchInspTab(this,'insp-stats')">Stats</button>
+        <button onclick="switchInspTab(this,'insp-context')">Context</button>
+      </div>
+      <div class="inspector-body">
+        <div class="insp-panel active" id="insp-messages">
+          <div class="msg-stack" id="msg-stack"></div>
+        </div>
+        <div class="insp-panel" id="insp-stats">
+          <div id="stats-body">
+            <div class="stat-row"><span class="stat-k">Turns</span><span class="stat-v" id="st-turns">0</span></div>
+            <div class="stat-row"><span class="stat-k">Tool calls</span><span class="stat-v" id="st-tools">0</span></div>
+            <div class="stat-row"><span class="stat-k">Input tokens</span><span class="stat-v" id="st-input">0</span></div>
+            <div class="stat-row"><span class="stat-k">Output tokens</span><span class="stat-v" id="st-output">0</span></div>
+            <div class="stat-row"><span class="stat-k">Cache read</span><span class="stat-v" id="st-cache">0</span></div>
+            <div class="stat-row"><span class="stat-k">Permission checks</span><span class="stat-v" id="st-perms">0</span></div>
+            <div class="stat-row"><span class="stat-k">Model</span><span class="stat-v" id="st-model">claude-sonnet-4-6</span></div>
+            <div class="stat-row"><span class="stat-k">Duration</span><span class="stat-v" id="st-duration">0ms</span></div>
+          </div>
+        </div>
+        <div class="insp-panel" id="insp-context">
+          <div id="context-body" style="color:var(--muted);font-size:0.9em;">
+            <p style="margin-bottom:8px;">Context window usage will appear here as the simulation runs.</p>
+          </div>
+        </div>
+      </div>
+      <div class="token-bar">
+        <span>Tokens</span>
+        <div class="token-fill"><div class="token-fill-inner" id="token-bar-fill" style="width:0%"></div></div>
+        <span id="token-count">0 / 200K</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== STATE ==========
+let sim = null;
+let stepIndex = 0;
+let animTimer = null;
+const canvas = document.getElementById('flow-canvas');
+const msgStack = document.getElementById('msg-stack');
+let messages = []; // inspector message array
+let stats = { turns:0, tools:0, input:0, output:0, cache:0, perms:0, cost:0, duration:0 };
+
+function getDelay() {
+  const v = document.getElementById('speed').value;
+  return 1200 - (v - 1) * 110; // 1200ms at 1, 210ms at 10
+}
+
+// ========== RESET ==========
+function resetFlow() {
+  if (animTimer) clearTimeout(animTimer);
+  animTimer = null;
+  canvas.innerHTML = '';
+  msgStack.innerHTML = '';
+  messages = [];
+  stats = { turns:0, tools:0, input:0, output:0, cache:0, perms:0, cost:0, duration:0 };
+  updateStats();
+  updateTokenBar(0);
+  document.getElementById('cost-display').textContent = '$0.000';
+  document.getElementById('send-btn').disabled = false;
+  stepIndex = 0;
+}
+
+// ========== INSPECTOR ==========
+function switchInspTab(btn, id) {
+  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.insp-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function addMsgChip(role, text) {
+  const roleClass = role === 'system' ? 'r-system' : role === 'user' ? 'r-user' : role === 'assistant' ? 'r-assistant' : role === 'tool_use' ? 'r-tool-call' : 'r-tool-result';
+  const chip = document.createElement('div');
+  chip.className = `msg-chip ${roleClass}`;
+  chip.innerHTML = `<span class="chip-role">${role}</span><span class="chip-text">${esc(text.slice(0,80))}</span>`;
+  msgStack.appendChild(chip);
+  requestAnimationFrame(() => chip.classList.add('visible'));
+  msgStack.parentElement.scrollTop = msgStack.parentElement.scrollHeight;
+}
+
+function updateStats() {
+  document.getElementById('st-turns').textContent = stats.turns;
+  document.getElementById('st-tools').textContent = stats.tools;
+  document.getElementById('st-input').textContent = stats.input.toLocaleString();
+  document.getElementById('st-output').textContent = stats.output.toLocaleString();
+  document.getElementById('st-cache').textContent = stats.cache.toLocaleString();
+  document.getElementById('st-perms').textContent = stats.perms;
+  document.getElementById('st-duration').textContent = stats.duration + 'ms';
+  document.getElementById('cost-display').textContent = '$' + stats.cost.toFixed(3);
+}
+
+function updateTokenBar(pct) {
+  const bar = document.getElementById('token-bar-fill');
+  bar.style.width = pct + '%';
+  bar.className = 'token-fill-inner' + (pct > 85 ? ' danger' : pct > 60 ? ' warn' : '');
+  const total = 200000;
+  document.getElementById('token-count').textContent = Math.round(total * pct / 100).toLocaleString() + ' / 200K';
+}
+
+function updateContext(html) {
+  document.getElementById('context-body').innerHTML = html;
+}
+
+function esc(s) { return s.replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ========== FLOW STEP BUILDER ==========
+function addStep(icon, title, subtitle, state, msgType, msgLabel, msgContent, onDone) {
+  return new Promise(resolve => {
+    const step = document.createElement('div');
+    step.className = 'fstep';
+    let msgHtml = '';
+    if (msgContent) {
+      msgHtml = `<div class="fmsg ${msgType}"><span class="msg-label">${msgLabel}</span><span class="msg-text"></span></div>`;
+    }
+    step.innerHTML = `
+      <div class="fstep-box">
+        <div class="fstep-header">
+          <span class="fstep-icon">${icon}</span>
+          <span class="fstep-title">${title}</span>
+          <span class="fstep-time"></span>
+        </div>
+        <div class="fstep-subtitle">${subtitle}</div>
+        ${msgHtml}
+      </div>`;
+    canvas.appendChild(step);
+
+    // Animate in
+    requestAnimationFrame(() => {
+      step.classList.add('visible', 'active');
+      canvas.scrollTop = canvas.scrollHeight;
+    });
+
+    const delay = getDelay();
+
+    if (msgContent) {
+      // Typewriter for message content
+      const textEl = step.querySelector('.msg-text');
+      let i = 0;
+      const chars = msgContent;
+      const charDelay = Math.max(4, Math.min(20, (delay * 0.7) / chars.length));
+      textEl.classList.add('typing-cursor');
+      const type = () => {
+        if (i < chars.length) {
+          textEl.textContent += chars[i];
+          i++;
+          // Auto scroll
+          const msgEl = step.querySelector('.fmsg');
+          if(msgEl) msgEl.scrollTop = msgEl.scrollHeight;
+          canvas.scrollTop = canvas.scrollHeight;
+          animTimer = setTimeout(type, charDelay);
+        } else {
+          textEl.classList.remove('typing-cursor');
+          finish();
+        }
+      };
+      animTimer = setTimeout(type, delay * 0.2);
+    } else {
+      animTimer = setTimeout(finish, delay);
+    }
+
+    function finish() {
+      step.classList.remove('active');
+      step.classList.add(state);
+      const t = step.querySelector('.fstep-time');
+      stats.duration += Math.round(delay * 0.8);
+      t.textContent = stats.duration + 'ms';
+      if (onDone) onDone();
+      resolve();
+    }
+  });
+}
+
+// ========== PRESETS ==========
+const presets = {
+  simple: {
+    input: "What does the useState hook do in React?",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, false);
+      await phaseUserMessage(input);
+      await phaseApiCall(1);
+      await phaseAssistantText("The useState hook is a React function that lets you add state to functional components.\n\nIt returns a pair: the current state value and a function to update it.\n\n```js\nconst [count, setCount] = useState(0);\n```\n\nWhen you call setCount, React re-renders the component with the new value.", false);
+      await phaseComplete();
+    }
+  },
+  'read-edit': {
+    input: "Fix the bug in auth.ts where the token refresh is failing",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, true);
+      await phaseUserMessage(input);
+      // Turn 1
+      await phaseApiCall(1);
+      await phaseAssistantText("I'll read the auth.ts file first to understand the token refresh logic.", true);
+      await phaseToolCall('FileReadTool', '{ "file_path": "/src/auth.ts" }', true, 'allow_rule');
+      await phaseToolResult('FileReadTool', '1  import { refreshToken } from "./oauth";\n2  \n3  export async function ensureAuth(token) {\n4    if (token.expiresAt < Date.now()) {\n5      // BUG: not awaiting the refresh!\n6      refreshToken(token);\n7      return token; // returns stale token\n8    }\n9    return token;\n10 }');
+      // Turn 2
+      await phaseApiCall(2);
+      await phaseAssistantText("Found it! Line 6 is missing `await` — the refresh isn't being awaited, so the stale token is returned. Let me fix this.", true);
+      await phaseToolCall('FileEditTool', '{\n  "file_path": "/src/auth.ts",\n  "old_string": "      refreshToken(token);\\n      return token;",\n  "new_string": "      await refreshToken(token);\\n      return token;"\n}', true, 'user_approved');
+      await phaseToolResult('FileEditTool', 'File edited successfully. 1 replacement made.');
+      // Turn 3
+      await phaseApiCall(3);
+      await phaseAssistantText("Fixed. The `refreshToken()` call on line 6 was missing `await`, so it returned the stale token before the refresh completed. Now it properly waits for the refresh before returning.", false);
+      await phaseComplete();
+    }
+  },
+  'multi-tool': {
+    input: "Find all API endpoints that don't have auth middleware, add it, and run the tests",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, true);
+      await phaseUserMessage(input);
+      // Turn 1: parallel search
+      await phaseApiCall(1);
+      await phaseAssistantText("I'll search for route definitions and check which ones are missing auth middleware.", true);
+      await phaseParallelTools([
+        { name: 'GrepTool', input: '{ "pattern": "router\\\\.(get|post|put|delete)", "path": "src/routes/" }', permitted: true },
+        { name: 'GrepTool', input: '{ "pattern": "authMiddleware", "path": "src/routes/" }', permitted: true }
+      ], [
+        'src/routes/users.ts:5: router.get("/users", authMiddleware, getUsers)\nsrc/routes/users.ts:8: router.post("/users", authMiddleware, createUser)\nsrc/routes/health.ts:3: router.get("/health", getHealth)\nsrc/routes/admin.ts:4: router.get("/admin/stats", getStats)',
+        'src/routes/users.ts:5: authMiddleware\nsrc/routes/users.ts:8: authMiddleware'
+      ]);
+      // Turn 2: read + edit
+      await phaseApiCall(2);
+      await phaseAssistantText("Found 2 unprotected endpoints:\n- GET /health (intentional? skipping)\n- GET /admin/stats (needs auth!)\n\nLet me fix the admin route.", true);
+      await phaseToolCall('FileReadTool', '{ "file_path": "src/routes/admin.ts" }', true, 'allow_rule');
+      await phaseToolResult('FileReadTool', '1  import { Router } from "express";\n2  import { getStats } from "../controllers/admin";\n3  const router = Router();\n4  router.get("/admin/stats", getStats);\n5  export default router;');
+      await phaseToolCall('FileEditTool', '{\n  "file_path": "src/routes/admin.ts",\n  "old_string": "import { getStats }",\n  "new_string": "import { authMiddleware } from \\"../middleware/auth\\";\\nimport { getStats }"\n}', true, 'user_approved');
+      await phaseToolResult('FileEditTool', 'File edited successfully.');
+      await phaseToolCall('FileEditTool', '{\n  "file_path": "src/routes/admin.ts",\n  "old_string": "router.get(\\"/admin/stats\\", getStats)",\n  "new_string": "router.get(\\"/admin/stats\\", authMiddleware, getStats)"\n}', true, 'user_approved');
+      await phaseToolResult('FileEditTool', 'File edited successfully.');
+      // Turn 3: run tests
+      await phaseApiCall(3);
+      await phaseAssistantText("Now let me run the test suite to make sure nothing broke.", true);
+      await phaseToolCall('BashTool', '{ "command": "npm test" }', true, 'classifier_approved');
+      await phaseToolResult('BashTool', 'PASS src/routes/users.test.ts\nPASS src/routes/admin.test.ts\nPASS src/routes/health.test.ts\n\nTest Suites: 3 passed, 3 total\nTests: 12 passed, 12 total');
+      // Turn 4
+      await phaseApiCall(4);
+      await phaseAssistantText("All tests pass. I added `authMiddleware` to the `/admin/stats` endpoint in `src/routes/admin.ts`. The `/health` endpoint was left unprotected as health checks typically don't require auth.", false);
+      await phaseComplete();
+    }
+  },
+  'permission-denied': {
+    input: "Delete all log files and reset the database",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, true);
+      await phaseUserMessage(input);
+      await phaseApiCall(1);
+      await phaseAssistantText("I'll delete the log files and reset the database for you.", true);
+      await phaseToolCall('BashTool', '{ "command": "rm -rf /var/log/app/* && psql -c \\"DROP SCHEMA public CASCADE;\\"" }', false, 'denied_dangerous');
+      await phaseToolDenied('BashTool', 'Permission DENIED by dangerous pattern classifier.\nPattern matched: "rm -rf" + "DROP SCHEMA CASCADE"\nReason: Destructive operation that removes data irreversibly.');
+      // Turn 2: Claude adjusts
+      await phaseApiCall(2);
+      await phaseAssistantText("The command was denied because it contains destructive operations (`rm -rf` and `DROP SCHEMA CASCADE`). These are irreversible.\n\nWould you like me to:\n1. Delete only specific log files (with a safer pattern)?\n2. Show you what would be deleted first?\n3. Create a database backup before resetting?", false);
+      await phaseComplete();
+    }
+  },
+  'agent-spawn': {
+    input: "Refactor the authentication module to use JWT instead of session tokens",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, true);
+      await phaseUserMessage(input);
+      await phaseApiCall(1);
+      await phaseAssistantText("This is a large refactor. I'll spawn a sub-agent to explore the current auth implementation while I plan the migration.", true);
+      await phaseAgentSpawn('Explore', 'Search the codebase for all session token usage: creation, validation, storage, and cleanup. List every file that needs to change.', 'background');
+      await phaseAssistantText("While the exploration runs in the background, let me read the main auth config to understand the current setup.", true);
+      await phaseToolCall('FileReadTool', '{ "file_path": "src/config/auth.ts" }', true, 'allow_rule');
+      await phaseToolResult('FileReadTool', '1  export const authConfig = {\n2    sessionSecret: process.env.SESSION_SECRET,\n3    sessionDuration: "24h",\n4    cookieName: "sid",\n5    store: "redis"\n6  };');
+      await phaseAgentComplete('Explore', 'Found 14 files using session tokens:\n- src/middleware/auth.ts (validation)\n- src/routes/login.ts (creation)\n- src/routes/logout.ts (cleanup)\n- src/services/session.ts (store ops)\n- src/config/auth.ts (config)\n... and 9 more files importing from these.');
+      await phaseApiCall(2);
+      await phaseAssistantText("The exploration agent found 14 files that need changes. Here's my migration plan:\n\n1. Add `jsonwebtoken` package\n2. Create JWT utility (`src/services/jwt.ts`)\n3. Update auth middleware to verify JWT\n4. Update login to issue JWT\n5. Remove session store dependency\n6. Update all 14 affected files\n\nShall I proceed?", false);
+      await phaseComplete();
+    }
+  },
+  'context-overflow': {
+    input: "Continue working on the migration we discussed earlier",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, true);
+      await phaseUserMessage(input);
+      await phaseApiCall(1);
+      // Simulate overflow
+      await addStep('&#9888;', 'Prompt Too Long (413)', 'API rejected: context exceeds 200K token limit', 'error', 'error', 'API Error', 'Error 413: prompt is too long: 204,831 tokens > 200,000 maximum', null);
+      stats.input += 204831;
+      updateStats();
+      updateTokenBar(102);
+      addMsgChip('system', '[ERROR] Prompt too long — attempting recovery...');
+      // Recovery 1
+      await addStep('&#128257;', 'Recovery: Context Collapse Drain', 'Force-committing staged collapses to free tokens...', 'done', 'system', 'Context Collapse', 'Collapsing 12 old tool_use/tool_result pairs into summaries...\nFreed: 18,240 tokens\nNew total: 186,591 tokens', null);
+      stats.cache += 18240;
+      updateStats();
+      updateTokenBar(93);
+      updateContext('<div style="margin-bottom:8px;"><strong style="color:var(--green);">Context Collapse Applied</strong></div><div class="stat-row"><span class="stat-k">Messages collapsed</span><span class="stat-v">24 &rarr; 12</span></div><div class="stat-row"><span class="stat-k">Tokens freed</span><span class="stat-v" style="color:var(--green);">18,240</span></div><div class="stat-row"><span class="stat-k">New total</span><span class="stat-v">186,591</span></div>');
+      // Retry
+      await addStep('&#128260;', 'Retry API Call', 'Retrying with collapsed context...', 'done', null, null, null, null);
+      stats.turns++;
+      await phaseAssistantText("I can see from our conversation history that we were working on migrating the payment module from Stripe v2 to v3. Let me continue from where we left off.\n\nI had updated 3 of 7 files. Let me continue with the remaining ones.", true);
+      await phaseToolCall('FileReadTool', '{ "file_path": "src/payments/webhook.ts" }', true, 'allow_rule');
+      await phaseToolResult('FileReadTool', '// ... file contents with Stripe v2 webhook handler ...');
+      await phaseApiCall(2);
+      await phaseAssistantText("Continuing the migration. The webhook handler needs to be updated to use the new Stripe v3 event format.", false);
+      await phaseComplete();
+    }
+  },
+  'slash-cmd': {
+    input: "/commit",
+    steps: async (input) => {
+      // Slash command path
+      await addStep('&#9000;', 'Slash Command Detected', 'Input starts with "/" — routing to command system, not query engine', 'done', 'user', 'User Input', '/commit', null);
+      addMsgChip('user', '/commit');
+      await addStep('&#128269;', 'Parse Command', 'parseSlashCommand("/commit") → name: "commit", args: ""', 'done', null, null, null, null);
+      await addStep('&#128270;', 'Find Command in Registry', 'Matched: "commit" skill (bundled skill, not a direct command)', 'done', null, null, null, null);
+      await addStep('&#128220;', 'Skill Expansion', 'The /commit skill expands into a full prompt with instructions', 'done', 'system', 'Skill Prompt', 'You are creating a git commit. Follow these steps:\n1. Run git status to see changes\n2. Run git diff to see what changed\n3. Run git log for commit style\n4. Draft a commit message\n5. Create the commit\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>', null);
+      addMsgChip('system', '[SKILL] commit instructions expanded');
+      await addStep('&#10003;', 'shouldQuery = true', 'Skill output becomes a user message sent to the query engine', 'done', null, null, null, null);
+      // Now normal query flow
+      await phaseMemoryLoad('/commit (expanded)');
+      await phaseSystemPrompt('/commit', true);
+      await phaseApiCall(1);
+      await phaseAssistantText("I'll check the current changes and create a commit.", true);
+      await phaseParallelTools([
+        { name: 'BashTool', input: '{ "command": "git status" }', permitted: true },
+        { name: 'BashTool', input: '{ "command": "git diff --staged" }', permitted: true },
+        { name: 'BashTool', input: '{ "command": "git log --oneline -5" }', permitted: true }
+      ], [
+        'M  src/auth.ts\nM  src/routes/admin.ts',
+        'diff --git a/src/auth.ts...\n+  await refreshToken(token);',
+        'a1b2c3d fix: handle null user in profile endpoint\ne4f5g6h feat: add rate limiting to API\n...'
+      ]);
+      await phaseApiCall(2);
+      await phaseAssistantText("Creating the commit with the changes.", true);
+      await phaseToolCall('BashTool', '{ "command": "git commit -m \\"fix: await token refresh to prevent stale auth tokens\\n\\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\\"" }', true, 'classifier_approved');
+      await phaseToolResult('BashTool', '[main f8a9b0c] fix: await token refresh to prevent stale auth tokens\n 2 files changed, 3 insertions(+), 2 deletions(-)');
+      await phaseApiCall(3);
+      await phaseAssistantText("Committed: `f8a9b0c` — fix: await token refresh to prevent stale auth tokens", false);
+      await phaseComplete();
+    }
+  },
+  'mcp-tool': {
+    input: "Create a GitHub issue for the auth bug we just fixed",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, true);
+      await phaseUserMessage(input);
+      await phaseApiCall(1);
+      await phaseAssistantText("I'll create a GitHub issue documenting the auth bug fix.", true);
+      // MCP tool call
+      await addStep('&#128268;', 'MCP Tool Call: GitHub', 'Routing to MCP server "github" via mcp__github__create_issue', 'active', 'tool-call', 'Tool Call &mdash; mcp__github__create_issue', '{\n  "repo": "myorg/myapp",\n  "title": "fix: token refresh not awaited in auth.ts",\n  "body": "## Bug\\nThe `refreshToken()` call was not awaited...\\n\\n## Fix\\nAdded `await` keyword. Committed in f8a9b0c.",\n  "labels": ["bug", "auth"]\n}', () => {
+        stats.tools++;
+        stats.perms++;
+        addMsgChip('tool_use', 'mcp__github__create_issue({ repo: "myorg/myapp", ... })');
+      });
+      await addStep('&#128273;', 'MCP Auth Check', 'Checking OAuth token for GitHub MCP server...', 'done', null, null, null, null);
+      await addStep('&#128225;', 'MCP Server Transport: HTTP', 'POST https://api.github.com/repos/myorg/myapp/issues', 'done', null, null, null, null);
+      await addStep('&#9989;', 'MCP Tool Result', 'GitHub API responded successfully', 'done', 'tool-result', 'Tool Result &mdash; mcp__github__create_issue', '{\n  "status": "created",\n  "number": 247,\n  "url": "https://github.com/myorg/myapp/issues/247"\n}', () => {
+        addMsgChip('tool_result', 'Issue #247 created successfully');
+      });
+      stats.output += 320;
+      updateStats();
+      await phaseApiCall(2);
+      await phaseAssistantText("Created GitHub issue #247: \"fix: token refresh not awaited in auth.ts\"\nhttps://github.com/myorg/myapp/issues/247", false);
+      await phaseComplete();
+    }
+  }
+};
+
+// ========== FLOW PHASES (reusable building blocks) ==========
+
+async function phaseMemoryLoad(input) {
+  await addStep('&#129504;', 'Memory Scan', 'Scanning MEMORY.md for relevant memories based on input...', 'done', 'memory', 'Memory Loaded', `Scanned 6 memory files. 2 relevant:\n\n[feedback] "Always read files before editing"\n  Why: prevents blind edits that break code\n\n[user] "Senior engineer, prefers concise responses"\n  Applied: tailoring verbosity level`, () => {
+    addMsgChip('system', '[MEMORY] 2 relevant memories loaded');
+    stats.input += 480;
+    updateStats();
+    updateTokenBar(0.5);
+  });
+}
+
+async function phaseSystemPrompt(input, hasTools) {
+  const toolCount = hasTools ? 44 : 0;
+  const toolLine = hasTools ? `\n\n[TOOLS: ${toolCount} available — BashTool, FileReadTool, FileEditTool, FileWriteTool, GlobTool, GrepTool, AgentTool, WebSearchTool, ...]` : '';
+  const tokens = hasTools ? 12800 : 4200;
+  await addStep('&#128220;', 'Build System Prompt', `Assembling from: base instructions + ${hasTools ? '44 tool schemas + ' : ''}memory + git context`, 'done', 'system', 'System Prompt (assembled)', `[BASE] You are Claude Code, Anthropic's CLI for Claude...\n\n[GIT CONTEXT] Branch: main | Status: 2 files modified\n\n[MEMORY] 2 attachments loaded\n\n[PERMISSIONS] Mode: auto (classifier-based approval)${toolLine}\n\nTotal: ~${tokens.toLocaleString()} tokens`, () => {
+    addMsgChip('system', `System prompt built (${tokens.toLocaleString()} tokens)`);
+    stats.input += tokens;
+    stats.cache += Math.round(tokens * 0.85);
+    updateStats();
+    updateTokenBar(Math.round(tokens / 2000));
+  });
+}
+
+async function phaseUserMessage(input) {
+  await addStep('&#128172;', 'User Message', 'Added to message array as UserMessage', 'done', 'user', 'User Message', input, () => {
+    addMsgChip('user', input);
+    stats.input += Math.round(input.length / 3.5);
+    updateStats();
+  });
+}
+
+async function phaseApiCall(turn) {
+  stats.turns = turn;
+  const inputTok = 800 + Math.round(Math.random() * 400);
+  stats.input += inputTok;
+  updateStats();
+  await addStep('&#9729;', `API Call — Turn ${turn}`, `Streaming to claude-sonnet-4-6 | Beta: extended-thinking, prompt-caching`, 'done', null, null, null, () => {
+    updateTokenBar(Math.min(95, stats.input / 2000));
+  });
+}
+
+async function phaseAssistantText(text, hasTools) {
+  const tokens = Math.round(text.length / 3.5);
+  stats.output += tokens;
+  stats.cost += tokens * 0.000015 + stats.input * 0.000003;
+  updateStats();
+  await addStep(hasTools ? '&#129302;' : '&#9989;', hasTools ? 'Claude Responds (with tool calls)' : 'Claude Responds (final)', `Output: ${tokens} tokens`, 'done', 'assistant', 'Assistant', text, () => {
+    addMsgChip('assistant', text.slice(0, 100));
+  });
+}
+
+async function phaseToolCall(name, input, permitted, reason) {
+  stats.tools++;
+  stats.perms++;
+  updateStats();
+  const reasonLabel = {
+    'allow_rule': 'Matched ALLOW rule — auto-approved',
+    'user_approved': 'User approved in permission dialog',
+    'classifier_approved': 'YOLO classifier: safe pattern',
+    'denied_dangerous': 'Dangerous pattern detected — DENIED'
+  }[reason] || reason;
+  const state = permitted ? 'done' : 'error';
+  const permColor = permitted ? '&#9989;' : '&#128683;';
+  await addStep('&#128295;', `Tool: ${name}`, `Permission: ${reasonLabel}`, state, 'tool-call', `Tool Call — ${name}`, input, () => {
+    addMsgChip('tool_use', `${name}(${input.slice(0, 60)}...)`);
+  });
+  if (permitted) {
+    await addStep(permColor, `Permission: ALLOWED`, reasonLabel, 'done', null, null, null, null);
+  }
+}
+
+async function phaseToolResult(name, result) {
+  stats.input += Math.round(result.length / 3.5);
+  updateStats();
+  await addStep('&#128230;', `Result: ${name}`, `${result.length} chars returned`, 'done', 'tool-result', `Tool Result — ${name}`, result, () => {
+    addMsgChip('tool_result', result.slice(0, 80));
+    updateTokenBar(Math.min(95, stats.input / 2000));
+  });
+}
+
+async function phaseToolDenied(name, reason) {
+  await addStep('&#128683;', `Permission DENIED: ${name}`, 'Dangerous pattern classifier blocked this tool call', 'error', 'error', `Denied — ${name}`, reason, () => {
+    addMsgChip('tool_result', `[DENIED] ${name} — dangerous pattern`);
+  });
+}
+
+async function phaseParallelTools(tools, results) {
+  // Show parallel execution
+  await addStep('&#9881;', `Parallel Execution: ${tools.length} tools`, `Concurrent-safe tools running simultaneously`, 'done', null, null, null, () => {
+    stats.tools += tools.length;
+    stats.perms += tools.length;
+  });
+  for (let i = 0; i < tools.length; i++) {
+    const t = tools[i];
+    await addStep('&#128295;', `${t.name} (parallel ${i+1}/${tools.length})`, `Classifier: safe read-only operation`, 'done', 'tool-call', `Tool Call — ${t.name}`, t.input, () => {
+      addMsgChip('tool_use', `${t.name}(...)`);
+    });
+    stats.input += Math.round(results[i].length / 3.5);
+    await addStep('&#128230;', `Result: ${t.name}`, `${results[i].length} chars`, 'done', 'tool-result', `Tool Result — ${t.name}`, results[i], () => {
+      addMsgChip('tool_result', results[i].slice(0, 60));
+    });
+  }
+  updateStats();
+  updateTokenBar(Math.min(95, stats.input / 2000));
+}
+
+async function phaseAgentSpawn(type, prompt, mode) {
+  await addStep('&#128640;', `Spawn Agent: ${type}`, `Mode: ${mode} | Isolated context window`, 'done', 'tool-call', `AgentTool — ${type}`, `{\n  "subagent_type": "${type}",\n  "prompt": "${prompt}",\n  "run_in_background": ${mode === 'background'}\n}`, () => {
+    stats.tools++;
+    addMsgChip('tool_use', `AgentTool(${type}, ${mode})`);
+  });
+  await addStep('&#128260;', `Agent Running (${mode})`, `${type} agent has its own context window, tools, and permissions`, 'done', null, null, null, null);
+}
+
+async function phaseAgentComplete(type, result) {
+  await addStep('&#128228;', `Agent Complete: ${type}`, 'Background agent finished — notification received', 'done', 'tool-result', `Agent Result — ${type}`, result, () => {
+    addMsgChip('tool_result', `[Agent:${type}] ${result.slice(0, 60)}...`);
+    stats.input += Math.round(result.length / 3.5);
+    updateStats();
+  });
+}
+
+async function phaseComplete() {
+  await addStep('&#127937;', 'Turn Complete', `${stats.turns} turn(s), ${stats.tools} tool calls, $${stats.cost.toFixed(3)}`, 'done', null, null, null, null);
+  document.getElementById('send-btn').disabled = false;
+}
+
+// ========== RUN ==========
+function loadPreset(id) {
+  const p = presets[id];
+  if (!p) return;
+  document.getElementById('user-input').value = p.input;
+}
+
+async function runSimulation() {
+  const input = document.getElementById('user-input').value.trim();
+  if (!input) return;
+  resetFlow();
+  document.getElementById('send-btn').disabled = true;
+
+  // Check if input matches a preset
+  let matched = null;
+  for (const [k, v] of Object.entries(presets)) {
+    if (v.input === input) { matched = v; break; }
+  }
+  if (!matched) {
+    // Default: treat as simple read-edit scenario
+    matched = presets['read-edit'];
+    matched = {
+      input: input,
+      steps: async (inp) => {
+        await phaseMemoryLoad(inp);
+        await phaseSystemPrompt(inp, true);
+        await phaseUserMessage(inp);
+        await phaseApiCall(1);
+        await phaseAssistantText("Let me look into that for you. I'll start by searching the codebase.", true);
+        await phaseToolCall('GrepTool', `{ "pattern": "${inp.split(' ').slice(0,3).join('.*')}", "path": "src/" }`, true, 'allow_rule');
+        await phaseToolResult('GrepTool', `src/utils/helpers.ts:42: // ${inp.split(' ').slice(0,5).join(' ')}\nsrc/index.ts:18: // Related logic here`);
+        await phaseApiCall(2);
+        await phaseAssistantText(`I found the relevant code. Based on my analysis, here's what I recommend:\n\n1. The issue is in \`src/utils/helpers.ts\` at line 42\n2. The fix involves updating the logic to handle the edge case\n\nWould you like me to make the change?`, false);
+        await phaseComplete();
+      }
+    };
+  }
+
+  await matched.steps(input);
+}
+
+// Init
+document.getElementById('user-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runSimulation(); }
+});
+</script>
+</body>
+</html>
