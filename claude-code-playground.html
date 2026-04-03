@@ -166,9 +166,57 @@ body{font-family:'SF Mono','Fira Code','JetBrains Mono',monospace;background:var
 .fstep-src:hover{background:rgba(34,211,238,0.15);border-color:var(--cyan);}
 .fstep-src .src-icon{opacity:0.6;}
 
-/* Responsive */
-@media(max-width:1100px){.main-area{grid-template-columns:280px 1fr 0;}.inspector{display:none;}}
-@media(max-width:700px){.main-area{grid-template-columns:1fr;}.input-panel{display:none;}}
+/* Mobile toggle buttons */
+.mobile-bar{display:none;gap:6px;padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto;}
+.mob-btn{padding:7px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:0.75em;cursor:pointer;white-space:nowrap;transition:all 0.15s;}
+.mob-btn:hover,.mob-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-glow,rgba(59,130,246,0.1));}
+
+/* Mobile drawer overlay */
+.drawer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:50;opacity:0;transition:opacity 0.25s;}
+.drawer-overlay.open{opacity:1;}
+
+/* Mobile bottom sheet */
+.bottom-sheet{display:none;position:fixed;left:0;right:0;bottom:0;max-height:60vh;background:var(--bg2);border-top:1px solid var(--border);border-radius:14px 14px 0 0;z-index:60;transform:translateY(100%);transition:transform 0.3s cubic-bezier(0.16,1,0.3,1);overflow-y:auto;padding-bottom:env(safe-area-inset-bottom,0);}
+.bottom-sheet.open{transform:translateY(0);}
+.bottom-sheet .sheet-handle{width:36px;height:4px;background:var(--muted);border-radius:2px;margin:10px auto 6px;}
+.bottom-sheet .sheet-content{padding:8px 16px 20px;}
+
+/* Responsive: tablet */
+@media(max-width:1100px){
+  .main-area{grid-template-columns:280px 1fr;}
+  .inspector{display:none;}
+  .mobile-bar{display:flex;}
+}
+
+/* Responsive: mobile */
+@media(max-width:700px){
+  body{overflow:auto;height:auto;min-height:100vh;min-height:100dvh;}
+  .app{height:auto;min-height:100vh;min-height:100dvh;grid-template-rows:auto auto auto 1fr;}
+  .topbar{padding:10px 14px;gap:10px;flex-wrap:wrap;}
+  .topbar h1{font-size:0.82em;}
+  .topbar>span{display:none;}
+  .main-area{display:flex;flex-direction:column;flex:1;overflow:visible;}
+  .input-panel{display:none;position:fixed;inset:0;z-index:55;overflow-y:auto;padding-bottom:20px;}
+  .input-panel.open{display:flex;}
+  .input-panel .close-panel{display:block;}
+  .flow-canvas{flex:1;min-height:0;overflow-y:auto;padding:16px 14px;}
+  .inspector{display:none;}
+  .mobile-bar{display:flex;}
+  .bottom-sheet{display:block;}
+  .drawer-overlay{display:block;pointer-events:none;}
+  .drawer-overlay.open{pointer-events:auto;}
+  .fstep{padding-left:30px;}
+  .fstep::before{left:10px;}
+  .fstep::after{left:4px;top:14px;width:12px;height:12px;}
+  .fstep-box{padding:10px 12px;}
+  .fstep-title{font-size:0.78em;}
+  .fmsg{font-size:0.72em;max-height:150px;}
+  .fstep-src{font-size:0.62em;}
+  .preset-btn{font-size:0.74em;padding:8px 10px;}
+}
+
+/* Close button for mobile panels */
+.close-panel{display:none;position:absolute;top:12px;right:14px;width:32px;height:32px;border-radius:50%;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:1.1em;cursor:pointer;z-index:5;line-height:30px;text-align:center;}
 </style>
 </head>
 <body>
@@ -181,9 +229,28 @@ body{font-family:'SF Mono','Fira Code','JetBrains Mono',monospace;background:var
     </div>
   </div>
 
+  <!-- Mobile control bar -->
+  <div class="mobile-bar" id="mobile-bar">
+    <button class="mob-btn" onclick="toggleMobileInput()">&#9998; Input &amp; Scenarios</button>
+    <button class="mob-btn" onclick="openSheet('messages')">&#128172; Messages</button>
+    <button class="mob-btn" onclick="openSheet('stats')">&#128202; Stats</button>
+    <button class="mob-btn" onclick="openSheet('source')">&#128196; Source</button>
+    <button class="mob-btn" onclick="resetFlow()">&#8635; Reset</button>
+  </div>
+
+  <!-- Mobile overlay -->
+  <div class="drawer-overlay" id="drawer-overlay" onclick="closeMobileAll()"></div>
+
+  <!-- Mobile bottom sheet for inspector -->
+  <div class="bottom-sheet" id="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-content" id="sheet-content"></div>
+  </div>
+
   <div class="main-area">
     <!-- LEFT: Input -->
-    <div class="input-panel">
+    <div class="input-panel" id="input-panel">
+      <button class="close-panel" onclick="toggleMobileInput()">&times;</button>
       <h3>Your Message</h3>
       <div class="input-area">
         <textarea id="user-input" placeholder="Type a message to Claude Code...">Fix the bug in auth.ts where the token refresh is failing</textarea>
@@ -879,6 +946,82 @@ async function runSimulation() {
 
   await matched.steps(input);
 }
+
+// ========== MOBILE ==========
+function toggleMobileInput() {
+  const panel = document.getElementById('input-panel');
+  const overlay = document.getElementById('drawer-overlay');
+  const isOpen = panel.classList.contains('open');
+  if (isOpen) {
+    panel.classList.remove('open');
+    overlay.classList.remove('open');
+  } else {
+    closeSheet();
+    panel.classList.add('open');
+    overlay.classList.add('open');
+  }
+}
+
+function openSheet(type) {
+  const sheet = document.getElementById('bottom-sheet');
+  const content = document.getElementById('sheet-content');
+  const overlay = document.getElementById('drawer-overlay');
+  document.getElementById('input-panel').classList.remove('open');
+
+  // Clone the relevant content into the sheet
+  let html = '';
+  if (type === 'messages') {
+    html = '<h3 style="font-size:0.75em;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px;">Messages</h3>';
+    html += document.getElementById('msg-stack').outerHTML.replace('id="msg-stack"','id="mob-msg-stack"');
+    // Make all chips visible in clone
+    html = html.replace(/class="msg-chip /g, 'class="msg-chip visible ');
+  } else if (type === 'stats') {
+    html = '<h3 style="font-size:0.75em;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px;">Stats</h3>';
+    html += document.getElementById('stats-body').innerHTML;
+    // Token bar
+    const pct = document.getElementById('token-bar-fill').style.width;
+    const count = document.getElementById('token-count').textContent;
+    html += `<div style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:0.72em;color:var(--muted);"><span>Tokens</span><div style="flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;"><div style="height:100%;background:var(--accent);border-radius:3px;width:${pct};"></div></div><span>${count}</span></div>`;
+  } else if (type === 'source') {
+    html = '<h3 style="font-size:0.75em;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px;">Source References</h3>';
+    html += document.getElementById('source-stack').innerHTML;
+    // Make all visible in clone
+    html = html.replace(/class="src-entry /g, 'class="src-entry visible ');
+  }
+  content.innerHTML = html;
+
+  sheet.classList.add('open');
+  overlay.classList.add('open');
+}
+
+function closeSheet() {
+  document.getElementById('bottom-sheet').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('open');
+}
+
+function closeMobileAll() {
+  document.getElementById('input-panel').classList.remove('open');
+  closeSheet();
+}
+
+// On mobile, close input panel after sending
+const origRunSim = runSimulation;
+runSimulation = async function() {
+  document.getElementById('input-panel').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('open');
+  await origRunSim();
+};
+
+// Swipe down to close bottom sheet
+(function() {
+  const sheet = document.getElementById('bottom-sheet');
+  let startY = 0;
+  sheet.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, { passive: true });
+  sheet.addEventListener('touchmove', e => {
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 60) closeSheet();
+  }, { passive: true });
+})();
 
 // Init
 document.getElementById('user-input').addEventListener('keydown', e => {
