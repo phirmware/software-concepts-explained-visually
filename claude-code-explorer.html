@@ -1,0 +1,2294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code Architecture Explorer</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-glow: rgba(88,166,255,0.15);
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --pink: #f778ba;
+    --cyan: #79c0ff;
+    --yellow: #e3b341;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+    line-height: 1.6;
+  }
+
+  /* === HEADER === */
+  .hero {
+    position: relative;
+    padding: 60px 40px 40px;
+    text-align: center;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at center, rgba(88,166,255,0.08) 0%, transparent 60%);
+    animation: pulse 8s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.05); }
+  }
+  .hero h1 {
+    font-size: 2.8em;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    position: relative;
+    margin-bottom: 10px;
+  }
+  .hero .subtitle {
+    color: var(--text-muted);
+    font-size: 1.1em;
+    position: relative;
+  }
+  .stats-bar {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-top: 30px;
+    position: relative;
+  }
+  .stat {
+    text-align: center;
+  }
+  .stat .num {
+    font-size: 2em;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .stat .label {
+    font-size: 0.75em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* === NAV === */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(13,17,23,0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    display: flex;
+    overflow-x: auto;
+    gap: 0;
+  }
+  .nav a {
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 14px 18px;
+    font-size: 0.85em;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .nav a:hover, .nav a.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  /* === SECTIONS === */
+  .section {
+    padding: 50px 40px;
+    max-width: 1400px;
+    margin: 0 auto;
+    border-bottom: 1px solid var(--border);
+  }
+  .section h2 {
+    font-size: 1.8em;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .section .section-desc {
+    color: var(--text-muted);
+    margin-bottom: 30px;
+    font-size: 0.9em;
+  }
+
+  /* === FLOW DIAGRAM === */
+  .flow-container {
+    overflow-x: auto;
+    padding: 20px 0;
+  }
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    min-width: fit-content;
+    justify-content: center;
+    flex-wrap: wrap;
+    row-gap: 20px;
+  }
+  .flow-node {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 22px;
+    text-align: center;
+    min-width: 140px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+  }
+  .flow-node:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px var(--accent-glow);
+    transform: translateY(-2px);
+  }
+  .flow-node .node-icon { font-size: 1.6em; margin-bottom: 6px; }
+  .flow-node .node-title { font-size: 0.85em; font-weight: 600; }
+  .flow-node .node-file { font-size: 0.65em; color: var(--text-muted); margin-top: 4px; }
+  .flow-arrow {
+    color: var(--text-muted);
+    font-size: 1.4em;
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+
+  /* === INTERACTIVE ARCH DIAGRAM === */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+  }
+  .arch-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .arch-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .arch-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+  }
+  .arch-card.blue::before { background: var(--accent); }
+  .arch-card.green::before { background: var(--green); }
+  .arch-card.purple::before { background: var(--purple); }
+  .arch-card.orange::before { background: var(--orange); }
+  .arch-card.pink::before { background: var(--pink); }
+  .arch-card.cyan::before { background: var(--cyan); }
+  .arch-card.red::before { background: var(--red); }
+  .arch-card.yellow::before { background: var(--yellow); }
+  .arch-card .card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .arch-card .card-icon { font-size: 1.5em; }
+  .arch-card .card-title { font-size: 1.1em; font-weight: 600; }
+  .arch-card .card-desc {
+    color: var(--text-muted);
+    font-size: 0.8em;
+    margin-bottom: 14px;
+  }
+  .arch-card .card-details {
+    display: none;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    font-size: 0.8em;
+  }
+  .arch-card.expanded .card-details { display: block; }
+  .arch-card .card-details code {
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: var(--cyan);
+  }
+  .arch-card .card-details ul {
+    list-style: none;
+    padding: 0;
+  }
+  .arch-card .card-details li {
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(48,54,61,0.5);
+  }
+  .arch-card .card-details li:last-child { border-bottom: none; }
+  .expand-hint {
+    font-size: 0.7em;
+    color: var(--text-muted);
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+  }
+
+  /* === TOOL GRID === */
+  .tool-categories { margin-top: 20px; }
+  .tool-category {
+    margin-bottom: 20px;
+  }
+  .tool-cat-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px 8px 0 0;
+    cursor: pointer;
+    user-select: none;
+  }
+  .tool-cat-header:hover { background: var(--bg-tertiary); }
+  .tool-cat-header .cat-icon { font-size: 1.2em; }
+  .tool-cat-header .cat-name { font-weight: 600; font-size: 0.95em; }
+  .tool-cat-header .cat-count {
+    margin-left: auto;
+    background: var(--bg-tertiary);
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    color: var(--text-muted);
+  }
+  .tool-cat-header .chevron {
+    transition: transform 0.3s;
+    color: var(--text-muted);
+  }
+  .tool-cat-header.open .chevron { transform: rotate(90deg); }
+  .tool-list {
+    display: none;
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    overflow: hidden;
+  }
+  .tool-list.open { display: block; }
+  .tool-item {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(48,54,61,0.5);
+    font-size: 0.82em;
+    transition: background 0.2s;
+  }
+  .tool-item:hover { background: var(--bg-tertiary); }
+  .tool-item:last-child { border-bottom: none; }
+  .tool-item .tool-name {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .tool-item .tool-desc { color: var(--text-muted); }
+
+  /* === PERMISSION DIAGRAM === */
+  .perm-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .perm-mode {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 24px;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .perm-mode:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 15px var(--accent-glow);
+  }
+  .perm-mode .mode-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .perm-mode .mode-badge {
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.8em;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .perm-mode.default .mode-badge { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .perm-mode.auto .mode-badge { background: rgba(63,185,80,0.15); color: var(--green); }
+  .perm-mode.plan .mode-badge { background: rgba(210,153,34,0.15); color: var(--orange); }
+  .perm-mode.bypassall .mode-badge { background: rgba(248,81,73,0.15); color: var(--red); }
+  .perm-mode .mode-name { font-weight: 600; }
+  .perm-mode .mode-desc {
+    color: var(--text-muted);
+    font-size: 0.82em;
+    margin-top: 8px;
+  }
+  .perm-mode .mode-detail {
+    display: none;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 0.8em;
+    color: var(--text-muted);
+  }
+  .perm-mode.expanded .mode-detail { display: block; }
+
+  /* === DATA FLOW SECTION === */
+  .dataflow {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 30px;
+    font-size: 0.85em;
+    overflow-x: auto;
+  }
+  .dataflow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(48,54,61,0.5);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .dataflow-step:hover { background: rgba(88,166,255,0.05); border-radius: 8px; }
+  .dataflow-step:last-child { border-bottom: none; }
+  .step-num {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85em;
+    flex-shrink: 0;
+    border: 2px solid var(--accent);
+    color: var(--accent);
+  }
+  .step-content { flex: 1; }
+  .step-title { font-weight: 600; color: var(--text); }
+  .step-file { font-size: 0.85em; color: var(--cyan); margin-top: 2px; }
+  .step-desc { color: var(--text-muted); font-size: 0.9em; margin-top: 4px; }
+  .step-extra {
+    display: none;
+    margin-top: 8px;
+    padding: 10px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    font-size: 0.9em;
+    color: var(--text-muted);
+  }
+  .dataflow-step.expanded .step-extra { display: block; }
+  .step-connector {
+    width: 2px;
+    height: 16px;
+    background: var(--border);
+    margin-left: 15px;
+  }
+
+  /* === TABS === */
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+    overflow-x: auto;
+  }
+  .tab-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    padding: 10px 20px;
+    font-family: inherit;
+    font-size: 0.85em;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .tab-btn:hover { color: var(--text); background: var(--accent-glow); }
+  .tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* === SEARCH === */
+  .search-box {
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.9em;
+    margin-bottom: 20px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text-muted); }
+
+  /* === CODE BLOCK === */
+  .code-block {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-size: 0.82em;
+    overflow-x: auto;
+    line-height: 1.7;
+    margin: 12px 0;
+  }
+  .code-block .kw { color: var(--pink); }
+  .code-block .fn { color: var(--purple); }
+  .code-block .str { color: var(--green); }
+  .code-block .cmt { color: var(--text-muted); }
+  .code-block .type { color: var(--cyan); }
+
+  /* === DIRECTORY TREE === */
+  .tree {
+    font-size: 0.82em;
+    line-height: 1.8;
+    padding: 10px 0;
+  }
+  .tree-item {
+    padding: 2px 0 2px 20px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tree-item:hover { background: var(--accent-glow); }
+  .tree-item .tree-icon { color: var(--text-muted); width: 16px; text-align: center; }
+  .tree-item .tree-name { color: var(--accent); }
+  .tree-item .tree-desc { color: var(--text-muted); margin-left: 8px; }
+  .tree-children {
+    display: none;
+    padding-left: 20px;
+    border-left: 1px solid var(--border);
+    margin-left: 10px;
+  }
+  .tree-item.open + .tree-children { display: block; }
+
+  /* === LEARN TIPS === */
+  .tip-box {
+    background: rgba(88,166,255,0.08);
+    border: 1px solid rgba(88,166,255,0.2);
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin: 16px 0;
+    font-size: 0.85em;
+  }
+  .tip-box .tip-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--accent);
+  }
+  .tip-box p { color: var(--text-muted); }
+
+  /* === CONCEPT MAP === */
+  .concept-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 14px;
+  }
+  .concept-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    transition: all 0.2s;
+  }
+  .concept-card:hover { border-color: var(--accent); }
+  .concept-card h4 { font-size: 0.95em; margin-bottom: 6px; color: var(--text); }
+  .concept-card p { font-size: 0.78em; color: var(--text-muted); }
+
+  /* === FOOTER === */
+  .footer {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-muted);
+    font-size: 0.8em;
+  }
+
+  /* === INTERACTIVE DIAGRAM === */
+  .layer-diagram {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .layer {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .layer:hover { border-color: var(--accent); transform: scale(1.01); }
+  .layer .layer-label {
+    font-weight: 700;
+    font-size: 0.75em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    width: 120px;
+    flex-shrink: 0;
+  }
+  .layer .layer-items {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+  .layer .layer-chip {
+    background: var(--bg-tertiary);
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.78em;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .layer.l-entry { background: rgba(88,166,255,0.05); }
+  .layer.l-entry .layer-label { color: var(--accent); }
+  .layer.l-core { background: rgba(188,140,255,0.05); }
+  .layer.l-core .layer-label { color: var(--purple); }
+  .layer.l-tools { background: rgba(63,185,80,0.05); }
+  .layer.l-tools .layer-label { color: var(--green); }
+  .layer.l-services { background: rgba(210,153,34,0.05); }
+  .layer.l-services .layer-label { color: var(--orange); }
+  .layer.l-ui { background: rgba(247,120,186,0.05); }
+  .layer.l-ui .layer-label { color: var(--pink); }
+  .layer.l-ext { background: rgba(121,192,255,0.05); }
+  .layer.l-ext .layer-label { color: var(--cyan); }
+
+  .layer-detail {
+    display: none;
+    padding: 12px 24px;
+    font-size: 0.82em;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    margin-top: -4px;
+  }
+  .layer.expanded + .layer-detail { display: block; }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 768px) {
+    .hero { padding: 30px 20px; }
+    .hero h1 { font-size: 1.8em; }
+    .stats-bar { flex-wrap: wrap; gap: 20px; }
+    .section { padding: 30px 16px; }
+    .arch-grid { grid-template-columns: 1fr; }
+    .tool-item { grid-template-columns: 1fr; }
+    .layer { flex-direction: column; align-items: flex-start; }
+    .layer .layer-label { width: auto; }
+  }
+
+  /* === ANIMATIONS === */
+  .fade-in {
+    opacity: 0;
+    transform: translateY(15px);
+    animation: fadeIn 0.5s forwards;
+  }
+  @keyframes fadeIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .stagger-1 { animation-delay: 0.1s; }
+  .stagger-2 { animation-delay: 0.2s; }
+  .stagger-3 { animation-delay: 0.3s; }
+  .stagger-4 { animation-delay: 0.4s; }
+</style>
+</head>
+<body>
+
+<!-- ======================== HERO ======================== -->
+<div class="hero">
+  <h1>Claude Code Architecture</h1>
+  <p class="subtitle">Interactive deep-dive into Anthropic's CLI for Claude &mdash; a production-grade AI engineering system</p>
+  <div class="stats-bar">
+    <div class="stat"><div class="num">1,332</div><div class="label">TypeScript Files</div></div>
+    <div class="stat"><div class="num">44+</div><div class="label">Built-in Tools</div></div>
+    <div class="stat"><div class="num">104</div><div class="label">CLI Commands</div></div>
+    <div class="stat"><div class="num">87</div><div class="label">React Hooks</div></div>
+    <div class="stat"><div class="num">25+</div><div class="label">MCP Modules</div></div>
+  </div>
+</div>
+
+<!-- ======================== NAV ======================== -->
+<nav class="nav" id="main-nav">
+  <a href="#overview">Overview</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#startup">Startup Flow</a>
+  <a href="#request-flow">Request Lifecycle</a>
+  <a href="#tools">Tools System</a>
+  <a href="#permissions">Permissions</a>
+  <a href="#agents">Agents &amp; Swarm</a>
+  <a href="#mcp">MCP Protocol</a>
+  <a href="#hooks">Hooks</a>
+  <a href="#memory">Memory</a>
+  <a href="#streaming">Streaming</a>
+  <a href="#commands">Commands</a>
+  <a href="#config">Config</a>
+  <a href="#directory">Directory</a>
+  <a href="#concepts">Key Concepts</a>
+  <a href="#learning">Learning Path</a>
+</nav>
+
+<!-- ======================== OVERVIEW ======================== -->
+<div class="section" id="overview">
+  <h2>What is Claude Code?</h2>
+  <p class="section-desc">Anthropic's official command-line interface for interacting with Claude AI directly from the terminal.</p>
+
+  <div class="tip-box">
+    <div class="tip-header">&#128161; AI Engineering Insight</div>
+    <p>Claude Code is a textbook example of how to build a <strong>production AI agent system</strong>. It demonstrates tool-augmented LLMs, streaming architecture, permission systems, multi-agent orchestration, and extensible plugin architectures &mdash; all concepts you'll need as an AI engineer.</p>
+  </div>
+
+  <p style="color:var(--text-muted);font-size:0.88em;margin-top:20px;">
+    Claude Code is not just a chat CLI. It's a full <strong>agentic system</strong> that can read/write files, execute shell commands, search the web, manage tasks, spawn sub-agents, integrate with external services via MCP, and orchestrate multi-agent "swarms" &mdash; all while enforcing a sophisticated permission model and streaming results in real time through a React-powered terminal UI.
+  </p>
+
+  <h3 style="margin-top:30px;font-size:1.2em;">Layered Architecture</h3>
+  <p class="section-desc">Click any layer to see details. The system is organized in clean layers from entry points down to external integrations.</p>
+
+  <div class="layer-diagram">
+    <div class="layer l-entry" onclick="toggleLayer(this)">
+      <div class="layer-label">Entry Points</div>
+      <div class="layer-items">
+        <span class="layer-chip">cli.tsx</span>
+        <span class="layer-chip">init.ts</span>
+        <span class="layer-chip">mcp.ts</span>
+        <span class="layer-chip">SDK schemas</span>
+      </div>
+    </div>
+    <div class="layer-detail">
+      <strong>entrypoints/cli.tsx</strong> &mdash; The main CLI bootstrap. Handles fast-path flags (--version, --help), feature-gated paths (daemon, bridge mode), then delegates to init.ts for full startup. Uses Commander.js for argument parsing.<br>
+      <strong>entrypoints/init.ts</strong> &mdash; Full initialization: config validation, env setup, telemetry, LSP server manager, scratchpad creation, OAuth account info.<br>
+      <strong>entrypoints/mcp.ts</strong> &mdash; Separate entrypoint when Claude Code runs as an MCP server itself.<br>
+      <strong>entrypoints/sdk/</strong> &mdash; Zod schemas (coreSchemas.ts, controlSchemas.ts) defining the Agent SDK API surface.
+    </div>
+
+    <div class="layer l-core" onclick="toggleLayer(this)">
+      <div class="layer-label">Core Engine</div>
+      <div class="layer-items">
+        <span class="layer-chip">main.tsx (804KB)</span>
+        <span class="layer-chip">query.ts</span>
+        <span class="layer-chip">QueryEngine.ts</span>
+        <span class="layer-chip">history.ts</span>
+        <span class="layer-chip">context.ts</span>
+      </div>
+    </div>
+    <div class="layer-detail">
+      <strong>main.tsx</strong> &mdash; The monolithic orchestrator (~804KB). Imports all subsystems, sets up React/Ink context, initializes commands &amp; tools, handles session resumption. Think of it as the "app kernel".<br>
+      <strong>query.ts</strong> &mdash; Async generator that drives the conversation loop: processes user input &rarr; builds messages &rarr; calls API &rarr; handles tool execution &rarr; yields results.<br>
+      <strong>QueryEngine.ts</strong> &mdash; Higher-level orchestrator managing tool availability, token budgets, context management, and streaming coordination.<br>
+      <strong>history.ts</strong> &mdash; Session history persistence (in-memory + disk), compact/microcompact for history compression.<br>
+      <strong>context.ts</strong> &mdash; Builds the system context: git status, memory files, dynamic variables.
+    </div>
+
+    <div class="layer l-tools" onclick="toggleLayer(this)">
+      <div class="layer-label">Tools</div>
+      <div class="layer-items">
+        <span class="layer-chip">44+ tools</span>
+        <span class="layer-chip">Tool.ts (interface)</span>
+        <span class="layer-chip">tools.ts (registry)</span>
+        <span class="layer-chip">StreamingToolExecutor</span>
+      </div>
+    </div>
+    <div class="layer-detail">
+      Each tool lives in its own directory under <code>tools/</code>. Tools implement a common <code>Tool</code> interface defined in <code>Tool.ts</code>. The <code>tools.ts</code> file registers and assembles all tools. <code>StreamingToolExecutor</code> handles concurrent execution, ordering results, and managing exclusive vs concurrent-safe tools. Tools are the primary way Claude interacts with the outside world.
+    </div>
+
+    <div class="layer l-services" onclick="toggleLayer(this)">
+      <div class="layer-label">Services</div>
+      <div class="layer-items">
+        <span class="layer-chip">API client</span>
+        <span class="layer-chip">MCP client</span>
+        <span class="layer-chip">Analytics</span>
+        <span class="layer-chip">OAuth</span>
+        <span class="layer-chip">LSP</span>
+        <span class="layer-chip">Plugins</span>
+      </div>
+    </div>
+    <div class="layer-detail">
+      <strong>services/api/claude.ts</strong> &mdash; The Anthropic API client. Handles streaming, message normalization, tool schema conversion, betas, retries. ~125KB of critical integration code.<br>
+      <strong>services/mcp/</strong> &mdash; Full MCP (Model Context Protocol) implementation: client, config, auth, connection management, elicitation handling. 25+ files.<br>
+      <strong>services/analytics/</strong> &mdash; OpenTelemetry, first-party events, GrowthBook feature flags.<br>
+      <strong>services/tools/</strong> &mdash; Tool execution engine, streaming executor, tool hooks, orchestration pipeline.
+    </div>
+
+    <div class="layer l-ui" onclick="toggleLayer(this)">
+      <div class="layer-label">Terminal UI</div>
+      <div class="layer-items">
+        <span class="layer-chip">React + Ink</span>
+        <span class="layer-chip">87 hooks</span>
+        <span class="layer-chip">Keybindings</span>
+        <span class="layer-chip">Dialogs</span>
+        <span class="layer-chip">Virtual scroll</span>
+      </div>
+    </div>
+    <div class="layer-detail">
+      Claude Code uses <strong>React + Ink</strong> to render a full interactive terminal UI. 87 React hooks manage everything from typeahead autocomplete (212KB!) to voice integration (99KB), REPL bridges, virtual scrolling, and global keybindings. The UI is not a thin shell &mdash; it's a full React app rendering to the terminal.
+    </div>
+
+    <div class="layer l-ext" onclick="toggleLayer(this)">
+      <div class="layer-label">Extensions</div>
+      <div class="layer-items">
+        <span class="layer-chip">Skills</span>
+        <span class="layer-chip">Plugins</span>
+        <span class="layer-chip">MCP Servers</span>
+        <span class="layer-chip">Hooks</span>
+        <span class="layer-chip">Agents</span>
+      </div>
+    </div>
+    <div class="layer-detail">
+      <strong>Skills</strong> &mdash; 19 bundled skills + user-defined ones. Loaded from <code>.claude/skills/</code>. Examples: batch processing, code simplification, scheduling.<br>
+      <strong>Plugins</strong> &mdash; Full plugin system with 19+ subcommands for management. Plugins can add commands, tools, and hooks.<br>
+      <strong>MCP Servers</strong> &mdash; Connect to external MCP servers (stdio, SSE, HTTP, WebSocket) to extend tool capabilities.<br>
+      <strong>Hooks</strong> &mdash; Pre/post-sampling, session lifecycle, file change, agent, HTTP, and prompt hooks.<br>
+      <strong>Agents</strong> &mdash; Sub-agent spawning with model override, worktree isolation, background execution, and multi-agent coordination.
+    </div>
+  </div>
+</div>
+
+<!-- ======================== ARCHITECTURE ======================== -->
+<div class="section" id="architecture">
+  <h2>Core Modules Deep Dive</h2>
+  <p class="section-desc">Click any card to expand details. Each module represents a major system within Claude Code.</p>
+
+  <div class="arch-grid">
+    <div class="arch-card blue" onclick="toggleCard(this)">
+      <div class="card-header">
+        <span class="card-icon">&#9881;</span>
+        <span class="card-title">Query Engine</span>
+      </div>
+      <div class="card-desc">The brain &mdash; async generator driving the entire conversation loop</div>
+      <span class="expand-hint">click to expand</span>
+      <div class="card-details">
+        <p><strong>Files:</strong> <code>query.ts</code> (68KB), <code>QueryEngine.ts</code> (46KB)</p>
+        <p style="margin-top:8px;">The query engine is an <strong>async generator</strong> &mdash; a powerful pattern for streaming AI systems. It yields events as they happen:</p>
+        <ul>
+          <li><strong>Input processing</strong> &mdash; Validates and normalizes user input</li>
+          <li><strong>Message assembly</strong> &mdash; Builds the full message array (system + history + user)</li>
+          <li><strong>API call</strong> &mdash; Streams the request to Claude API</li>
+          <li><strong>Tool extraction</strong> &mdash; Parses tool_use blocks from the response</li>
+          <li><strong>Tool execution</strong> &mdash; Runs tools via StreamingToolExecutor</li>
+          <li><strong>Result aggregation</strong> &mdash; Collects results for the next turn</li>
+          <li><strong>Loop or complete</strong> &mdash; Decides whether to continue the conversation</li>
+        </ul>
+        <div class="tip-box" style="margin-top:12px;">
+          <div class="tip-header">&#128161; Pattern: Async Generator for Agent Loops</div>
+          <p>Using an async generator for the main agent loop is elegant: each <code>yield</code> is a checkpoint where the UI can render, the user can interrupt, and state can be saved. This is a pattern worth adopting in your own AI systems.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-card green" onclick="toggleCard(this)">
+      <div class="card-header">
+        <span class="card-icon">&#128295;</span>
+        <span class="card-title">Tool System</span>
+      </div>
+      <div class="card-desc">44+ tools that give Claude the ability to interact with the world</div>
+      <span class="expand-hint">click to expand</span>
+      <div class="card-details">
+        <p><strong>Interface:</strong> <code>Tool.ts</code> (29KB) &mdash; defines the common tool contract</p>
+        <p><strong>Registry:</strong> <code>tools.ts</code> (17KB) &mdash; assembles and registers all tools</p>
+        <p><strong>Executor:</strong> <code>StreamingToolExecutor.ts</code> &mdash; concurrent execution engine</p>
+        <p style="margin-top:8px;">Each tool provides:</p>
+        <ul>
+          <li><strong>name</strong> &mdash; Unique identifier sent to the API</li>
+          <li><strong>description</strong> &mdash; Shown to Claude in system prompt</li>
+          <li><strong>input_schema</strong> &mdash; JSON Schema for parameters</li>
+          <li><strong>execute()</strong> &mdash; The actual implementation</li>
+          <li><strong>isReadOnly()</strong> &mdash; Whether it modifies state</li>
+          <li><strong>Permission metadata</strong> &mdash; What access level is needed</li>
+        </ul>
+        <div class="tip-box" style="margin-top:12px;">
+          <div class="tip-header">&#128161; Pattern: Tool-Augmented LLMs</div>
+          <p>This is the <strong>ReAct pattern</strong> (Reason + Act). The LLM decides which tool to call, the system executes it, and the result goes back to the LLM. Claude Code's implementation shows production-grade patterns: concurrent execution, permission checks, streaming results, and graceful error handling.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-card purple" onclick="toggleCard(this)">
+      <div class="card-header">
+        <span class="card-icon">&#128274;</span>
+        <span class="card-title">Permission System</span>
+      </div>
+      <div class="card-desc">Multi-layered security: modes, rules, classifiers, and hooks</div>
+      <span class="expand-hint">click to expand</span>
+      <div class="card-details">
+        <p><strong>24+ files</strong> in <code>utils/permissions/</code></p>
+        <p style="margin-top:8px;">Permission checking flows through multiple layers:</p>
+        <ul>
+          <li><strong>Mode check</strong> &mdash; Default, Auto, Plan, or Unlimited</li>
+          <li><strong>Rule matching</strong> &mdash; Allow/deny/ask rules with glob patterns</li>
+          <li><strong>ML classifier</strong> &mdash; yoloClassifier.ts uses pattern matching for auto-approval</li>
+          <li><strong>Dangerous pattern detection</strong> &mdash; Catches risky operations</li>
+          <li><strong>Interactive prompt</strong> &mdash; Falls back to asking the user</li>
+        </ul>
+        <p style="margin-top:8px;">Key insight: permissions are <strong>tool-specific</strong>. A BashTool command gets different scrutiny than a FileReadTool call. The system knows which tools are read-only vs. state-modifying.</p>
+      </div>
+    </div>
+
+    <div class="arch-card orange" onclick="toggleCard(this)">
+      <div class="card-header">
+        <span class="card-icon">&#127760;</span>
+        <span class="card-title">API Integration</span>
+      </div>
+      <div class="card-desc">How Claude Code communicates with the Anthropic API</div>
+      <span class="expand-hint">click to expand</span>
+      <div class="card-details">
+        <p><strong>File:</strong> <code>services/api/claude.ts</code> (~125KB)</p>
+        <p style="margin-top:8px;">The API layer handles:</p>
+        <ul>
+          <li><strong>Streaming</strong> &mdash; Uses <code>@anthropic-ai/sdk</code> streaming API with delta events</li>
+          <li><strong>Message normalization</strong> &mdash; Converts internal message types to API format</li>
+          <li><strong>Tool schema conversion</strong> &mdash; Translates tool definitions to API schema</li>
+          <li><strong>Beta features</strong> &mdash; Extended thinking, prompt caching, structured outputs</li>
+          <li><strong>Retry logic</strong> &mdash; Exponential backoff with jitter via <code>withRetry.ts</code></li>
+          <li><strong>Token tracking</strong> &mdash; Per-request and session-wide cost accounting</li>
+          <li><strong>Context management</strong> &mdash; Prompt caching, context collapse for long conversations</li>
+        </ul>
+        <div class="tip-box" style="margin-top:12px;">
+          <div class="tip-header">&#128161; Production API Pattern</div>
+          <p>Note the separation: the API client handles transport, retries, and format conversion. Business logic stays in the query engine. This separation of concerns is critical for maintainability in AI applications.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-card pink" onclick="toggleCard(this)">
+      <div class="card-header">
+        <span class="card-icon">&#127912;</span>
+        <span class="card-title">Terminal UI (React + Ink)</span>
+      </div>
+      <div class="card-desc">Full React application rendering to the terminal</div>
+      <span class="expand-hint">click to expand</span>
+      <div class="card-details">
+        <p>Claude Code renders using <strong>Ink</strong>, a React renderer for the terminal. This means:</p>
+        <ul>
+          <li>Components, state, hooks, effects &mdash; all standard React patterns</li>
+          <li><strong>87 custom hooks</strong> for complex UI behaviors</li>
+          <li><strong>useTypeahead</strong> (212KB) &mdash; Full autocomplete engine</li>
+          <li><strong>useVoiceIntegration</strong> (99KB) &mdash; Speech-to-text</li>
+          <li><strong>useVirtualScroll</strong> &mdash; Efficient rendering of long outputs</li>
+          <li><strong>useGlobalKeybindings</strong> &mdash; Keyboard shortcut system</li>
+          <li>Interactive dialogs, file pickers, permission prompts</li>
+        </ul>
+        <div class="tip-box" style="margin-top:12px;">
+          <div class="tip-header">&#128161; Why React for CLI?</div>
+          <p>React's declarative model makes complex TUI state management tractable. As AI tools get more interactive (progress bars, multi-step confirmations, live streaming), a component model pays for itself.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-card cyan" onclick="toggleCard(this)">
+      <div class="card-header">
+        <span class="card-icon">&#128640;</span>
+        <span class="card-title">Agent &amp; Swarm System</span>
+      </div>
+      <div class="card-desc">Multi-agent orchestration with sub-agents, teams, and coordinators</div>
+      <span class="expand-hint">click to expand</span>
+      <div class="card-details">
+        <p><strong>AgentTool</strong> (234KB) spawns independent sub-agents that:</p>
+        <ul>
+          <li>Run with their own context window and tool set</li>
+          <li>Can use different models (Opus, Sonnet, Haiku)</li>
+          <li>Execute in isolated git worktrees</li>
+          <li>Run in background with completion notifications</li>
+          <li>Communicate via <code>SendMessageTool</code></li>
+        </ul>
+        <p style="margin-top:8px;"><strong>Coordinator mode</strong> (<code>coordinatorMode.ts</code>) orchestrates "swarms" of agents working together on complex tasks. TeamCreate/TeamDelete tools manage agent teams.</p>
+        <div class="tip-box" style="margin-top:12px;">
+          <div class="tip-header">&#128161; Multi-Agent Pattern</div>
+          <p>This is a <strong>hierarchical multi-agent system</strong>: a coordinator delegates to workers, each with specialized capabilities and isolation. Key challenges: communication, state sharing, and permission inheritance. Claude Code solves these with message passing, worktree isolation, and cascading permissions.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-card red" onclick="toggleCard(this)">
+      <div class="card-header">
+        <span class="card-icon">&#128268;</span>
+        <span class="card-title">MCP Integration</span>
+      </div>
+      <div class="card-desc">Model Context Protocol for connecting to external tool servers</div>
+      <span class="expand-hint">click to expand</span>
+      <div class="card-details">
+        <p><strong>25+ files</strong> in <code>services/mcp/</code></p>
+        <p style="margin-top:8px;">MCP is an open protocol that lets Claude connect to <strong>external tool servers</strong>:</p>
+        <ul>
+          <li><strong>Transports:</strong> stdio, SSE, HTTP, WebSocket, in-process SDK</li>
+          <li><strong>Tools:</strong> MCP servers expose tools that Claude can use</li>
+          <li><strong>Resources:</strong> Access text, images, blobs from MCP servers</li>
+          <li><strong>Authentication:</strong> Full OAuth flow per server</li>
+          <li><strong>Elicitation:</strong> MCP servers can request additional info from the user</li>
+        </ul>
+        <div class="tip-box" style="margin-top:12px;">
+          <div class="tip-header">&#128161; Why MCP Matters</div>
+          <p>MCP decouples the AI system from specific tool implementations. Instead of hardcoding integrations, you connect to standardized servers. This is the future of AI tool ecosystems &mdash; learn this protocol well.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-card yellow" onclick="toggleCard(this)">
+      <div class="card-header">
+        <span class="card-icon">&#129504;</span>
+        <span class="card-title">Memory System</span>
+      </div>
+      <div class="card-desc">Persistent memory across conversations with relevance-based retrieval</div>
+      <span class="expand-hint">click to expand</span>
+      <div class="card-details">
+        <p><strong>Files:</strong> <code>memdir/</code> directory</p>
+        <p style="margin-top:8px;">The memory system gives Claude persistent context:</p>
+        <ul>
+          <li><strong>MEMORY.md</strong> &mdash; Index file (max 200 lines) with pointers to topic files</li>
+          <li><strong>Topic files</strong> &mdash; Detailed memories with frontmatter (name, description, type)</li>
+          <li><strong>Types:</strong> user, feedback, project, reference</li>
+          <li><strong>Relevance scoring</strong> &mdash; <code>findRelevantMemories.ts</code> selects which memories to load</li>
+          <li><strong>Auto-memory</strong> &mdash; Automatic extraction from conversations</li>
+          <li><strong>Team memory</strong> &mdash; Shared across team members</li>
+        </ul>
+        <div class="tip-box" style="margin-top:12px;">
+          <div class="tip-header">&#128161; Memory Architecture</div>
+          <p>This is a <strong>file-based RAG system</strong> without the vector DB. Instead of embedding similarity, it uses structured metadata and relevance heuristics. For many use cases, this simpler approach works just as well.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== STARTUP FLOW ======================== -->
+<div class="section" id="startup">
+  <h2>Application Startup Flow</h2>
+  <p class="section-desc">From `claude` command to interactive session &mdash; click each step for details.</p>
+
+  <div class="dataflow">
+    <div class="dataflow-step" onclick="toggleStep(this)">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <div class="step-title">CLI Entry &amp; Fast Paths</div>
+        <div class="step-file">entrypoints/cli.tsx</div>
+        <div class="step-desc">Parse CLI args, check for fast-path flags (--version, --help), feature-gated modes</div>
+        <div class="step-extra">
+          Commander.js parses arguments. Fast paths exit early without loading the full app (saves ~500ms). Feature flags like <code>COORDINATOR_MODE</code>, <code>DAEMON</code>, <code>BRIDGE_MODE</code> route to specialized entry points. This is a common startup optimization in large CLI apps.
+        </div>
+      </div>
+    </div>
+    <div class="step-connector"></div>
+
+    <div class="dataflow-step" onclick="toggleStep(this)">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <div class="step-title">Initialization</div>
+        <div class="step-file">entrypoints/init.ts</div>
+        <div class="step-desc">Config validation, env vars, telemetry, LSP setup, OAuth account info</div>
+        <div class="step-extra">
+          Validates all config files (settings.json from multiple sources), sets up environment variables, initializes OpenTelemetry for observability, creates the LSP server manager for code intelligence, and populates OAuth account information for API auth.
+        </div>
+      </div>
+    </div>
+    <div class="step-connector"></div>
+
+    <div class="dataflow-step" onclick="toggleStep(this)">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <div class="step-title">Settings Resolution</div>
+        <div class="step-file">utils/settings/</div>
+        <div class="step-desc">Merge local + project + user + enterprise + MDM + dynamic settings</div>
+        <div class="step-extra">
+          Settings cascade from 6 sources with increasing priority: local (~/.claude/settings.json), project (.claude/settings.json), user (platform-specific), enterprise (remote), MDM (device management), and dynamic (GrowthBook feature flags). Conflicts are resolved by priority.
+        </div>
+      </div>
+    </div>
+    <div class="step-connector"></div>
+
+    <div class="dataflow-step" onclick="toggleStep(this)">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <div class="step-title">Tool &amp; Command Registration</div>
+        <div class="step-file">tools.ts, commands.ts</div>
+        <div class="step-desc">Register 44+ tools and 104 commands, load MCP tools, load plugins</div>
+        <div class="step-extra">
+          All built-in tools are instantiated and registered. MCP servers are connected and their tools are dynamically added. Plugins are loaded and may contribute additional commands/tools. The tool registry determines what capabilities Claude has in this session.
+        </div>
+      </div>
+    </div>
+    <div class="step-connector"></div>
+
+    <div class="dataflow-step" onclick="toggleStep(this)">
+      <div class="step-num">5</div>
+      <div class="step-content">
+        <div class="step-title">Permission Setup</div>
+        <div class="step-file">utils/permissions/permissionSetup.ts</div>
+        <div class="step-desc">Initialize permission mode, load rules, set up classifiers</div>
+        <div class="step-extra">
+          Permission rules are loaded from settings. The YOLO classifier is initialized for auto-mode. Dangerous patterns are compiled. The permission setup determines the security posture for the entire session.
+        </div>
+      </div>
+    </div>
+    <div class="step-connector"></div>
+
+    <div class="dataflow-step" onclick="toggleStep(this)">
+      <div class="step-num">6</div>
+      <div class="step-content">
+        <div class="step-title">Memory &amp; Context Loading</div>
+        <div class="step-file">memdir/, context.ts</div>
+        <div class="step-desc">Scan memory files, load MEMORY.md, build system context with git status</div>
+        <div class="step-extra">
+          The memory system scans for MEMORY.md and topic files, scores them for relevance, and loads selected memories into the system context. Git status is captured. All of this becomes part of the system prompt that Claude sees.
+        </div>
+      </div>
+    </div>
+    <div class="step-connector"></div>
+
+    <div class="dataflow-step" onclick="toggleStep(this)">
+      <div class="step-num">7</div>
+      <div class="step-content">
+        <div class="step-title">React/Ink UI Render</div>
+        <div class="step-file">main.tsx, ink.ts</div>
+        <div class="step-desc">Mount React component tree, render terminal UI, wait for user input</div>
+        <div class="step-extra">
+          The Ink renderer mounts the React component tree to the terminal. This includes the input area, status line, virtual scroll region, and all interactive elements. The app is now ready for user input. Session resumption happens here if resuming a previous conversation.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== REQUEST LIFECYCLE ======================== -->
+<div class="section" id="request-flow">
+  <h2>Request Lifecycle</h2>
+  <p class="section-desc">What happens when you type a message and press Enter. This is the core agent loop.</p>
+
+  <div class="flow-container">
+    <div class="flow">
+      <div class="flow-node" onclick="showFlowDetail(this, 'User types a message in the terminal. The input is captured by the Ink React component and processed through keyboard handlers and input validation.')">
+        <div class="node-icon">&#9997;</div>
+        <div class="node-title">User Input</div>
+        <div class="node-file">earlyInput.ts</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node" onclick="showFlowDetail(this, 'Input is validated, normalized, and converted into a UserMessage. Slash commands are detected and routed to the command system instead of the query engine. Attachments (files, images) are processed.')">
+        <div class="node-icon">&#128196;</div>
+        <div class="node-title">Process Input</div>
+        <div class="node-file">processUserInput.ts</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node" onclick="showFlowDetail(this, 'The system prompt is assembled from: base instructions, tool descriptions, memory files, git context, dynamic variables, CLAUDE.md files, and MCP server descriptions. This is what Claude sees before your message.')">
+        <div class="node-icon">&#128220;</div>
+        <div class="node-title">Build System Prompt</div>
+        <div class="node-file">systemPrompt.ts</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node" onclick="showFlowDetail(this, 'All messages (system + history + user) are assembled into the API request. Token counting happens here. If the context is too long, automatic compaction kicks in - older messages are summarized to free up space.')">
+        <div class="node-icon">&#128230;</div>
+        <div class="node-title">Assemble Messages</div>
+        <div class="node-file">query.ts</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node" onclick="showFlowDetail(this, 'The request is sent to the Anthropic API with streaming enabled. Betas are configured (extended thinking, prompt caching, etc). The withRetry wrapper handles transient failures with exponential backoff.')">
+        <div class="node-icon">&#9729;</div>
+        <div class="node-title">API Call (Streaming)</div>
+        <div class="node-file">services/api/claude.ts</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node" onclick="showFlowDetail(this, 'Stream events arrive: message_start, content_block_start, content_block_delta (text chunks), tool_use blocks. Text is rendered to the terminal in real-time. Tool use blocks are collected for execution.')">
+        <div class="node-icon">&#9889;</div>
+        <div class="node-title">Stream Response</div>
+        <div class="node-file">StreamingToolExecutor.ts</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node" onclick="showFlowDetail(this, 'Each tool_use block is checked against the permission system. The mode (default/auto/plan) determines whether to ask the user, auto-approve, or deny. Rules, classifiers, and dangerous pattern detection all participate.')">
+        <div class="node-icon">&#128274;</div>
+        <div class="node-title">Permission Check</div>
+        <div class="node-file">permissions.ts</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node" onclick="showFlowDetail(this, 'Approved tools are executed. Concurrent-safe tools (reads, searches) can run in parallel. Exclusive tools (writes, bash) run sequentially. Results are buffered and emitted in order. Progress messages stream in real-time.')">
+        <div class="node-icon">&#9881;</div>
+        <div class="node-title">Execute Tools</div>
+        <div class="node-file">toolExecution.ts</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node" onclick="showFlowDetail(this, 'Tool results are formatted into tool_result messages and appended to the conversation. The query engine decides: if Claude requested tools, we loop back to the API with the results. If not, the turn is complete.')">
+        <div class="node-icon">&#128257;</div>
+        <div class="node-title">Loop or Complete</div>
+        <div class="node-file">query.ts</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="flow-detail-panel" style="margin-top:20px;display:none;">
+    <div class="tip-box">
+      <div class="tip-header">&#128269; Detail</div>
+      <p id="flow-detail-text"></p>
+    </div>
+  </div>
+
+  <div class="tip-box" style="margin-top:20px;">
+    <div class="tip-header">&#128161; The ReAct Loop</div>
+    <p>This is the <strong>Reason-Act-Observe</strong> loop that powers all modern AI agents. Claude <em>reasons</em> about what to do, <em>acts</em> by calling tools, <em>observes</em> the results, and repeats. The loop continues until Claude decides no more tools are needed. Understanding this loop is fundamental to AI engineering.</p>
+  </div>
+</div>
+
+<!-- ======================== TOOLS ======================== -->
+<div class="section" id="tools">
+  <h2>Tools System</h2>
+  <p class="section-desc">All 44+ tools organized by category. Click a category to expand.</p>
+
+  <input type="text" class="search-box" id="tool-search" placeholder="Search tools..." oninput="filterTools(this.value)">
+
+  <div class="tool-categories" id="tool-categories">
+
+    <div class="tool-category" data-category="filesystem">
+      <div class="tool-cat-header" onclick="toggleToolCat(this)">
+        <span class="cat-icon">&#128193;</span>
+        <span class="cat-name">File System Operations</span>
+        <span class="cat-count">6</span>
+        <span class="chevron">&#9654;</span>
+      </div>
+      <div class="tool-list">
+        <div class="tool-item"><span class="tool-name">FileReadTool</span><span class="tool-desc">Read files with line numbers, supports images, PDFs, notebooks. Read-only, always safe.</span></div>
+        <div class="tool-item"><span class="tool-name">FileEditTool</span><span class="tool-desc">Exact string replacement in files. Requires reading first. Sends only the diff.</span></div>
+        <div class="tool-item"><span class="tool-name">FileWriteTool</span><span class="tool-desc">Write/overwrite entire files. Must read existing files first. Used for new files.</span></div>
+        <div class="tool-item"><span class="tool-name">GlobTool</span><span class="tool-desc">Fast file pattern matching (e.g., **/*.ts). Returns paths sorted by modification time.</span></div>
+        <div class="tool-item"><span class="tool-name">GrepTool</span><span class="tool-desc">Content search with full regex. Supports file type filtering, context lines, counts.</span></div>
+        <div class="tool-item"><span class="tool-name">NotebookEditTool</span><span class="tool-desc">Edit Jupyter notebook cells. Understands notebook structure and cell types.</span></div>
+      </div>
+    </div>
+
+    <div class="tool-category" data-category="execution">
+      <div class="tool-cat-header" onclick="toggleToolCat(this)">
+        <span class="cat-icon">&#9000;</span>
+        <span class="cat-name">Execution &amp; Shell</span>
+        <span class="cat-count">3</span>
+        <span class="chevron">&#9654;</span>
+      </div>
+      <div class="tool-list">
+        <div class="tool-item"><span class="tool-name">BashTool</span><span class="tool-desc">Execute bash commands. Supports timeouts, background execution. Persistent working directory.</span></div>
+        <div class="tool-item"><span class="tool-name">PowerShellTool</span><span class="tool-desc">Windows PowerShell equivalent. Used on Windows platforms instead of BashTool.</span></div>
+        <div class="tool-item"><span class="tool-name">LSPTool</span><span class="tool-desc">Language Server Protocol integration. Go-to-definition, references, diagnostics.</span></div>
+      </div>
+    </div>
+
+    <div class="tool-category" data-category="ai-agent">
+      <div class="tool-cat-header" onclick="toggleToolCat(this)">
+        <span class="cat-icon">&#129302;</span>
+        <span class="cat-name">AI &amp; Agent Orchestration</span>
+        <span class="cat-count">6</span>
+        <span class="chevron">&#9654;</span>
+      </div>
+      <div class="tool-list">
+        <div class="tool-item"><span class="tool-name">AgentTool</span><span class="tool-desc">Spawn sub-agents with own context. Model override, worktree isolation, background execution. 234KB implementation.</span></div>
+        <div class="tool-item"><span class="tool-name">SendMessageTool</span><span class="tool-desc">Send messages between agents. Enables inter-agent communication in swarm mode.</span></div>
+        <div class="tool-item"><span class="tool-name">TeamCreateTool</span><span class="tool-desc">Create multi-agent teams for coordinated work. Part of the swarm system.</span></div>
+        <div class="tool-item"><span class="tool-name">TeamDeleteTool</span><span class="tool-desc">Delete agent teams when work is complete.</span></div>
+        <div class="tool-item"><span class="tool-name">SkillTool</span><span class="tool-desc">Invoke custom skills &mdash; reusable task definitions with specialized prompts.</span></div>
+        <div class="tool-item"><span class="tool-name">MCPTool</span><span class="tool-desc">Invoke tools exposed by connected MCP servers. Dynamic tool discovery.</span></div>
+      </div>
+    </div>
+
+    <div class="tool-category" data-category="web">
+      <div class="tool-cat-header" onclick="toggleToolCat(this)">
+        <span class="cat-icon">&#127760;</span>
+        <span class="cat-name">Web &amp; External Data</span>
+        <span class="cat-count">4</span>
+        <span class="chevron">&#9654;</span>
+      </div>
+      <div class="tool-list">
+        <div class="tool-item"><span class="tool-name">WebSearchTool</span><span class="tool-desc">Search the web using Brave Search API. Returns titles, snippets, URLs.</span></div>
+        <div class="tool-item"><span class="tool-name">WebFetchTool</span><span class="tool-desc">Fetch content from URLs. Handles HTML, JSON, text. Content extraction.</span></div>
+        <div class="tool-item"><span class="tool-name">ListMcpResourcesTool</span><span class="tool-desc">List resources available from connected MCP servers.</span></div>
+        <div class="tool-item"><span class="tool-name">ReadMcpResourceTool</span><span class="tool-desc">Read specific resources (text, images, blobs) from MCP servers.</span></div>
+      </div>
+    </div>
+
+    <div class="tool-category" data-category="tasks">
+      <div class="tool-cat-header" onclick="toggleToolCat(this)">
+        <span class="cat-icon">&#9745;</span>
+        <span class="cat-name">Task Management</span>
+        <span class="cat-count">5</span>
+        <span class="chevron">&#9654;</span>
+      </div>
+      <div class="tool-list">
+        <div class="tool-item"><span class="tool-name">TaskCreateTool</span><span class="tool-desc">Create tasks for tracking work progress. Useful for multi-step implementations.</span></div>
+        <div class="tool-item"><span class="tool-name">TaskUpdateTool</span><span class="tool-desc">Update task status (in_progress, completed, failed). Mark milestones.</span></div>
+        <div class="tool-item"><span class="tool-name">TaskListTool</span><span class="tool-desc">List all tasks and their statuses. Overview of work progress.</span></div>
+        <div class="tool-item"><span class="tool-name">TaskGetTool</span><span class="tool-desc">Get details of a specific task including output and status.</span></div>
+        <div class="tool-item"><span class="tool-name">TaskStopTool</span><span class="tool-desc">Stop a running task. Cancel background work.</span></div>
+      </div>
+    </div>
+
+    <div class="tool-category" data-category="workflow">
+      <div class="tool-cat-header" onclick="toggleToolCat(this)">
+        <span class="cat-icon">&#128736;</span>
+        <span class="cat-name">Workflow &amp; Mode</span>
+        <span class="cat-count">7</span>
+        <span class="chevron">&#9654;</span>
+      </div>
+      <div class="tool-list">
+        <div class="tool-item"><span class="tool-name">EnterPlanModeTool</span><span class="tool-desc">Switch to planning mode. Claude can only reason and plan, not execute.</span></div>
+        <div class="tool-item"><span class="tool-name">ExitPlanModeTool</span><span class="tool-desc">Exit planning mode and return to execution.</span></div>
+        <div class="tool-item"><span class="tool-name">EnterWorktreeTool</span><span class="tool-desc">Create an isolated git worktree for safe experimentation.</span></div>
+        <div class="tool-item"><span class="tool-name">ExitWorktreeTool</span><span class="tool-desc">Exit worktree, optionally keeping or discarding changes.</span></div>
+        <div class="tool-item"><span class="tool-name">AskUserQuestionTool</span><span class="tool-desc">Explicitly ask the user a question when clarification is needed.</span></div>
+        <div class="tool-item"><span class="tool-name">SleepTool</span><span class="tool-desc">Pause execution for a specified duration. Useful between polling operations.</span></div>
+        <div class="tool-item"><span class="tool-name">ToolSearchTool</span><span class="tool-desc">Search for available tools by name or description. Deferred tool discovery.</span></div>
+      </div>
+    </div>
+
+    <div class="tool-category" data-category="scheduling">
+      <div class="tool-cat-header" onclick="toggleToolCat(this)">
+        <span class="cat-icon">&#128337;</span>
+        <span class="cat-name">Scheduling &amp; Remote</span>
+        <span class="cat-count">3</span>
+        <span class="chevron">&#9654;</span>
+      </div>
+      <div class="tool-list">
+        <div class="tool-item"><span class="tool-name">ScheduleCronTool</span><span class="tool-desc">Schedule recurring tasks with cron expressions. Persistent scheduling.</span></div>
+        <div class="tool-item"><span class="tool-name">RemoteTriggerTool</span><span class="tool-desc">Execute remote scheduled agents on-demand.</span></div>
+        <div class="tool-item"><span class="tool-name">TaskOutputTool</span><span class="tool-desc">Read output from completed async/remote tasks.</span></div>
+      </div>
+    </div>
+
+    <div class="tool-category" data-category="utility">
+      <div class="tool-cat-header" onclick="toggleToolCat(this)">
+        <span class="cat-icon">&#128295;</span>
+        <span class="cat-name">Utility &amp; Debug</span>
+        <span class="cat-count">3</span>
+        <span class="chevron">&#9654;</span>
+      </div>
+      <div class="tool-list">
+        <div class="tool-item"><span class="tool-name">BriefTool</span><span class="tool-desc">Generate a concise summary of work done. Useful for handoffs.</span></div>
+        <div class="tool-item"><span class="tool-name">SyntheticOutputTool</span><span class="tool-desc">Generate synthetic tool outputs for testing and coordination.</span></div>
+        <div class="tool-item"><span class="tool-name">MCPAuthTool</span><span class="tool-desc">Handle MCP server authentication flows (OAuth, tokens).</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip-box" style="margin-top:20px;">
+    <div class="tip-header">&#128161; Tool Design Pattern</div>
+    <p>Notice how each tool has a clear <strong>single responsibility</strong>, a declarative <strong>JSON Schema</strong> for inputs, and explicit <strong>read-only vs. mutating</strong> classification. This enables the permission system to make fine-grained decisions. When building your own AI tools, follow this pattern: small, well-defined, self-describing tools.</p>
+  </div>
+</div>
+
+<!-- ======================== PERMISSIONS ======================== -->
+<div class="section" id="permissions">
+  <h2>Permission System</h2>
+  <p class="section-desc">Multi-layered security model. Click each mode for details.</p>
+
+  <div class="perm-flow">
+    <div class="perm-mode default" onclick="togglePerm(this)">
+      <div class="mode-header">
+        <span class="mode-badge">Default</span>
+        <span class="mode-name">Interactive Approval</span>
+      </div>
+      <div class="mode-desc">Every tool use prompts the user for approval. Safest mode. Good for learning.</div>
+      <div class="mode-detail">
+        <p>In default mode, every tool invocation triggers an interactive prompt in the terminal. The user can approve, deny, or set a rule for future calls. This is the safest mode and helps you understand exactly what Claude is doing.</p>
+        <p style="margin-top:8px;"><strong>Best for:</strong> New users, sensitive codebases, learning how Claude Code works.</p>
+      </div>
+    </div>
+
+    <div class="perm-mode auto" onclick="togglePerm(this)">
+      <div class="mode-header">
+        <span class="mode-badge">Auto</span>
+        <span class="mode-name">Classifier-Based Approval</span>
+      </div>
+      <div class="mode-desc">ML classifier auto-approves safe operations. Dangerous operations still prompt.</div>
+      <div class="mode-detail">
+        <p>The <strong>YOLO classifier</strong> (<code>yoloClassifier.ts</code>, 52KB) uses pattern matching to classify tool calls as safe or dangerous. Safe operations (reads, searches) are auto-approved. Dangerous operations (deletes, force pushes, writes to sensitive paths) still require user approval.</p>
+        <p style="margin-top:8px;"><strong>Classification pipeline:</strong></p>
+        <ul>
+          <li>Check allow/deny rules from settings</li>
+          <li>Check if tool is read-only</li>
+          <li>Run bash command classifier for shell commands</li>
+          <li>Check dangerous pattern database</li>
+          <li>Fall back to interactive if uncertain</li>
+        </ul>
+        <p style="margin-top:8px;"><strong>Best for:</strong> Experienced users who want speed but still want guardrails.</p>
+      </div>
+    </div>
+
+    <div class="perm-mode plan" onclick="togglePerm(this)">
+      <div class="mode-header">
+        <span class="mode-badge">Plan</span>
+        <span class="mode-name">Plan Mode</span>
+      </div>
+      <div class="mode-desc">Claude can only reason and plan. No tool execution until explicitly exited.</div>
+      <div class="mode-detail">
+        <p>In plan mode, Claude can read and analyze but cannot make changes. This is useful for:</p>
+        <ul>
+          <li>Getting a plan before committing to changes</li>
+          <li>Understanding code without risk of modification</li>
+          <li>Reviewing architecture decisions</li>
+        </ul>
+        <p style="margin-top:8px;">Use <code>EnterPlanModeTool</code> / <code>ExitPlanModeTool</code> to toggle.</p>
+      </div>
+    </div>
+
+    <div class="perm-mode bypassall" onclick="togglePerm(this)">
+      <div class="mode-header">
+        <span class="mode-badge">Unlimited</span>
+        <span class="mode-name">Full Auto-Approval</span>
+      </div>
+      <div class="mode-desc">All operations auto-approved. Maximum speed, minimum safety. Use with caution.</div>
+      <div class="mode-detail">
+        <p>Every tool call is automatically approved without any checks. This is the fastest mode but provides no safety net.</p>
+        <p style="margin-top:8px;color:var(--red);"><strong>Warning:</strong> Only use in sandboxed environments, CI pipelines, or when you fully trust the operation. Claude can delete files, run arbitrary commands, and push code without asking.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:40px;font-size:1.1em;">Permission Check Flow</h3>
+  <div class="flow-container" style="margin-top:16px;">
+    <div class="flow">
+      <div class="flow-node">
+        <div class="node-icon">&#128295;</div>
+        <div class="node-title">Tool Call</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node">
+        <div class="node-icon">&#128203;</div>
+        <div class="node-title">Check Rules</div>
+        <div class="node-file">Allow / Deny / Ask</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node">
+        <div class="node-icon">&#129302;</div>
+        <div class="node-title">Classifier</div>
+        <div class="node-file">yoloClassifier.ts</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node">
+        <div class="node-icon">&#9888;</div>
+        <div class="node-title">Danger Check</div>
+        <div class="node-file">dangerousPatterns.ts</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node">
+        <div class="node-icon">&#128100;</div>
+        <div class="node-title">User Prompt</div>
+        <div class="node-file">interactiveHandler.ts</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== AGENTS ======================== -->
+<div class="section" id="agents">
+  <h2>Agent &amp; Multi-Agent System</h2>
+  <p class="section-desc">How Claude Code spawns, manages, and coordinates multiple AI agents.</p>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab(event, 'tab-subagent')">Sub-Agents</button>
+    <button class="tab-btn" onclick="switchTab(event, 'tab-swarm')">Swarm / Teams</button>
+    <button class="tab-btn" onclick="switchTab(event, 'tab-isolation')">Isolation Modes</button>
+    <button class="tab-btn" onclick="switchTab(event, 'tab-async')">Async / Remote</button>
+  </div>
+
+  <div class="tab-content active" id="tab-subagent">
+    <div class="code-block">
+      <span class="cmt">// AgentTool spawns a sub-agent with its own context</span><br>
+      <span class="kw">const</span> agent = <span class="kw">await</span> <span class="fn">spawnAgent</span>({<br>
+      &nbsp;&nbsp;<span class="str">prompt</span>: <span class="str">"Search for all API endpoints and document them"</span>,<br>
+      &nbsp;&nbsp;<span class="str">model</span>: <span class="str">"sonnet"</span>,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cmt">// Model override per agent</span><br>
+      &nbsp;&nbsp;<span class="str">subagent_type</span>: <span class="str">"Explore"</span>,&nbsp;<span class="cmt">// Specialized agent type</span><br>
+      &nbsp;&nbsp;<span class="str">isolation</span>: <span class="str">"worktree"</span>,&nbsp;&nbsp;<span class="cmt">// Git worktree isolation</span><br>
+      &nbsp;&nbsp;<span class="str">run_in_background</span>: <span class="kw">true</span>,&nbsp;<span class="cmt">// Non-blocking execution</span><br>
+      });<br><br>
+      <span class="cmt">// Agent runs independently with its own:</span><br>
+      <span class="cmt">// - Context window (no shared state pollution)</span><br>
+      <span class="cmt">// - Tool set (may differ from parent)</span><br>
+      <span class="cmt">// - Permission inheritance</span><br>
+      <span class="cmt">// - Memory snapshot</span>
+    </div>
+    <p style="margin-top:16px;color:var(--text-muted);font-size:0.85em;">
+      <strong>Built-in agent types:</strong> general-purpose, Explore (fast codebase search), Plan (architecture), statusline-setup, claude-code-guide. Each type has a curated tool set optimized for its task.
+    </p>
+  </div>
+
+  <div class="tab-content" id="tab-swarm">
+    <div class="code-block">
+      <span class="cmt">// Coordinator creates a team of agents</span><br>
+      <span class="fn">TeamCreateTool</span>({<br>
+      &nbsp;&nbsp;<span class="str">agents</span>: [<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;{ <span class="str">name</span>: <span class="str">"frontend"</span>, <span class="str">prompt</span>: <span class="str">"Fix React components"</span> },<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;{ <span class="str">name</span>: <span class="str">"backend"</span>,  <span class="str">prompt</span>: <span class="str">"Update API handlers"</span> },<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;{ <span class="str">name</span>: <span class="str">"tests"</span>,    <span class="str">prompt</span>: <span class="str">"Write integration tests"</span> },<br>
+      &nbsp;&nbsp;]<br>
+      });<br><br>
+      <span class="cmt">// Agents communicate via SendMessageTool</span><br>
+      <span class="fn">SendMessageTool</span>({ <span class="str">to</span>: <span class="str">"backend"</span>, <span class="str">message</span>: <span class="str">"API schema changed"</span> });<br><br>
+      <span class="cmt">// Coordinator mode (coordinatorMode.ts) manages:</span><br>
+      <span class="cmt">// - Work delegation across agents</span><br>
+      <span class="cmt">// - Communication routing</span><br>
+      <span class="cmt">// - Result aggregation</span>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-isolation">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div class="concept-card">
+        <h4 style="color:var(--green);">Worktree Isolation</h4>
+        <p>Each agent gets its own git worktree &mdash; a separate working directory with its own branch. Changes are isolated. If the agent fails, the worktree is cleaned up. If changes are good, they can be merged back.</p>
+      </div>
+      <div class="concept-card">
+        <h4 style="color:var(--purple);">Context Isolation</h4>
+        <p>Each sub-agent has its own context window. It doesn't see the parent's full conversation. This prevents context pollution and allows agents to focus on their specific task with maximum context budget.</p>
+      </div>
+      <div class="concept-card">
+        <h4 style="color:var(--orange);">Permission Inheritance</h4>
+        <p>Sub-agents inherit permission settings from their parent. A restricted parent cannot spawn an unrestricted child. This ensures the security model is maintained throughout the agent hierarchy.</p>
+      </div>
+      <div class="concept-card">
+        <h4 style="color:var(--cyan);">Memory Snapshots</h4>
+        <p>Agents receive a snapshot of relevant memories from the parent session. They can read but not write to the parent's memory. This gives context without risking memory corruption.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-async">
+    <p style="color:var(--text-muted);font-size:0.85em;">
+      Agents can run <strong>asynchronously</strong> in the background:
+    </p>
+    <ul style="color:var(--text-muted);font-size:0.85em;list-style:none;padding:0;margin-top:12px;">
+      <li style="padding:8px 0;border-bottom:1px solid var(--border);">
+        <strong style="color:var(--accent);">LocalAgentTask</strong> &mdash; In-process background execution. The agent runs in the same process but on a separate async track. Notification on completion.
+      </li>
+      <li style="padding:8px 0;border-bottom:1px solid var(--border);">
+        <strong style="color:var(--purple);">RemoteAgentTask</strong> &mdash; Cloud execution via CCR (Claude Code Remote). The agent runs on Anthropic's infrastructure. Useful for long-running tasks.
+      </li>
+      <li style="padding:8px 0;border-bottom:1px solid var(--border);">
+        <strong style="color:var(--green);">ScheduleCronTool</strong> &mdash; Schedule agents to run on a cron schedule. Persistent scheduling that survives session restarts.
+      </li>
+      <li style="padding:8px 0;">
+        <strong style="color:var(--orange);">RemoteTriggerTool</strong> &mdash; Manually trigger scheduled remote agents on-demand.
+      </li>
+    </ul>
+  </div>
+</div>
+
+<!-- ======================== MCP ======================== -->
+<div class="section" id="mcp">
+  <h2>MCP (Model Context Protocol)</h2>
+  <p class="section-desc">The open protocol for connecting Claude to external tool servers. Click components for details.</p>
+
+  <div class="arch-grid">
+    <div class="arch-card cyan" onclick="toggleCard(this)">
+      <div class="card-header">
+        <span class="card-icon">&#128268;</span>
+        <span class="card-title">MCP Client</span>
+      </div>
+      <div class="card-desc">Core protocol implementation (~119KB)</div>
+      <span class="expand-hint">click to expand</span>
+      <div class="card-details">
+        <p><code>services/mcp/client.ts</code> implements the full MCP client:</p>
+        <ul>
+          <li>Connection lifecycle management</li>
+          <li>Message serialization/deserialization</li>
+          <li>Tool invocation proxy</li>
+          <li>Resource access</li>
+          <li>Capability negotiation</li>
+          <li>Error handling and reconnection</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="arch-card green" onclick="toggleCard(this)">
+      <div class="card-header">
+        <span class="card-icon">&#128226;</span>
+        <span class="card-title">Transport Layer</span>
+      </div>
+      <div class="card-desc">5 transport types for different server architectures</div>
+      <span class="expand-hint">click to expand</span>
+      <div class="card-details">
+        <ul>
+          <li><strong>stdio</strong> &mdash; Launch server as child process, communicate via stdin/stdout. Most common for local tools.</li>
+          <li><strong>SSE</strong> &mdash; Server-sent events over HTTP. Good for web-based servers.</li>
+          <li><strong>HTTP</strong> &mdash; REST API transport. Stateless request/response.</li>
+          <li><strong>WebSocket</strong> &mdash; Full-duplex communication. Best for real-time tools.</li>
+          <li><strong>SDK (In-process)</strong> &mdash; Direct function calls. Zero network overhead.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="arch-card purple" onclick="toggleCard(this)">
+      <div class="card-header">
+        <span class="card-icon">&#128273;</span>
+        <span class="card-title">Authentication</span>
+      </div>
+      <div class="card-desc">Full OAuth flow per server (~88KB)</div>
+      <span class="expand-hint">click to expand</span>
+      <div class="card-details">
+        <p><code>services/mcp/auth.ts</code> handles:</p>
+        <ul>
+          <li>Per-server OAuth credentials</li>
+          <li>Token refresh and rotation</li>
+          <li>IDP (Identity Provider) login flows</li>
+          <li>Cross-App Access (XAA) authentication</li>
+          <li>Credential storage and retrieval</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="arch-card orange" onclick="toggleCard(this)">
+      <div class="card-header">
+        <span class="card-icon">&#127981;</span>
+        <span class="card-title">Elicitation</span>
+      </div>
+      <div class="card-desc">MCP servers can request user input (~179KB UI)</div>
+      <span class="expand-hint">click to expand</span>
+      <div class="card-details">
+        <p>Elicitation is a unique MCP feature: servers can ask the user for additional information during tool execution. The <code>ElicitationDialog.tsx</code> (179KB!) renders rich interactive forms in the terminal for:</p>
+        <ul>
+          <li>Configuration prompts</li>
+          <li>Authentication flows</li>
+          <li>Decision points</li>
+          <li>Data entry forms</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip-box" style="margin-top:20px;">
+    <div class="tip-header">&#128161; MCP Architecture Lesson</div>
+    <p>MCP separates <strong>tool definition</strong> from <strong>tool implementation</strong>. The AI sees a standard tool interface; the implementation can be a local script, a remote API, or a complex distributed system. This is the <strong>adapter pattern</strong> applied to AI tooling &mdash; a powerful abstraction for building extensible AI systems.</p>
+  </div>
+</div>
+
+<!-- ======================== HOOKS ======================== -->
+<div class="section" id="hooks">
+  <h2>Hook System</h2>
+  <p class="section-desc">Extensibility through lifecycle hooks. Hooks let you inject custom behavior at key moments.</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;">
+    <div class="concept-card" style="border-left:3px solid var(--accent);">
+      <h4>Pre-Sampling Hooks</h4>
+      <p>Run <strong>before</strong> the API call. Can modify the messages, add context, or block the request. Use for prompt engineering, guardrails, or dynamic context injection.</p>
+    </div>
+    <div class="concept-card" style="border-left:3px solid var(--green);">
+      <h4>Post-Sampling Hooks</h4>
+      <p>Run <strong>after</strong> Claude's response. Can modify the response, log it, trigger side effects. Use for output filtering, analytics, or automated follow-ups.</p>
+    </div>
+    <div class="concept-card" style="border-left:3px solid var(--purple);">
+      <h4>Tool Hooks</h4>
+      <p>Run <strong>before/after each tool execution</strong>. Can approve, deny, modify, or log tool calls. Use for auditing, custom permission logic, or tool result caching.</p>
+    </div>
+    <div class="concept-card" style="border-left:3px solid var(--orange);">
+      <h4>Session Hooks</h4>
+      <p>Lifecycle events: session start, end, pause, resume. Use for environment setup/teardown, logging, or automated git operations.</p>
+    </div>
+    <div class="concept-card" style="border-left:3px solid var(--pink);">
+      <h4>File Change Hooks</h4>
+      <p>Triggered when files change on disk. Use for auto-formatting, linting, test running, or notifying other tools of changes.</p>
+    </div>
+    <div class="concept-card" style="border-left:3px solid var(--cyan);">
+      <h4>HTTP Hooks</h4>
+      <p>Send webhooks to external services. Use for Slack notifications, CI triggers, audit logs, or integration with other systems.</p>
+    </div>
+  </div>
+
+  <div class="code-block" style="margin-top:20px;">
+    <span class="cmt">// Example hook configuration in settings.json</span><br>
+    {<br>
+    &nbsp;&nbsp;<span class="str">"hooks"</span>: {<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"pre-sampling"</span>: [{<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"type"</span>: <span class="str">"command"</span>,<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"command"</span>: <span class="str">"echo 'Adding context...' && cat .claude/context.md"</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;}],<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"post-tool-use"</span>: [{<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"type"</span>: <span class="str">"http"</span>,<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"url"</span>: <span class="str">"https://hooks.slack.com/..."</span>,<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"matcher"</span>: <span class="str">"BashTool"</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;}]<br>
+    &nbsp;&nbsp;}<br>
+    }
+  </div>
+</div>
+
+<!-- ======================== MEMORY ======================== -->
+<div class="section" id="memory">
+  <h2>Memory System</h2>
+  <p class="section-desc">Persistent cross-conversation memory with structured types and relevance-based retrieval.</p>
+
+  <div class="flow-container">
+    <div class="flow">
+      <div class="flow-node" style="border-color:var(--yellow);">
+        <div class="node-icon">&#128172;</div>
+        <div class="node-title">Conversation</div>
+        <div class="node-file">User reveals info</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node" style="border-color:var(--green);">
+        <div class="node-icon">&#128269;</div>
+        <div class="node-title">Detect Memory</div>
+        <div class="node-file">extractMemories/</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node" style="border-color:var(--purple);">
+        <div class="node-icon">&#128196;</div>
+        <div class="node-title">Classify Type</div>
+        <div class="node-file">user / feedback / project / reference</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node" style="border-color:var(--accent);">
+        <div class="node-icon">&#128190;</div>
+        <div class="node-title">Write File</div>
+        <div class="node-file">.claude/memory/*.md</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-node" style="border-color:var(--cyan);">
+        <div class="node-icon">&#128209;</div>
+        <div class="node-title">Update Index</div>
+        <div class="node-file">MEMORY.md</div>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:30px;font-size:1em;">Memory Types</h3>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:12px;">
+    <div class="concept-card" style="border-top:3px solid var(--accent);">
+      <h4 style="color:var(--accent);">User Memory</h4>
+      <p>Who is the user? Role, expertise, preferences. "Senior Go dev, new to React." Shapes how Claude communicates and what it explains.</p>
+    </div>
+    <div class="concept-card" style="border-top:3px solid var(--green);">
+      <h4 style="color:var(--green);">Feedback Memory</h4>
+      <p>User corrections and validations. "Don't mock the DB." "Single PR was right." Prevents repeating mistakes and reinforces good patterns.</p>
+    </div>
+    <div class="concept-card" style="border-top:3px solid var(--orange);">
+      <h4 style="color:var(--orange);">Project Memory</h4>
+      <p>Ongoing work context. "Merge freeze after March 5." "Auth rewrite for compliance." Non-obvious project state that can't be derived from code.</p>
+    </div>
+    <div class="concept-card" style="border-top:3px solid var(--purple);">
+      <h4 style="color:var(--purple);">Reference Memory</h4>
+      <p>Pointers to external resources. "Bugs tracked in Linear INGEST project." "Latency dashboard at grafana.internal/d/api-latency."</p>
+    </div>
+  </div>
+
+  <div class="code-block" style="margin-top:20px;">
+    <span class="cmt">// Memory file structure (.claude/memory/feedback_testing.md)</span><br>
+    ---<br>
+    <span class="type">name</span>: <span class="str">Integration Tests Must Hit Real DB</span><br>
+    <span class="type">description</span>: <span class="str">Never mock the database in integration tests</span><br>
+    <span class="type">type</span>: <span class="str">feedback</span><br>
+    ---<br><br>
+    Don't mock the database in integration tests.<br><br>
+    <span class="kw">**Why:**</span> Last quarter, mocked tests passed but the prod<br>
+    migration failed because mock/prod divergence masked a bug.<br><br>
+    <span class="kw">**How to apply:**</span> When writing or reviewing tests that<br>
+    touch the database, always use a real test database instance.
+  </div>
+</div>
+
+<!-- ======================== STREAMING ======================== -->
+<div class="section" id="streaming">
+  <h2>Streaming Architecture</h2>
+  <p class="section-desc">How real-time streaming works from API to terminal.</p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+    <div>
+      <h3 style="font-size:1em;margin-bottom:12px;">API Stream Events</h3>
+      <div class="code-block">
+        <span class="cmt">// Stream events from @anthropic-ai/sdk</span><br><br>
+        <span class="type">message_start</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cmt">// Initial metadata, model info</span><br>
+        <span class="type">content_block_start</span> <span class="cmt">// New block: text, tool_use, thinking</span><br>
+        <span class="type">content_block_delta</span> <span class="cmt">// Incremental content (text chunks)</span><br>
+        <span class="type">content_block_stop</span>&nbsp;<span class="cmt">// Block complete</span><br>
+        <span class="type">message_delta</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cmt">// Usage updates (tokens)</span><br>
+        <span class="type">message_stop</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cmt">// Response complete</span>
+      </div>
+    </div>
+    <div>
+      <h3 style="font-size:1em;margin-bottom:12px;">Streaming Tool Execution</h3>
+      <div class="code-block">
+        <span class="cmt">// StreamingToolExecutor manages concurrency</span><br><br>
+        <span class="kw">if</span> (tool.<span class="fn">isReadOnly</span>()) {<br>
+        &nbsp;&nbsp;<span class="cmt">// Run concurrently with other reads</span><br>
+        &nbsp;&nbsp;<span class="fn">executeParallel</span>(tool);<br>
+        } <span class="kw">else</span> {<br>
+        &nbsp;&nbsp;<span class="cmt">// Wait for all pending, run exclusively</span><br>
+        &nbsp;&nbsp;<span class="kw">await</span> <span class="fn">drainQueue</span>();<br>
+        &nbsp;&nbsp;<span class="fn">executeExclusive</span>(tool);<br>
+        }<br><br>
+        <span class="cmt">// Results buffered, emitted in order</span><br>
+        <span class="cmt">// Progress messages stream to UI immediately</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip-box" style="margin-top:20px;">
+    <div class="tip-header">&#128161; Streaming Pattern</div>
+    <p>The <strong>concurrent-safe vs. exclusive</strong> tool execution model is brilliant: read-only tools (Glob, Grep, Read) can run in parallel for speed, while mutating tools (Edit, Write, Bash) run exclusively to prevent conflicts. This is the same principle as a <strong>read-write lock</strong> in concurrent programming, applied to AI tool execution.</p>
+  </div>
+</div>
+
+<!-- ======================== COMMANDS ======================== -->
+<div class="section" id="commands">
+  <h2>CLI Commands</h2>
+  <p class="section-desc">104 commands organized by function. These are slash commands you type in the CLI.</p>
+
+  <input type="text" class="search-box" id="cmd-search" placeholder="Search commands..." oninput="filterCommands(this.value)">
+
+  <div id="cmd-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;">
+    <div class="concept-card cmd-item" data-name="commit commit-push-pr review diff branch">
+      <h4 style="color:var(--green);">Git &amp; PR Workflow</h4>
+      <p><code>/commit</code> <code>/commit-push-pr</code> <code>/review</code> <code>/diff</code> <code>/branch</code> <code>/security-review</code></p>
+    </div>
+    <div class="concept-card cmd-item" data-name="session resume rewind history clear export">
+      <h4 style="color:var(--accent);">Session Management</h4>
+      <p><code>/session</code> <code>/resume</code> <code>/rewind</code> <code>/history</code> <code>/clear</code> <code>/export</code></p>
+    </div>
+    <div class="concept-card cmd-item" data-name="plan tasks effort status ultraplan">
+      <h4 style="color:var(--purple);">Planning &amp; Tasks</h4>
+      <p><code>/plan</code> <code>/tasks</code> <code>/effort</code> <code>/status</code> <code>/ultraplan</code></p>
+    </div>
+    <div class="concept-card cmd-item" data-name="config keybindings permissions privacy-settings theme model color">
+      <h4 style="color:var(--orange);">Configuration</h4>
+      <p><code>/config</code> <code>/keybindings</code> <code>/permissions</code> <code>/privacy-settings</code> <code>/theme</code> <code>/model</code></p>
+    </div>
+    <div class="concept-card cmd-item" data-name="mcp skills hooks plugin">
+      <h4 style="color:var(--cyan);">Extensions</h4>
+      <p><code>/mcp</code> <code>/skills</code> <code>/hooks</code> <code>/plugin</code> <code>/reload-plugins</code></p>
+    </div>
+    <div class="concept-card cmd-item" data-name="login logout install desktop ide mobile">
+      <h4 style="color:var(--pink);">Setup &amp; Auth</h4>
+      <p><code>/login</code> <code>/logout</code> <code>/install</code> <code>/desktop</code> <code>/ide</code> <code>/mobile</code></p>
+    </div>
+    <div class="concept-card cmd-item" data-name="doctor help debug-tool-call insights cost usage context">
+      <h4 style="color:var(--yellow);">Diagnostics</h4>
+      <p><code>/doctor</code> <code>/help</code> <code>/debug-tool-call</code> <code>/insights</code> <code>/cost</code> <code>/usage</code></p>
+    </div>
+    <div class="concept-card cmd-item" data-name="fast brief copy voice memory bughunter advisor">
+      <h4 style="color:var(--red);">Utility</h4>
+      <p><code>/fast</code> <code>/brief</code> <code>/copy</code> <code>/voice</code> <code>/memory</code> <code>/bughunter</code> <code>/advisor</code></p>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== CONFIG ======================== -->
+<div class="section" id="config">
+  <h2>Configuration &amp; Settings</h2>
+  <p class="section-desc">Settings cascade from 6 sources with increasing priority.</p>
+
+  <div class="layer-diagram">
+    <div class="layer l-ext" onclick="toggleLayer(this)" style="opacity:0.6;">
+      <div class="layer-label" style="font-size:0.65em;">Priority 1</div>
+      <div class="layer-items">
+        <span class="layer-chip">~/.claude/settings.json</span>
+        <span class="layer-chip" style="color:var(--text-muted);">Local user defaults</span>
+      </div>
+    </div>
+    <div class="layer-detail">User-level defaults. Applied to all projects. Set personal preferences here.</div>
+
+    <div class="layer l-tools" onclick="toggleLayer(this)" style="opacity:0.7;">
+      <div class="layer-label" style="font-size:0.65em;">Priority 2</div>
+      <div class="layer-items">
+        <span class="layer-chip">.claude/settings.json</span>
+        <span class="layer-chip" style="color:var(--text-muted);">Project-specific</span>
+      </div>
+    </div>
+    <div class="layer-detail">Project-level settings. Committed to git for team sharing. Tool permissions, hooks, MCP servers.</div>
+
+    <div class="layer l-core" onclick="toggleLayer(this)" style="opacity:0.8;">
+      <div class="layer-label" style="font-size:0.65em;">Priority 3</div>
+      <div class="layer-items">
+        <span class="layer-chip">Platform user settings</span>
+        <span class="layer-chip" style="color:var(--text-muted);">OS-specific location</span>
+      </div>
+    </div>
+    <div class="layer-detail">Platform-specific settings location (XDG on Linux, Application Support on macOS).</div>
+
+    <div class="layer l-services" onclick="toggleLayer(this)" style="opacity:0.85;">
+      <div class="layer-label" style="font-size:0.65em;">Priority 4</div>
+      <div class="layer-items">
+        <span class="layer-chip">Enterprise managed</span>
+        <span class="layer-chip" style="color:var(--text-muted);">Remote config</span>
+      </div>
+    </div>
+    <div class="layer-detail">Enterprise-managed settings pushed from organization administrators. Cannot be overridden by user.</div>
+
+    <div class="layer l-ui" onclick="toggleLayer(this)" style="opacity:0.92;">
+      <div class="layer-label" style="font-size:0.65em;">Priority 5</div>
+      <div class="layer-items">
+        <span class="layer-chip">MDM policies</span>
+        <span class="layer-chip" style="color:var(--text-muted);">Device management</span>
+      </div>
+    </div>
+    <div class="layer-detail">Mobile Device Management policies. Enforced by IT. Highest static priority.</div>
+
+    <div class="layer l-entry" onclick="toggleLayer(this)">
+      <div class="layer-label" style="font-size:0.65em;">Priority 6</div>
+      <div class="layer-items">
+        <span class="layer-chip">GrowthBook feature flags</span>
+        <span class="layer-chip" style="color:var(--text-muted);">Dynamic runtime</span>
+      </div>
+    </div>
+    <div class="layer-detail">Dynamic feature flags via GrowthBook. Can enable/disable features in real-time without deployment. Highest priority.</div>
+  </div>
+
+  <div class="tip-box" style="margin-top:20px;">
+    <div class="tip-header">&#128161; Configuration Cascade Pattern</div>
+    <p>This 6-level cascade (local &rarr; project &rarr; user &rarr; enterprise &rarr; MDM &rarr; dynamic) is a production pattern you'll see in enterprise software. Each level can override the previous, with dynamic flags having the final say. This enables progressive rollouts, A/B testing, and emergency kill switches.</p>
+  </div>
+</div>
+
+<!-- ======================== DIRECTORY ======================== -->
+<div class="section" id="directory">
+  <h2>Project Directory Structure</h2>
+  <p class="section-desc">Click folders to expand. Key files are annotated.</p>
+
+  <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:20px;">
+    <div class="tree" id="dir-tree">
+      <div class="tree-item" onclick="toggleTree(this)"><span class="tree-icon">&#128194;</span><span class="tree-name">entrypoints/</span><span class="tree-desc">&mdash; CLI, SDK, MCP entry points</span></div>
+      <div class="tree-children">
+        <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">cli.tsx</span><span class="tree-desc">&mdash; Main CLI bootstrap (39KB)</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">init.ts</span><span class="tree-desc">&mdash; Full initialization sequence</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">mcp.ts</span><span class="tree-desc">&mdash; MCP server entrypoint</span></div>
+        <div class="tree-item" onclick="toggleTree(this)"><span class="tree-icon">&#128194;</span><span class="tree-name">sdk/</span><span class="tree-desc">&mdash; Agent SDK schemas</span></div>
+        <div class="tree-children">
+          <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">coreSchemas.ts</span><span class="tree-desc">&mdash; Zod schemas (56KB)</span></div>
+          <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">controlSchemas.ts</span><span class="tree-desc">&mdash; Control messages (19KB)</span></div>
+        </div>
+      </div>
+
+      <div class="tree-item" style="font-weight:700;" onclick="toggleTree(this)"><span class="tree-icon">&#128196;</span><span class="tree-name">main.tsx</span><span class="tree-desc">&mdash; &#9733; THE main orchestrator (804KB)</span></div>
+      <div class="tree-children">
+        <div class="tree-item"><span class="tree-icon">&#128161;</span><span class="tree-name" style="color:var(--text-muted);">Imports all subsystems, sets up React/Ink, initializes everything</span></div>
+      </div>
+
+      <div class="tree-item" onclick="toggleTree(this)"><span class="tree-icon">&#128196;</span><span class="tree-name">query.ts</span><span class="tree-desc">&mdash; Async generator agent loop (68KB)</span></div>
+      <div class="tree-children">
+        <div class="tree-item"><span class="tree-icon">&#128161;</span><span class="tree-name" style="color:var(--text-muted);">The core conversation loop: input &rarr; API &rarr; tools &rarr; repeat</span></div>
+      </div>
+
+      <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">QueryEngine.ts</span><span class="tree-desc">&mdash; High-level query orchestrator (46KB)</span></div>
+      <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">Tool.ts</span><span class="tree-desc">&mdash; Tool interface definition (29KB)</span></div>
+      <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">tools.ts</span><span class="tree-desc">&mdash; Tool registry &amp; assembly (17KB)</span></div>
+      <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">commands.ts</span><span class="tree-desc">&mdash; Command registry (25KB)</span></div>
+      <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">history.ts</span><span class="tree-desc">&mdash; Session history (14KB)</span></div>
+      <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">context.ts</span><span class="tree-desc">&mdash; System context builder (6KB)</span></div>
+      <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">cost-tracker.ts</span><span class="tree-desc">&mdash; Token/cost accounting (10KB)</span></div>
+
+      <div class="tree-item" onclick="toggleTree(this)"><span class="tree-icon">&#128194;</span><span class="tree-name">tools/</span><span class="tree-desc">&mdash; 44+ tool implementations</span></div>
+      <div class="tree-children">
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">AgentTool/</span><span class="tree-desc">&mdash; Sub-agent spawning (234KB!)</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">BashTool/</span><span class="tree-desc">&mdash; Shell execution</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">FileReadTool/</span><span class="tree-desc">&mdash; File reading</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">FileEditTool/</span><span class="tree-desc">&mdash; File editing</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">FileWriteTool/</span><span class="tree-desc">&mdash; File writing</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">GlobTool/</span><span class="tree-desc">&mdash; File search</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">GrepTool/</span><span class="tree-desc">&mdash; Content search</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">WebSearchTool/</span><span class="tree-desc">&mdash; Web search</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">WebFetchTool/</span><span class="tree-desc">&mdash; URL fetching</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">MCPTool/</span><span class="tree-desc">&mdash; MCP integration</span></div>
+        <div class="tree-item"><span class="tree-icon" style="color:var(--text-muted);">...</span><span class="tree-name" style="color:var(--text-muted);">+ 34 more tools</span></div>
+      </div>
+
+      <div class="tree-item" onclick="toggleTree(this)"><span class="tree-icon">&#128194;</span><span class="tree-name">commands/</span><span class="tree-desc">&mdash; 104 CLI commands</span></div>
+      <div class="tree-children">
+        <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">commit.ts</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">commit-push-pr.ts</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">config/</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">mcp/</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">plugin/</span><span class="tree-desc">&mdash; 19 plugin subcommands</span></div>
+        <div class="tree-item"><span class="tree-icon" style="color:var(--text-muted);">...</span><span class="tree-name" style="color:var(--text-muted);">+ 99 more commands</span></div>
+      </div>
+
+      <div class="tree-item" onclick="toggleTree(this)"><span class="tree-icon">&#128194;</span><span class="tree-name">services/</span><span class="tree-desc">&mdash; Core services (100+ files)</span></div>
+      <div class="tree-children">
+        <div class="tree-item" onclick="toggleTree(this)"><span class="tree-icon">&#128194;</span><span class="tree-name">api/</span><span class="tree-desc">&mdash; Anthropic API (22 files)</span></div>
+        <div class="tree-children">
+          <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">claude.ts</span><span class="tree-desc">&mdash; Main API client (125KB)</span></div>
+          <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">withRetry.ts</span><span class="tree-desc">&mdash; Retry with backoff</span></div>
+          <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">errors.ts</span><span class="tree-desc">&mdash; Error classification</span></div>
+        </div>
+        <div class="tree-item" onclick="toggleTree(this)"><span class="tree-icon">&#128194;</span><span class="tree-name">mcp/</span><span class="tree-desc">&mdash; MCP protocol (25 files)</span></div>
+        <div class="tree-children">
+          <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">client.ts</span><span class="tree-desc">&mdash; MCP client (119KB)</span></div>
+          <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">auth.ts</span><span class="tree-desc">&mdash; OAuth (88KB)</span></div>
+          <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">config.ts</span><span class="tree-desc">&mdash; Server config (51KB)</span></div>
+        </div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">tools/</span><span class="tree-desc">&mdash; Tool execution engine</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">analytics/</span><span class="tree-desc">&mdash; Telemetry (11 files)</span></div>
+      </div>
+
+      <div class="tree-item" onclick="toggleTree(this)"><span class="tree-icon">&#128194;</span><span class="tree-name">utils/</span><span class="tree-desc">&mdash; 331 utility files</span></div>
+      <div class="tree-children">
+        <div class="tree-item" onclick="toggleTree(this)"><span class="tree-icon">&#128194;</span><span class="tree-name">permissions/</span><span class="tree-desc">&mdash; Permission system (24+ files)</span></div>
+        <div class="tree-children">
+          <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">permissions.ts</span><span class="tree-desc">&mdash; Main engine (52KB)</span></div>
+          <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">yoloClassifier.ts</span><span class="tree-desc">&mdash; Auto-approval (52KB)</span></div>
+          <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">filesystem.ts</span><span class="tree-desc">&mdash; FS permissions (62KB)</span></div>
+          <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">dangerousPatterns.ts</span><span class="tree-desc">&mdash; Risk detection</span></div>
+        </div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">hooks/</span><span class="tree-desc">&mdash; Hook utilities (19 files)</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">settings/</span><span class="tree-desc">&mdash; Settings management</span></div>
+      </div>
+
+      <div class="tree-item" onclick="toggleTree(this)"><span class="tree-icon">&#128194;</span><span class="tree-name">hooks/</span><span class="tree-desc">&mdash; 87 React hooks</span></div>
+      <div class="tree-children">
+        <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">useTypeahead.tsx</span><span class="tree-desc">&mdash; Autocomplete (212KB!)</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">useReplBridge.tsx</span><span class="tree-desc">&mdash; REPL integration (115KB)</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">useVoiceIntegration.tsx</span><span class="tree-desc">&mdash; Voice (99KB)</span></div>
+        <div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name">useCanUseTool.tsx</span><span class="tree-desc">&mdash; Permission hook (40KB)</span></div>
+      </div>
+
+      <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">memdir/</span><span class="tree-desc">&mdash; Memory system</span></div>
+      <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">coordinator/</span><span class="tree-desc">&mdash; Multi-agent coordination</span></div>
+      <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">skills/</span><span class="tree-desc">&mdash; Skill system (19 bundled)</span></div>
+      <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">types/</span><span class="tree-desc">&mdash; TypeScript type definitions</span></div>
+      <div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name">state/</span><span class="tree-desc">&mdash; App state management</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== KEY CONCEPTS ======================== -->
+<div class="section" id="concepts">
+  <h2>Key AI Engineering Concepts</h2>
+  <p class="section-desc">Patterns and concepts demonstrated in this codebase that every AI engineer should know.</p>
+
+  <div class="concept-grid">
+    <div class="concept-card">
+      <h4>ReAct Loop (Reason-Act-Observe)</h4>
+      <p>The fundamental pattern: LLM reasons about the task, decides on a tool action, observes the result, and repeats. Implemented in <code>query.ts</code> as an async generator.</p>
+    </div>
+    <div class="concept-card">
+      <h4>Tool-Augmented LLMs</h4>
+      <p>Extending LLM capabilities with external tools. Each tool has a JSON Schema, description, and execution function. The LLM uses the schema to construct valid calls.</p>
+    </div>
+    <div class="concept-card">
+      <h4>Streaming Architecture</h4>
+      <p>Real-time token streaming from API to UI. Enables responsive UX and early tool detection. Uses SSE (Server-Sent Events) under the hood.</p>
+    </div>
+    <div class="concept-card">
+      <h4>Multi-Agent Orchestration</h4>
+      <p>Hierarchical agent system: coordinator delegates to workers. Each agent has isolated context, permissions, and tools. Communication via message passing.</p>
+    </div>
+    <div class="concept-card">
+      <h4>Context Window Management</h4>
+      <p>Automatic compaction when context gets too long. History compression, message summarization, and selective memory loading keep conversations within limits.</p>
+    </div>
+    <div class="concept-card">
+      <h4>Permission &amp; Safety Systems</h4>
+      <p>Multi-layered security: mode selection, rule matching, ML classification, dangerous pattern detection, and interactive approval. Essential for production AI agents.</p>
+    </div>
+    <div class="concept-card">
+      <h4>Prompt Engineering at Scale</h4>
+      <p>The system prompt is dynamically assembled from base instructions, tool descriptions, memory, git context, and more. This is production prompt engineering.</p>
+    </div>
+    <div class="concept-card">
+      <h4>Model Context Protocol (MCP)</h4>
+      <p>Open protocol for connecting AI to external tools. Decouples tool definition from implementation. Transport-agnostic (stdio, HTTP, WebSocket).</p>
+    </div>
+    <div class="concept-card">
+      <h4>Feature Flags &amp; Progressive Rollout</h4>
+      <p>50+ feature flags gate functionality. GrowthBook integration enables A/B testing and gradual rollout. Dead code elimination removes unused features from builds.</p>
+    </div>
+    <div class="concept-card">
+      <h4>Persistent Memory / RAG-lite</h4>
+      <p>File-based memory system with structured types, relevance scoring, and cross-session persistence. Simpler than vector DBs but effective for the use case.</p>
+    </div>
+    <div class="concept-card">
+      <h4>Async Generator Pattern</h4>
+      <p>Using JavaScript async generators for the agent loop. Each <code>yield</code> is a checkpoint for UI updates, user interruption, and state persistence.</p>
+    </div>
+    <div class="concept-card">
+      <h4>Hook-Based Extensibility</h4>
+      <p>Lifecycle hooks (pre/post-sampling, tool execution, session) enable extensibility without modifying core code. Classic plugin architecture pattern.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== LEARNING PATH ======================== -->
+<div class="section" id="learning">
+  <h2>Recommended Learning Path</h2>
+  <p class="section-desc">A structured approach to understanding this codebase and growing as an AI engineer.</p>
+
+  <div class="dataflow">
+    <div class="dataflow-step" onclick="toggleStep(this)">
+      <div class="step-num" style="border-color:var(--green);color:var(--green);">1</div>
+      <div class="step-content">
+        <div class="step-title">Understand the Agent Loop</div>
+        <div class="step-file">Start with: query.ts, QueryEngine.ts</div>
+        <div class="step-desc">Read how the async generator drives the conversation. This is the heart of any AI agent system.</div>
+        <div class="step-extra">
+          <strong>Key questions to answer:</strong>
+          <ul style="padding-left:16px;margin-top:8px;">
+            <li>How does the agent decide when to call tools vs. respond with text?</li>
+            <li>How are messages assembled before each API call?</li>
+            <li>What happens when context gets too long?</li>
+            <li>How does the loop know when to stop?</li>
+          </ul>
+          <p style="margin-top:8px;"><strong>Build exercise:</strong> Write a minimal ReAct loop in TypeScript that calls a single tool.</p>
+        </div>
+      </div>
+    </div>
+    <div class="step-connector"></div>
+
+    <div class="dataflow-step" onclick="toggleStep(this)">
+      <div class="step-num" style="border-color:var(--green);color:var(--green);">2</div>
+      <div class="step-content">
+        <div class="step-title">Study the Tool System</div>
+        <div class="step-file">Start with: Tool.ts, tools.ts, tools/BashTool/</div>
+        <div class="step-desc">Understand how tools are defined, registered, and executed. Look at the Tool interface.</div>
+        <div class="step-extra">
+          <strong>Key questions:</strong>
+          <ul style="padding-left:16px;margin-top:8px;">
+            <li>What does a tool's JSON Schema look like?</li>
+            <li>How does the streaming executor handle concurrent vs exclusive tools?</li>
+            <li>How are tool results formatted and sent back to the API?</li>
+          </ul>
+          <p style="margin-top:8px;"><strong>Build exercise:</strong> Implement a custom tool (e.g., a calculator) following the Tool interface pattern.</p>
+        </div>
+      </div>
+    </div>
+    <div class="step-connector"></div>
+
+    <div class="dataflow-step" onclick="toggleStep(this)">
+      <div class="step-num" style="border-color:var(--accent);color:var(--accent);">3</div>
+      <div class="step-content">
+        <div class="step-title">Explore the API Integration</div>
+        <div class="step-file">Start with: services/api/claude.ts, withRetry.ts</div>
+        <div class="step-desc">See how the Anthropic API is called, how streaming works, and how errors are handled.</div>
+        <div class="step-extra">
+          <strong>Key questions:</strong>
+          <ul style="padding-left:16px;margin-top:8px;">
+            <li>How are stream events processed?</li>
+            <li>What betas and features are enabled?</li>
+            <li>How does retry logic work? What's the backoff strategy?</li>
+            <li>How are tokens counted and costs tracked?</li>
+          </ul>
+          <p style="margin-top:8px;"><strong>Build exercise:</strong> Build a streaming chat client using the Anthropic SDK with tool support.</p>
+        </div>
+      </div>
+    </div>
+    <div class="step-connector"></div>
+
+    <div class="dataflow-step" onclick="toggleStep(this)">
+      <div class="step-num" style="border-color:var(--accent);color:var(--accent);">4</div>
+      <div class="step-content">
+        <div class="step-title">Learn the Permission Model</div>
+        <div class="step-file">Start with: utils/permissions/permissions.ts, yoloClassifier.ts</div>
+        <div class="step-desc">Understand how safety is enforced in a system where AI can execute arbitrary code.</div>
+        <div class="step-extra">
+          <strong>Key insight:</strong> This is the hardest part of building production AI agents. Any AI that can run code needs guardrails. Study how Claude Code classifies dangerous operations and how the cascade of rules/classifiers/prompts works together.
+          <p style="margin-top:8px;"><strong>Build exercise:</strong> Design a permission system for a simple AI agent that can read/write files.</p>
+        </div>
+      </div>
+    </div>
+    <div class="step-connector"></div>
+
+    <div class="dataflow-step" onclick="toggleStep(this)">
+      <div class="step-num" style="border-color:var(--purple);color:var(--purple);">5</div>
+      <div class="step-content">
+        <div class="step-title">Dive into Multi-Agent</div>
+        <div class="step-file">Start with: tools/AgentTool/, coordinator/coordinatorMode.ts</div>
+        <div class="step-desc">See how sub-agents are spawned, isolated, and coordinated for complex tasks.</div>
+        <div class="step-extra">
+          <strong>Key questions:</strong>
+          <ul style="padding-left:16px;margin-top:8px;">
+            <li>How is context isolated between parent and child agents?</li>
+            <li>How do agents communicate?</li>
+            <li>How is permission inheritance handled?</li>
+            <li>What's the difference between local and remote agents?</li>
+          </ul>
+          <p style="margin-top:8px;"><strong>Build exercise:</strong> Build a mini multi-agent system where a coordinator delegates tasks to specialized workers.</p>
+        </div>
+      </div>
+    </div>
+    <div class="step-connector"></div>
+
+    <div class="dataflow-step" onclick="toggleStep(this)">
+      <div class="step-num" style="border-color:var(--purple);color:var(--purple);">6</div>
+      <div class="step-content">
+        <div class="step-title">Master MCP</div>
+        <div class="step-file">Start with: services/mcp/client.ts, services/mcp/config.ts</div>
+        <div class="step-desc">Understand the Model Context Protocol &mdash; the future standard for AI tool integration.</div>
+        <div class="step-extra">
+          <strong>MCP is becoming the USB of AI tools</strong> &mdash; a standard interface that any tool can implement and any AI can consume. Understanding it deeply will be valuable.
+          <p style="margin-top:8px;"><strong>Build exercise:</strong> Build an MCP server that exposes a custom tool (e.g., a database query tool) and connect it to Claude Code.</p>
+        </div>
+      </div>
+    </div>
+    <div class="step-connector"></div>
+
+    <div class="dataflow-step" onclick="toggleStep(this)">
+      <div class="step-num" style="border-color:var(--orange);color:var(--orange);">7</div>
+      <div class="step-content">
+        <div class="step-title">Study Production Patterns</div>
+        <div class="step-file">Explore: services/analytics/, cost-tracker.ts, utils/settings/</div>
+        <div class="step-desc">Learn the production engineering: observability, cost tracking, config management, feature flags.</div>
+        <div class="step-extra">
+          Production AI systems need more than just the AI part. Study:
+          <ul style="padding-left:16px;margin-top:8px;">
+            <li><strong>Observability</strong> &mdash; OpenTelemetry, event logging, diagnostics</li>
+            <li><strong>Cost management</strong> &mdash; Token tracking, budget enforcement</li>
+            <li><strong>Configuration</strong> &mdash; Multi-source settings cascade</li>
+            <li><strong>Feature flags</strong> &mdash; GrowthBook integration for progressive rollout</li>
+            <li><strong>Error handling</strong> &mdash; Graceful degradation, retries, user-friendly errors</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== FOOTER ======================== -->
+<div class="footer">
+  <p>Claude Code Architecture Explorer &mdash; Generated from source analysis of the Claude Code CLI codebase</p>
+  <p style="margin-top:8px;">Built as a learning tool for AI engineers. Click on any interactive element for deeper details.</p>
+</div>
+
+<!-- ======================== SCRIPTS ======================== -->
+<script>
+  // Toggle architecture cards
+  function toggleCard(card) {
+    card.classList.toggle('expanded');
+  }
+
+  // Toggle permission modes
+  function togglePerm(mode) {
+    mode.classList.toggle('expanded');
+  }
+
+  // Toggle dataflow steps
+  function toggleStep(step) {
+    step.classList.toggle('expanded');
+  }
+
+  // Toggle layer details
+  function toggleLayer(layer) {
+    layer.classList.toggle('expanded');
+  }
+
+  // Toggle tree items
+  function toggleTree(item) {
+    item.classList.toggle('open');
+  }
+
+  // Toggle tool categories
+  function toggleToolCat(header) {
+    header.classList.toggle('open');
+    header.nextElementSibling.classList.toggle('open');
+  }
+
+  // Tab switching
+  function switchTab(event, tabId) {
+    const container = event.target.closest('.section');
+    container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+  }
+
+  // Flow detail panel
+  function showFlowDetail(node, text) {
+    const panel = document.getElementById('flow-detail-panel');
+    const textEl = document.getElementById('flow-detail-text');
+    textEl.textContent = text;
+    panel.style.display = 'block';
+    // Highlight active node
+    document.querySelectorAll('.flow-node').forEach(n => n.style.borderColor = '');
+    node.style.borderColor = 'var(--accent)';
+  }
+
+  // Tool search
+  function filterTools(query) {
+    const q = query.toLowerCase();
+    document.querySelectorAll('.tool-category').forEach(cat => {
+      let hasMatch = false;
+      cat.querySelectorAll('.tool-item').forEach(item => {
+        const text = item.textContent.toLowerCase();
+        const match = !q || text.includes(q);
+        item.style.display = match ? '' : 'none';
+        if (match) hasMatch = true;
+      });
+      cat.style.display = hasMatch ? '' : 'none';
+      if (q && hasMatch) {
+        cat.querySelector('.tool-cat-header').classList.add('open');
+        cat.querySelector('.tool-list').classList.add('open');
+      }
+    });
+  }
+
+  // Command search
+  function filterCommands(query) {
+    const q = query.toLowerCase();
+    document.querySelectorAll('.cmd-item').forEach(item => {
+      const text = (item.dataset.name + ' ' + item.textContent).toLowerCase();
+      item.style.display = (!q || text.includes(q)) ? '' : 'none';
+    });
+  }
+
+  // Sticky nav highlighting
+  const navLinks = document.querySelectorAll('.nav a');
+  const sections = document.querySelectorAll('.section');
+
+  function updateNav() {
+    let current = '';
+    sections.forEach(section => {
+      const rect = section.getBoundingClientRect();
+      if (rect.top <= 100) current = section.id;
+    });
+    navLinks.forEach(link => {
+      link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+    });
+  }
+  window.addEventListener('scroll', updateNav, { passive: true });
+  updateNav();
+
+  // Smooth scroll for nav links
+  navLinks.forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const target = document.querySelector(link.getAttribute('href'));
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+</script>
+</body>
+</html>
