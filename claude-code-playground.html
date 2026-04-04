@@ -166,6 +166,25 @@ body{font-family:'SF Mono','Fira Code','JetBrains Mono',monospace;background:var
 .fstep-src:hover{background:rgba(34,211,238,0.15);border-color:var(--cyan);}
 .fstep-src .src-icon{opacity:0.6;}
 
+/* Expandable detail panel */
+.fstep-box.has-detail{cursor:pointer;}
+.fstep-box.has-detail:hover{border-color:var(--accent);background:var(--bg3);}
+.fstep-expand-hint{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:2px 8px;font-size:0.65em;color:var(--muted);background:var(--bg3);border-radius:4px;opacity:0.7;transition:opacity 0.2s;}
+.fstep-box.has-detail:hover .fstep-expand-hint{opacity:1;color:var(--accent);}
+.fstep-detail{max-height:0;overflow:hidden;transition:max-height 0.4s cubic-bezier(0.16,1,0.3,1),opacity 0.3s,margin 0.3s;opacity:0;margin-top:0;}
+.fstep-detail.open{max-height:800px;opacity:1;margin-top:10px;}
+.fstep-detail-inner{padding:12px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:0.78em;line-height:1.7;color:var(--text);}
+.fstep-detail-inner h4{font-size:0.82em;font-weight:700;color:var(--accent2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;}
+.fstep-detail-inner p{margin-bottom:8px;color:var(--muted);}
+.fstep-detail-inner p:last-child{margin-bottom:0;}
+.fstep-detail-inner code{background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:0.92em;color:var(--cyan);}
+.fstep-detail-inner .detail-key{color:var(--purple);font-weight:600;}
+.fstep-detail-inner .detail-flow{margin:6px 0;padding:8px 12px;background:var(--bg2);border-left:2px solid var(--accent);border-radius:0 6px 6px 0;font-size:0.9em;}
+.fstep-detail-inner ul{margin:4px 0 8px 16px;color:var(--muted);}
+.fstep-detail-inner li{margin-bottom:3px;}
+.fstep-chevron{margin-left:auto;font-size:0.7em;color:var(--muted);transition:transform 0.3s;}
+.fstep-box.expanded .fstep-chevron{transform:rotate(180deg);color:var(--accent);}
+
 /* Mobile toggle buttons */
 .mobile-bar{display:none;gap:6px;padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto;}
 .mob-btn{padding:7px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:0.75em;cursor:pointer;white-space:nowrap;transition:all 0.15s;}
@@ -212,6 +231,8 @@ body{font-family:'SF Mono','Fira Code','JetBrains Mono',monospace;background:var
   .fstep-title{font-size:0.78em;}
   .fmsg{font-size:0.72em;max-height:150px;}
   .fstep-src{font-size:0.62em;}
+  .fstep-detail-inner{font-size:0.72em;padding:10px 12px;}
+  .fstep-expand-hint{font-size:0.6em;}
   .preset-btn{font-size:0.74em;padding:8px 10px;}
 }
 
@@ -290,6 +311,38 @@ body{font-family:'SF Mono','Fira Code','JetBrains Mono',monospace;background:var
         <button class="preset-btn" onclick="loadPreset('mcp-tool')">
           MCP tool call (GitHub)
           <span class="preset-tag">External server integration</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('web-search')">
+          Web search &amp; fetch
+          <span class="preset-tag">WebSearchTool + WebFetchTool</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('plan-mode')">
+          Plan mode workflow
+          <span class="preset-tag">Plan &rarr; approve &rarr; execute</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('worktree')">
+          Worktree isolation
+          <span class="preset-tag">Agent in isolated git worktree</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('model-fallback')">
+          Model fallback (529)
+          <span class="preset-tag">Overloaded &rarr; fallback model</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('tool-error')">
+          Tool error &amp; recovery
+          <span class="preset-tag">Bash fails &rarr; Claude adapts</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('memory-create')">
+          Memory creation
+          <span class="preset-tag">User asks Claude to remember</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('hook-lifecycle')">
+          Hook lifecycle
+          <span class="preset-tag">Pre/post tool hooks firing</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('multi-agent')">
+          Multi-agent swarm
+          <span class="preset-tag">Coordinator + workers</span>
         </button>
       </div>
 
@@ -443,7 +496,8 @@ function esc(s) { return s.replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // ========== FLOW STEP BUILDER ==========
 // src: { file, fn, line, desc } — optional source reference
-function addStep(icon, title, subtitle, state, msgType, msgLabel, msgContent, onDone, src) {
+// detail: string (HTML) — optional expandable educational content
+function addStep(icon, title, subtitle, state, msgType, msgLabel, msgContent, onDone, src, detail) {
   return new Promise(resolve => {
     const step = document.createElement('div');
     step.className = 'fstep';
@@ -457,19 +511,41 @@ function addStep(icon, title, subtitle, state, msgType, msgLabel, msgContent, on
       const fnLabel = src.fn ? ` → ${src.fn}` : '';
       srcBadge = `<div class="fstep-src"><span class="src-icon">&#128196;</span>${short}${fnLabel}${src.line ? ':' + src.line : ''}</div>`;
     }
+    const hasDetail = !!detail;
+    const detailHtml = hasDetail ? `<div class="fstep-expand-hint">&#9432; Click to learn more</div><div class="fstep-detail"><div class="fstep-detail-inner">${detail}</div></div>` : '';
+    const chevron = hasDetail ? `<span class="fstep-chevron">&#9660;</span>` : '';
     step.innerHTML = `
-      <div class="fstep-box">
+      <div class="fstep-box${hasDetail ? ' has-detail' : ''}">
         <div class="fstep-header">
           <span class="fstep-icon">${icon}</span>
           <span class="fstep-title">${title}</span>
           <span class="fstep-time"></span>
+          ${chevron}
         </div>
         <div class="fstep-subtitle">${subtitle}</div>
         ${srcBadge}
         ${msgHtml}
+        ${detailHtml}
       </div>`;
     // Track source
     if (src) addSourceEntry(title, src);
+
+    // Click-to-expand detail
+    if (hasDetail) {
+      const box = step.querySelector('.fstep-box');
+      box.addEventListener('click', (e) => {
+        // Don't toggle if clicking on a link or message text
+        if (e.target.closest('.fmsg') || e.target.closest('a')) return;
+        const detailEl = box.querySelector('.fstep-detail');
+        const isOpen = detailEl.classList.contains('open');
+        detailEl.classList.toggle('open');
+        box.classList.toggle('expanded');
+        if (!isOpen) {
+          setTimeout(() => { canvas.scrollTop = step.offsetTop - 20; }, 100);
+        }
+      });
+    }
+
     canvas.appendChild(step);
 
     // Animate in
@@ -712,6 +788,329 @@ const presets = {
       await phaseAssistantText("Created GitHub issue #247: \"fix: token refresh not awaited in auth.ts\"\nhttps://github.com/myorg/myapp/issues/247", false);
       await phaseComplete();
     }
+  },
+
+  // ========== NEW PRESETS ==========
+
+  'web-search': {
+    input: "What's the latest version of React and what changed?",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, true);
+      await phaseUserMessage(input);
+      await phaseApiCall(1);
+      await phaseAssistantText("I'll search the web for the latest React version and changelog.", true);
+      await addStep('&#128269;', 'Tool: WebSearchTool', 'Permission: Classifier: safe read-only web search', 'done', 'tool-call', 'Tool Call — WebSearchTool', '{\n  "query": "React latest version changelog 2026"\n}', () => {
+        stats.tools++; stats.perms++;
+        addMsgChip('tool_use', 'WebSearchTool({ query: "React latest..." })');
+      }, SRC.webSearch,
+      `<h4>WebSearchTool</h4>
+      <p>Searches the web and returns a list of results with titles, URLs, and snippets. This is a <span class="detail-key">read-only</span> tool — auto-approved by the YOLO classifier.</p>
+      <ul>
+        <li>Returns top results as structured data</li>
+        <li>Claude then decides which URLs to fetch for full content</li>
+        <li>Often paired with WebFetchTool for a search → fetch workflow</li>
+      </ul>`);
+      await addStep('&#128230;', 'Result: WebSearchTool', '3 results returned', 'done', 'tool-result', 'Tool Result — WebSearchTool', '1. "React 19.1 Release" — react.dev/blog/2026/...\n2. "What\'s New in React 19" — dev.to/...\n3. "React Changelog" — github.com/facebook/react/blob/main/CHANGELOG.md', () => {
+        addMsgChip('tool_result', 'WebSearch: 3 results');
+        stats.input += 280;
+        updateStats();
+      }, SRC.streamExec);
+      await addStep('&#127760;', 'Tool: WebFetchTool', 'Fetching full page content as markdown', 'done', 'tool-call', 'Tool Call — WebFetchTool', '{\n  "url": "https://react.dev/blog/2026/react-19-1"\n}', () => {
+        stats.tools++; stats.perms++;
+        addMsgChip('tool_use', 'WebFetchTool({ url: "react.dev/blog/..." })');
+      }, SRC.webFetch,
+      `<h4>WebFetchTool</h4>
+      <p>Fetches a URL and converts the page content to <span class="detail-key">markdown</span> for Claude to read. Strips navigation, ads, and boilerplate.</p>
+      <ul>
+        <li>Converts HTML to clean, readable markdown</li>
+        <li>Handles JavaScript-rendered pages</li>
+        <li>Respects robots.txt and rate limits</li>
+        <li>Result is truncated if too large to prevent context overflow</li>
+      </ul>`);
+      await addStep('&#128230;', 'Result: WebFetchTool', '2,400 chars returned', 'done', 'tool-result', 'Tool Result — WebFetchTool', '# React 19.1 Release\n\nWe\'re excited to announce React 19.1 with:\n\n## New Features\n- **React Compiler** is now stable\n- **Server Actions** improvements\n- **use()** hook for promises and context\n\n## Breaking Changes\n- Removed legacy context API\n- ref is now a regular prop...', () => {
+        addMsgChip('tool_result', 'WebFetch: React 19.1 blog post');
+        stats.input += 686;
+        updateStats();
+        updateTokenBar(Math.min(95, stats.input / 2000));
+      }, SRC.streamExec);
+      await phaseApiCall(2);
+      await phaseAssistantText("The latest version is **React 19.1**. Key changes:\n\n1. **React Compiler** is now stable — automatic memoization\n2. **Server Actions** improvements for better form handling\n3. **`use()` hook** — read promises and context in render\n4. Removed legacy context API (use `createContext` instead)\n5. `ref` is now a regular prop, no more `forwardRef`", false);
+      await phaseComplete();
+    }
+  },
+
+  'plan-mode': {
+    input: "Migrate our Express app to Fastify",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, true);
+      await phaseUserMessage(input);
+      await phaseApiCall(1);
+      await phaseAssistantText("This is a large migration. Let me enter plan mode to outline the approach before making any changes.", true);
+      await addStep('&#128203;', 'EnterPlanMode', 'Claude decides to plan before executing — enters structured planning mode', 'done', 'tool-call', 'Tool Call — EnterPlanMode', '{\n  "plan": "## Migration Plan: Express → Fastify\\n\\n### Phase 1: Setup\\n1. Install fastify, @fastify/cors, @fastify/helmet\\n2. Create src/app-fastify.ts alongside existing app.ts\\n\\n### Phase 2: Route Migration (14 routes)\\n3. Convert route handlers to Fastify schema-based format\\n4. Migrate middleware to Fastify hooks/plugins\\n\\n### Phase 3: Testing\\n5. Update test helpers for Fastify inject()\\n6. Run full test suite\\n\\n### Phase 4: Cutover\\n7. Swap entry point\\n8. Remove Express dependencies"\n}', () => {
+        stats.tools++;
+        addMsgChip('tool_use', 'EnterPlanMode({ plan: "Migration Plan..." })');
+      }, SRC.planMode,
+      `<h4>Plan Mode</h4>
+      <p><span class="detail-key">Plan mode</span> is a structured workflow where Claude writes a plan and waits for user approval before executing. This prevents wasted work on large tasks.</p>
+      <div class="detail-flow">Claude enters plan mode → writes plan → user reviews → approve/reject/modify → Claude executes</div>
+      <p>In plan mode, Claude <strong>cannot</strong> use write/edit/bash tools — only read-only tools for research. This ensures no changes are made until the plan is approved.</p>
+      <ul>
+        <li>Activated by the <code>EnterPlanMode</code> tool</li>
+        <li>User can also request it: "plan this before doing it"</li>
+        <li>Plan is displayed as structured markdown</li>
+        <li>Exited via <code>ExitPlanMode</code> after user approval</li>
+      </ul>`);
+      await addStep('&#9202;', 'Waiting for User Approval', 'Plan displayed to user — tools restricted to read-only until approved', 'done', 'user', 'User Response', '✓ Looks good — proceed with the migration. Skip phase 4 for now, I want to test both side by side.', () => {
+        addMsgChip('user', 'Approved with modification: skip phase 4');
+      }, SRC.planMode);
+      await addStep('&#9989;', 'ExitPlanMode', 'User approved plan — write tools re-enabled', 'done', 'tool-call', 'Tool Call — ExitPlanMode', '{}', () => {
+        stats.tools++;
+        addMsgChip('tool_use', 'ExitPlanMode()');
+      }, SRC.exitPlanMode);
+      await phaseApiCall(2);
+      await phaseAssistantText("Plan approved (with modification: keeping both apps for testing). Starting Phase 1 — installing Fastify dependencies.", true);
+      await phaseToolCall('BashTool', '{ "command": "npm install fastify @fastify/cors @fastify/helmet @fastify/sensible" }', true, 'classifier_approved');
+      await phaseToolResult('BashTool', 'added 42 packages in 3.2s\n\n+ fastify@5.2.0\n+ @fastify/cors@10.0.1\n+ @fastify/helmet@13.0.0\n+ @fastify/sensible@6.0.3');
+      await phaseApiCall(3);
+      await phaseAssistantText("Dependencies installed. Now creating the Fastify app alongside the existing Express app as planned.", false);
+      await phaseComplete();
+    }
+  },
+
+  'worktree': {
+    input: "Try refactoring the database layer to use Drizzle ORM — but don't break main",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, true);
+      await phaseUserMessage(input);
+      await phaseApiCall(1);
+      await phaseAssistantText("I'll do this refactor in an isolated git worktree so your main branch stays clean. Spawning a sub-agent with worktree isolation.", true);
+      await addStep('&#127795;', 'Create Git Worktree', 'EnterWorktree: creating temporary worktree branch for isolated changes', 'done', 'tool-call', 'Tool Call — EnterWorktree', '{}', () => {
+        stats.tools++;
+        addMsgChip('tool_use', 'EnterWorktree()');
+      }, SRC.worktreeTool,
+      `<h4>Worktree Isolation</h4>
+      <p>A <span class="detail-key">git worktree</span> creates a separate working directory linked to the same repository but on a different branch. The agent can make changes freely without affecting the main branch.</p>
+      <div class="detail-flow">git worktree add → agent works in isolated dir → changes committed on temp branch → user reviews → merge or discard</div>
+      <ul>
+        <li>Created via <code>EnterWorktree</code> tool or <code>isolation: "worktree"</code> on AgentTool</li>
+        <li>Auto-cleaned up if agent makes no changes</li>
+        <li>If changes are made, the worktree path and branch name are returned</li>
+        <li>User can then merge, cherry-pick, or discard the branch</li>
+      </ul>
+      <p>This is especially useful for risky refactors, experimental changes, or when multiple agents need to work on different parts of the code simultaneously.</p>`);
+      await addStep('&#9989;', 'Worktree Created', 'Branch: worktree/drizzle-migration | Dir: /tmp/worktree-abc123', 'done', 'tool-result', 'Tool Result — EnterWorktree', '{\n  "branch": "worktree/drizzle-migration",\n  "path": "/tmp/worktree-abc123",\n  "baseBranch": "main"\n}', () => {
+        addMsgChip('tool_result', 'Worktree created: worktree/drizzle-migration');
+      }, SRC.worktreeTool);
+      await phaseAgentSpawn('general-purpose', 'Refactor src/db/ to use Drizzle ORM. Install drizzle-orm, create schema definitions, migrate all queries.', 'background');
+      await phaseAssistantText("The agent is working in the worktree. Your main branch is untouched. I'll let you know when it's done.", false);
+      await phaseAgentComplete('general-purpose', 'Refactored database layer to Drizzle ORM:\n- Created src/db/schema.ts with 8 table definitions\n- Migrated 23 raw SQL queries to Drizzle query builder\n- All 45 tests passing in worktree\n- Branch: worktree/drizzle-migration\n- 12 files changed, +340, -280 lines');
+      await phaseApiCall(2);
+      await phaseAssistantText("The refactor is complete in the worktree branch `worktree/drizzle-migration`:\n\n- 8 Drizzle schema definitions created\n- 23 raw SQL queries migrated to type-safe query builder\n- All 45 tests passing\n\nYour main branch is untouched. To review: `git diff main...worktree/drizzle-migration`\nTo merge: `git merge worktree/drizzle-migration`", false);
+      await phaseComplete();
+    }
+  },
+
+  'model-fallback': {
+    input: "Explain the visitor pattern with a TypeScript example",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, false);
+      await phaseUserMessage(input);
+      await addStep('&#9729;', 'API Call — Turn 1', 'Streaming to claude-sonnet-4-6...', 'active', null, null, null, null, SRC.apiClient);
+      await addStep('&#128165;', '529: Model Overloaded', 'Server returned 529 — claude-sonnet-4-6 is at capacity', 'error', 'error', 'API Error', 'Error 529: model is currently overloaded. Please retry later.\n\nX-Request-ID: req_abc123\nRetry-After: 30', () => {
+        addMsgChip('system', '[ERROR] 529: Model overloaded');
+      }, SRC.withRetry,
+      `<h4>529: Model Overloaded</h4>
+      <p>A <span class="detail-key">529 status code</span> means the model is temporarily at capacity. This is different from a 429 (rate limit) — it means the model itself can't take more requests right now.</p>
+      <div class="detail-flow">API call → 529 → withRetry() checks retry count → model fallback logic</div>
+      <p>The <code>withRetry()</code> wrapper handles this with exponential backoff + jitter. But Claude Code also has a <span class="detail-key">model fallback</span> system that can switch to an alternative model instead of waiting.</p>`);
+      await addStep('&#128260;', 'Model Fallback Triggered', 'Falling back from claude-sonnet-4-6 → claude-haiku-4-5 for this request', 'done', null, null, null, () => {
+        stats.turns++;
+      }, SRC.modelFallback,
+      `<h4>Model Fallback</h4>
+      <p><code>handleOverloaded()</code> checks the fallback configuration and switches to an alternative model. The fallback is <span class="detail-key">per-request</span> — subsequent requests will try the primary model again.</p>
+      <ul>
+        <li>Default fallback: claude-sonnet → claude-haiku (faster, cheaper)</li>
+        <li>Configurable in settings</li>
+        <li>User is notified of the fallback in the UI</li>
+        <li>The request is retried immediately with the fallback model</li>
+      </ul>`);
+      await addStep('&#9729;', 'API Call — Turn 1 (retry)', 'Streaming to claude-haiku-4-5 (fallback)', 'done', null, null, null, () => {
+        stats.input += 900;
+        updateStats();
+        updateTokenBar(Math.min(95, stats.input / 2000));
+      }, SRC.apiClient);
+      stats.turns = 1;
+      document.getElementById('st-model').textContent = 'claude-haiku-4-5 (fallback)';
+      await phaseAssistantText("The **Visitor Pattern** separates an algorithm from the object structure it operates on.\n\n```typescript\ninterface Visitor {\n  visitCircle(c: Circle): void;\n  visitRect(r: Rect): void;\n}\n\ninterface Shape {\n  accept(v: Visitor): void;\n}\n\nclass Circle implements Shape {\n  accept(v: Visitor) { v.visitCircle(this); }\n}\n\nclass AreaCalculator implements Visitor {\n  visitCircle(c: Circle) { /* calc area */ }\n  visitRect(r: Rect) { /* calc area */ }\n}\n```\n\nThis lets you add new operations (visitors) without modifying the shape classes.", false);
+      document.getElementById('st-model').textContent = 'claude-haiku-4-5';
+      await phaseComplete();
+    }
+  },
+
+  'tool-error': {
+    input: "Run the database migration script",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, true);
+      await phaseUserMessage(input);
+      await phaseApiCall(1);
+      await phaseAssistantText("I'll run the database migration script for you.", true);
+      await phaseToolCall('BashTool', '{ "command": "npm run db:migrate" }', true, 'classifier_approved');
+      await addStep('&#128230;', 'Result: BashTool', 'Command failed with exit code 1', 'error', 'error', 'Tool Result — BashTool (error)', 'Error: ECONNREFUSED 127.0.0.1:5432\n  at TCPConnectWrap.afterConnect\n\nCould not connect to PostgreSQL.\nMake sure the database server is running.', () => {
+        addMsgChip('tool_result', '[ERROR] BashTool — ECONNREFUSED');
+        stats.input += 120;
+        updateStats();
+      }, SRC.streamExec,
+      `<h4>Tool Error Handling</h4>
+      <p>When a tool fails, the error is sent back to Claude as a <code>tool_result</code> with <code>is_error: true</code>. Claude sees the error and can <span class="detail-key">diagnose and adapt</span> — this is a key part of the ReAct loop.</p>
+      <div class="detail-flow">tool_use → execution fails → error result → Claude reads error → re-plans → tries fix</div>
+      <p>Common adaptations:</p>
+      <ul>
+        <li>Check if a service is running before retrying</li>
+        <li>Try an alternative approach</li>
+        <li>Read config files to diagnose the issue</li>
+        <li>Ask the user for help if stuck after investigation</li>
+      </ul>`);
+      await phaseApiCall(2);
+      await phaseAssistantText("The migration failed because PostgreSQL isn't running. Let me check if it's installed and try to start it.", true);
+      await phaseToolCall('BashTool', '{ "command": "pg_isready -h localhost -p 5432 2>&1 || brew services list 2>/dev/null | grep postgresql" }', true, 'classifier_approved');
+      await phaseToolResult('BashTool', 'localhost:5432 - no response\npostgresql@16 stopped');
+      await phaseApiCall(3);
+      await phaseAssistantText("PostgreSQL 16 is installed but stopped. Would you like me to start it with `brew services start postgresql@16` and then retry the migration?", false);
+      await phaseComplete();
+    }
+  },
+
+  'memory-create': {
+    input: "Remember that I prefer functional components over class components in React",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, true);
+      await phaseUserMessage(input);
+      await phaseApiCall(1);
+      await phaseAssistantText("I'll save that preference to memory right away.", true);
+      await phaseToolCall('FileReadTool', '{ "file_path": "/Users/you/.claude/projects/.../memory/MEMORY.md" }', true, 'allow_rule');
+      await phaseToolResult('FileReadTool', '# Memory Index\n\n- [User Role](user_role.md) — Senior frontend engineer, React focus\n- [Testing Prefs](feedback_testing.md) — Prefers integration tests over unit');
+      await addStep('&#128221;', 'Tool: FileWriteTool', 'Creating new memory file: feedback_react_style.md', 'done', 'tool-call', 'Tool Call — FileWriteTool', '{\n  "file_path": "~/.claude/projects/.../memory/feedback_react_style.md",\n  "content": "---\\nname: React component style\\ndescription: User prefers functional components over class components in React\\ntype: feedback\\n---\\n\\nAlways use functional components with hooks, not class components.\\n\\n**Why:** User\'s explicit preference — likely for consistency and modern React patterns.\\n\\n**How to apply:** When writing or suggesting React code, always use function declarations with hooks (useState, useEffect, etc.) rather than class Component extends React.Component."\n}', () => {
+        stats.tools++;
+        addMsgChip('tool_use', 'FileWriteTool(feedback_react_style.md)');
+      }, SRC.fileWriteTool,
+      `<h4>Memory File Creation</h4>
+      <p>Memory files have <span class="detail-key">YAML frontmatter</span> (name, description, type) and markdown content. The description field is critical — it's used for relevance scoring in future conversations.</p>
+      <ul>
+        <li><strong>feedback</strong> type — stores user corrections and confirmed approaches</li>
+        <li>Structure: rule → <strong>Why:</strong> → <strong>How to apply:</strong></li>
+        <li>Stored in <code>~/.claude/projects/&lt;dir&gt;/memory/</code></li>
+        <li>The MEMORY.md index must also be updated with a pointer</li>
+      </ul>`);
+      await phaseToolResult('FileWriteTool', 'File created successfully.');
+      await phaseToolCall('FileEditTool', '{ "file_path": "~/.claude/projects/.../memory/MEMORY.md", "old_string": "- [Testing Prefs]", "new_string": "- [React Style](feedback_react_style.md) — Prefers functional components over class components\\n- [Testing Prefs]" }', true, 'allow_rule');
+      await phaseToolResult('FileEditTool', 'File edited successfully. 1 replacement made.');
+      await phaseApiCall(2);
+      await phaseAssistantText("Saved. I'll remember to always use functional components with hooks when writing React code for you. This preference is stored in your project memory and will apply in future conversations.", false);
+      await phaseComplete();
+    }
+  },
+
+  'hook-lifecycle': {
+    input: "Add a copyright header to the new utils file",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, true);
+      await phaseUserMessage(input);
+      await phaseApiCall(1);
+      await phaseAssistantText("I'll add the copyright header to the utils file.", true);
+      // Pre-tool-use hook
+      await addStep('&#128268;', 'Pre-Tool-Use Hook Firing', 'Hook: "lint-on-edit" registered for FileEditTool events', 'done', null, null, null, () => {
+        addMsgChip('system', '[HOOK] pre-tool-use: lint-on-edit');
+      }, SRC.hookRunner,
+      `<h4>Hook Lifecycle</h4>
+      <p>Claude Code supports <span class="detail-key">7 hook events</span> — shell commands that fire at specific lifecycle points:</p>
+      <ul>
+        <li><strong>pre-sampling</strong> — before API call (can modify messages)</li>
+        <li><strong>post-sampling</strong> — after API response (non-blocking)</li>
+        <li><strong>pre-tool-use</strong> — before tool execution (can approve/deny/modify)</li>
+        <li><strong>post-tool-use</strong> — after tool execution (logging, side effects)</li>
+        <li><strong>stop</strong> — when agent turn ends</li>
+        <li><strong>session</strong> — at session start/end</li>
+        <li><strong>file-change</strong> — when a file is modified</li>
+      </ul>
+      <p>Hooks are configured in <code>.claude/settings.json</code> under the <code>"hooks"</code> key. Each hook specifies the event, a file matcher (optional), and the shell command to run.</p>
+      <div class="detail-flow">Event fires → hookRunner.ts finds matching hooks → executes shell commands → reads stdout for decisions</div>`);
+      await addStep('&#9989;', 'Hook Result: ALLOW', 'pre-tool-use hook returned: { "decision": "allow" }', 'done', null, null, null, null, SRC.hookRunner);
+      await phaseToolCall('FileEditTool', '{ "file_path": "src/utils/helpers.ts", "old_string": "// utils", "new_string": "// Copyright 2026 MyOrg. All rights reserved.\\n// Licensed under MIT.\\n\\n// utils" }', true, 'allow_rule');
+      await phaseToolResult('FileEditTool', 'File edited successfully. 1 replacement made.');
+      // Post-tool-use hook
+      await addStep('&#128268;', 'Post-Tool-Use Hook Firing', 'Hook: "format-on-save" triggers after FileEditTool', 'done', null, null, null, () => {
+        addMsgChip('system', '[HOOK] post-tool-use: format-on-save → prettier');
+      }, SRC.toolHooks,
+      `<h4>Post-Tool-Use Hooks</h4>
+      <p>These hooks fire <span class="detail-key">after</span> a tool completes. Common uses:</p>
+      <ul>
+        <li><strong>Auto-format</strong> — run prettier/eslint after file edits</li>
+        <li><strong>Logging</strong> — send tool usage to external analytics</li>
+        <li><strong>Notifications</strong> — post to Slack when certain tools are used</li>
+        <li><strong>Validation</strong> — run type-checking after edits</li>
+      </ul>
+      <p>Post-tool-use hooks are <strong>non-blocking</strong> — the agent loop continues without waiting for them to complete (fire-and-forget).</p>`);
+      await addStep('&#9989;', 'Hook: prettier formatted file', 'post-tool-use hook ran: npx prettier --write src/utils/helpers.ts', 'done', null, null, null, null, SRC.toolHooks);
+      // File-change hook
+      await addStep('&#128268;', 'File-Change Hook', 'Hook: "notify-changes" triggers on any file modification', 'done', null, null, null, () => {
+        addMsgChip('system', '[HOOK] file-change: notify-changes');
+      }, SRC.hookRunner);
+      await phaseApiCall(2);
+      await phaseAssistantText("Added the copyright header to `src/utils/helpers.ts`. The file was automatically formatted by the post-edit hook.", false);
+      await phaseComplete();
+    }
+  },
+
+  'multi-agent': {
+    input: "Build a REST API with authentication, database models, and tests — all in parallel",
+    steps: async (input) => {
+      await phaseMemoryLoad(input);
+      await phaseSystemPrompt(input, true);
+      await phaseUserMessage(input);
+      await phaseApiCall(1);
+      await phaseAssistantText("This is a large task with independent parts. I'll coordinate multiple agents to work in parallel — one for auth, one for models, one for tests.", true);
+      await addStep('&#128081;', 'Coordinator Mode', 'Parent agent becomes coordinator — delegating to specialized workers', 'done', null, null, null, null, SRC.agentTool,
+      `<h4>Multi-Agent Coordination (Swarm)</h4>
+      <p>For large tasks with independent parts, Claude Code can use a <span class="detail-key">coordinator + workers</span> pattern. The parent agent plans the work and spawns multiple child agents.</p>
+      <div class="detail-flow">Coordinator plans → spawns workers in parallel → workers execute independently → results collected → coordinator synthesizes</div>
+      <p><span class="detail-key">Key concepts:</span></p>
+      <ul>
+        <li><strong>AgentTool</strong> — spawns independent sub-agents</li>
+        <li><strong>SendMessage</strong> — enables communication between agents</li>
+        <li><strong>Background mode</strong> — agents run concurrently</li>
+        <li><strong>Worktree isolation</strong> — each agent can work in its own git branch</li>
+        <li>Each agent has its own 200K context window</li>
+      </ul>
+      <p>The coordinator doesn't do the implementation work itself — it plans, delegates, and synthesizes results.</p>`);
+      // Spawn 3 agents in parallel
+      await addStep('&#128640;', 'Spawn Agent: auth-worker', 'Background | Task: build JWT auth middleware + login/register routes', 'done', 'tool-call', 'AgentTool — auth-worker', '{\n  "subagent_type": "general-purpose",\n  "description": "Build auth module",\n  "prompt": "Create JWT authentication: middleware, login route, register route, token refresh",\n  "run_in_background": true,\n  "isolation": "worktree"\n}', () => {
+        stats.tools++;
+        addMsgChip('tool_use', 'AgentTool(auth-worker, background)');
+      }, SRC.agentTool);
+      await addStep('&#128640;', 'Spawn Agent: models-worker', 'Background | Task: create Drizzle ORM models for users, posts, comments', 'done', 'tool-call', 'AgentTool — models-worker', '{\n  "subagent_type": "general-purpose",\n  "description": "Build database models",\n  "prompt": "Create Drizzle ORM schemas for users, posts, comments tables with relations",\n  "run_in_background": true,\n  "isolation": "worktree"\n}', () => {
+        stats.tools++;
+        addMsgChip('tool_use', 'AgentTool(models-worker, background)');
+      }, SRC.agentTool);
+      await addStep('&#128640;', 'Spawn Agent: test-worker', 'Background | Task: write integration tests with supertest', 'done', 'tool-call', 'AgentTool — test-worker', '{\n  "subagent_type": "general-purpose",\n  "description": "Write test suite",\n  "prompt": "Write integration tests for auth + CRUD endpoints using supertest and vitest",\n  "run_in_background": true,\n  "isolation": "worktree"\n}', () => {
+        stats.tools++;
+        addMsgChip('tool_use', 'AgentTool(test-worker, background)');
+      }, SRC.agentTool);
+      await addStep('&#9203;', '3 Agents Working in Parallel', 'Each agent has its own worktree, context window, and tools', 'done', null, null, null, null, SRC.agentFork);
+      // Results come back
+      await phaseAgentComplete('auth-worker', 'Created auth module:\n- src/middleware/auth.ts (JWT verify middleware)\n- src/routes/auth.ts (login, register, refresh)\n- src/utils/jwt.ts (sign, verify helpers)\n- 4 files, +180 lines');
+      await phaseAgentComplete('models-worker', 'Created database models:\n- src/db/schema.ts (users, posts, comments with relations)\n- src/db/index.ts (Drizzle client setup)\n- src/db/migrate.ts (migration runner)\n- 3 files, +120 lines');
+      await phaseAgentComplete('test-worker', 'Created test suite:\n- tests/auth.test.ts (8 tests: register, login, token refresh, protected routes)\n- tests/crud.test.ts (12 tests: CRUD for posts and comments)\n- tests/setup.ts (test database + fixtures)\n- 3 files, +240 lines');
+      await phaseApiCall(2);
+      await phaseAssistantText("All 3 agents completed successfully. Here's the summary:\n\n**Auth** (worktree/auth): JWT middleware, login/register routes, token utils\n**Models** (worktree/models): Drizzle schemas for users, posts, comments\n**Tests** (worktree/tests): 20 integration tests with supertest\n\nEach agent worked in its own worktree branch. To merge all:\n```bash\ngit merge worktree/auth worktree/models worktree/tests\n```", false);
+      await phaseComplete();
+    }
   }
 };
 
@@ -757,6 +1156,17 @@ const SRC = {
   mainTsx:         { file: 'main.tsx',                          fn: 'cliMain()',                line: null,  desc: 'The 804KB main orchestrator — imports all subsystems, mounts React UI.' },
   queryEngine:     { file: 'QueryEngine.ts',                    fn: 'ask()',                    line: null,  desc: 'Higher-level orchestrator managing tool availability and token budgets.' },
   toolOrch:        { file: 'services/tools/toolOrchestration.ts', fn: 'orchestrateTools()',     line: null,  desc: 'Tool orchestration pipeline — coordinates streaming execution order.' },
+  webSearch:        { file: 'tools/WebSearchTool/WebSearchTool.ts', fn: 'call()',              line: null,  desc: 'Searches the web using a search engine and returns results.' },
+  webFetch:         { file: 'tools/WebFetchTool/WebFetchTool.ts', fn: 'call()',                line: null,  desc: 'Fetches a URL and returns the content as markdown.' },
+  fileWriteTool:    { file: 'tools/FileWriteTool/FileWriteTool.ts', fn: 'call()',              line: null,  desc: 'Creates new files or completely rewrites existing ones.' },
+  planMode:         { file: 'tools/EnterPlanMode/EnterPlanModeTool.ts', fn: 'call()',          line: null,  desc: 'Enters plan mode — writes plan, shows user for approval before execution.' },
+  exitPlanMode:     { file: 'tools/ExitPlanMode/ExitPlanModeTool.ts', fn: 'call()',            line: null,  desc: 'Exits plan mode — user approved the plan, proceed with implementation.' },
+  worktreeTool:     { file: 'tools/EnterWorktree/EnterWorktreeTool.ts', fn: 'call()',          line: null,  desc: 'Creates a temporary git worktree for isolated file changes.' },
+  modelFallback:    { file: 'services/api/modelFallback.ts',      fn: 'handleOverloaded()',    line: null,  desc: 'On 529 (overloaded), falls back to an alternative model.' },
+  hookRunner:       { file: 'utils/hooks/hookRunner.ts',           fn: 'executeHooks()',       line: null,  desc: 'Runs registered hooks for lifecycle events (pre/post tool use, stop, etc.).' },
+  preSampling:      { file: 'utils/hooks/preSamplingHooks.ts',     fn: 'executePreSamplingHooks()', line: null, desc: 'Runs hooks before sending the request to the API.' },
+  notebookEdit:     { file: 'tools/NotebookEditTool/NotebookEditTool.ts', fn: 'call()',        line: null,  desc: 'Edits Jupyter notebook cells — code, markdown, or output.' },
+  sendMessage:      { file: 'tools/SendMessageTool/SendMessageTool.ts', fn: 'call()',          line: null,  desc: 'Sends messages between agents in multi-agent (swarm) setups.' },
 };
 
 // ========== FLOW PHASES (reusable building blocks) ==========
@@ -767,7 +1177,19 @@ async function phaseMemoryLoad(input) {
     stats.input += 480;
     updateStats();
     updateTokenBar(0.5);
-  }, SRC.memoryScan);
+  }, SRC.memoryScan,
+  `<h4>How Memory Works</h4>
+  <p>Claude Code has a <span class="detail-key">file-based memory system</span> stored in <code>~/.claude/projects/&lt;dir&gt;/memory/</code>. Before every query, it scans for relevant memories to inject into context.</p>
+  <div class="detail-flow">MEMORY.md index → topic files → relevance scoring → attach to system prompt</div>
+  <p><span class="detail-key">4 memory types:</span></p>
+  <ul>
+    <li><strong>user</strong> — role, preferences, expertise level</li>
+    <li><strong>feedback</strong> — corrections and confirmed approaches</li>
+    <li><strong>project</strong> — ongoing work, deadlines, decisions</li>
+    <li><strong>reference</strong> — pointers to external resources</li>
+  </ul>
+  <p>Each memory file has YAML frontmatter (<code>name</code>, <code>description</code>, <code>type</code>) and markdown content. The <code>findRelevantMemories()</code> function scores each memory against the current input to decide which ones are worth the token cost.</p>`
+  );
 }
 
 async function phaseSystemPrompt(input, hasTools) {
@@ -780,7 +1202,20 @@ async function phaseSystemPrompt(input, hasTools) {
     stats.cache += Math.round(tokens * 0.85);
     updateStats();
     updateTokenBar(Math.round(tokens / 2000));
-  }, SRC.systemPrompt);
+  }, SRC.systemPrompt,
+  `<h4>System Prompt Assembly</h4>
+  <p>The system prompt is <span class="detail-key">dynamically built</span> on every turn by <code>getSystemPrompt()</code> in <code>context.ts</code>. It's not static — it changes based on available tools, memories, and project state.</p>
+  <div class="detail-flow">Base instructions → tool schemas (JSON) → memory attachments → git context → CLAUDE.md files → permission mode</div>
+  <p><span class="detail-key">Key components:</span></p>
+  <ul>
+    <li><strong>Base prompt</strong> — core behavior rules, output guidelines, tool usage instructions</li>
+    <li><strong>Tool schemas</strong> — JSON Schema definitions for each tool (name, description, parameters)</li>
+    <li><strong>CLAUDE.md</strong> — project-specific instructions loaded from up to 6 sources in a cascade</li>
+    <li><strong>Git context</strong> — current branch, status, recent commits</li>
+    <li><strong>Prompt caching</strong> — ~85% of system prompt tokens are cached across turns, saving cost</li>
+  </ul>
+  <p>The system prompt alone can be 10K-15K tokens. This is why <span class="detail-key">prompt caching</span> is critical — without it, every turn would re-process the entire prompt at full input price.</p>`
+  );
 }
 
 async function phaseUserMessage(input) {
@@ -788,7 +1223,17 @@ async function phaseUserMessage(input) {
     addMsgChip('user', input);
     stats.input += Math.round(input.length / 3.5);
     updateStats();
-  }, SRC.processInput);
+  }, SRC.processInput,
+  `<h4>Input Processing</h4>
+  <p><code>processUserInput()</code> handles everything between keystroke and query engine:</p>
+  <ul>
+    <li>Detects <span class="detail-key">slash commands</span> (starting with <code>/</code>) and routes them to the command system instead of the query engine</li>
+    <li>Detects the <code>!</code> prefix for running shell commands directly</li>
+    <li>Creates a <code>UserMessage</code> object and appends it to the conversation's message array</li>
+    <li>Checks if the input triggers any <span class="detail-key">pre-sampling hooks</span></li>
+  </ul>
+  <p>The message array is the core data structure — it's what gets sent to the API on every turn. Each message has a <code>role</code> (system, user, assistant) and <code>content</code> blocks.</p>`
+  );
 }
 
 async function phaseApiCall(turn) {
@@ -798,7 +1243,20 @@ async function phaseApiCall(turn) {
   updateStats();
   await addStep('&#9729;', `API Call — Turn ${turn}`, `Streaming to claude-sonnet-4-6 | Beta: extended-thinking, prompt-caching`, 'done', null, null, null, () => {
     updateTokenBar(Math.min(95, stats.input / 2000));
-  }, SRC.apiClient);
+  }, SRC.apiClient,
+  `<h4>Streaming API Call</h4>
+  <p>The <code>callModel()</code> function in <code>services/api/claude.ts</code> sends the full message array to Anthropic's API using <span class="detail-key">Server-Sent Events (SSE)</span> for streaming.</p>
+  <div class="detail-flow">messages[] → API request → SSE stream → content_block_delta events → text + tool_use blocks</div>
+  <p><span class="detail-key">Key behaviors:</span></p>
+  <ul>
+    <li><strong>Streaming</strong> — response arrives token-by-token via SSE, rendered in real-time</li>
+    <li><strong>Prompt caching</strong> — system prompt and recent messages are cached server-side to reduce cost</li>
+    <li><strong>Retry with backoff</strong> — <code>withRetry()</code> wraps calls with exponential backoff on 429/529 errors</li>
+    <li><strong>Model fallback</strong> — on 529 (overloaded), can fall back to a different model</li>
+    <li><strong>Tool definitions</strong> — all 44+ tool JSON schemas are sent as part of every request</li>
+  </ul>
+  <p>The response can contain mixed content blocks: text, tool_use (Claude wants to call a tool), and thinking blocks (extended reasoning).</p>`
+  );
 }
 
 async function phaseAssistantText(text, hasTools) {
@@ -808,7 +1266,17 @@ async function phaseAssistantText(text, hasTools) {
   updateStats();
   await addStep(hasTools ? '&#129302;' : '&#9989;', hasTools ? 'Claude Responds (with tool calls)' : 'Claude Responds (final)', `Output: ${tokens} tokens`, 'done', 'assistant', 'Assistant', text, () => {
     addMsgChip('assistant', text.slice(0, 100));
-  }, SRC.queryLoop);
+  }, SRC.queryLoop,
+  hasTools
+    ? `<h4>ReAct Loop: Reason Step</h4>
+    <p>This is the <span class="detail-key">"Reason"</span> phase of the ReAct (Reason-Act-Observe) loop. Claude analyzes the context and decides what action to take next.</p>
+    <div class="detail-flow">Reason (think + plan) → Act (tool call) → Observe (tool result) → repeat or finish</div>
+    <p>The response contains both text (reasoning) and <code>tool_use</code> content blocks. The text explains what Claude is doing; the tool_use blocks specify which tools to call with what parameters.</p>
+    <p>The <code>queryLoop()</code> async generator in <code>query.ts</code> detects <code>stop_reason: "tool_use"</code> and feeds the tool results back for the next iteration, continuing the loop.</p>`
+    : `<h4>Final Response</h4>
+    <p>When Claude responds with <code>stop_reason: "end_turn"</code> (no tool calls), the ReAct loop ends. This is the final answer to the user's request.</p>
+    <p>At this point, the <code>queryLoop()</code> generator yields the final message and the turn is complete. <span class="detail-key">Stop hooks</span> fire after this — including memory extraction, prompt suggestions, and session save.</p>`
+  );
 }
 
 async function phaseToolCall(name, input, permitted, reason) {
@@ -834,9 +1302,16 @@ async function phaseToolCall(name, input, permitted, reason) {
   };
   const toolSrc = toolSrcMap[name] || SRC.toolExec;
 
+  const toolDetailMap = {
+    'FileReadTool': `<h4>FileReadTool</h4><p>Reads files with line numbers (like <code>cat -n</code>). Supports text, images, PDFs (with page ranges), and Jupyter notebooks.</p><ul><li>Default: reads up to 2000 lines from the start</li><li>Can specify <code>offset</code> and <code>limit</code> for large files</li><li>Images are presented visually (Claude is multimodal)</li><li>PDFs: max 20 pages per request</li></ul>`,
+    'FileEditTool': `<h4>FileEditTool</h4><p>Performs <span class="detail-key">exact string replacement</span> in files — sends only the diff, not the whole file.</p><ul><li>Requires the file to have been read first (prevents blind edits)</li><li><code>old_string</code> must be unique in the file</li><li><code>replace_all</code> flag for renaming across the file</li><li>Preferred over FileWriteTool for modifications</li></ul>`,
+    'BashTool': `<h4>BashTool</h4><p>Executes shell commands with persistent working directory across calls.</p><ul><li>Timeout: default 2 min, max 10 min</li><li>Can run in background with <code>run_in_background</code></li><li>Working directory persists but shell state does not</li><li>Initialized from user's shell profile (bash/zsh)</li></ul>`,
+    'GrepTool': `<h4>GrepTool</h4><p>Ripgrep-based content search with full regex, file type filters, and context lines.</p><ul><li>Output modes: content, files_with_matches, count</li><li>Supports multiline patterns</li><li>Default head_limit of 250 to prevent context bloat</li></ul>`,
+  };
+
   await addStep('&#128295;', `Tool: ${name}`, `Permission: ${reasonLabel}`, state, 'tool-call', `Tool Call — ${name}`, input, () => {
     addMsgChip('tool_use', `${name}(${input.slice(0, 60)}...)`);
-  }, toolSrc);
+  }, toolSrc, toolDetailMap[name] || `<h4>Tool Execution</h4><p>The <code>runToolUse()</code> function validates tool parameters against their JSON Schema, checks permissions, then executes the tool's <code>call()</code> method.</p><p>Tools are registered in <code>tools.ts</code> via <code>assembleTools()</code>. Each tool defines: name, description, parameter schema, and a <code>call()</code> function.</p>`);
 
   // Permission check step with its own source ref
   const permSrcMap = {
@@ -845,8 +1320,14 @@ async function phaseToolCall(name, input, permitted, reason) {
     'classifier_approved': SRC.yoloClassifier,
     'denied_dangerous': SRC.dangerPatterns,
   };
+  const permDetailMap = {
+    'allow_rule': `<h4>Permission: Allow Rule</h4><p>The tool matched an explicit <span class="detail-key">ALLOW rule</span> in the permission settings. Allow rules are checked first in the permission cascade.</p><div class="detail-flow">Settings cascade: .claude/settings.json (project) → ~/.claude/settings.json (user) → enterprise → MDC</div><p>Example rule: <code>{ "tool": "Read", "allow": true }</code> — auto-approves all file reads without prompting.</p>`,
+    'user_approved': `<h4>Permission: User Approved</h4><p>No rule or classifier matched, so the user was <span class="detail-key">prompted interactively</span> in the terminal. The handler in <code>interactiveHandler.ts</code> shows the tool name, parameters, and asks for approval.</p><p>Users can choose: Allow once, Allow for session, Always allow, or Deny.</p>`,
+    'classifier_approved': `<h4>Permission: YOLO Classifier</h4><p>The <span class="detail-key">YOLO classifier</span> pattern-matches the tool call against known-safe patterns to auto-approve without user interaction.</p><ul><li>Read-only operations (grep, glob, file read) → auto-approve</li><li>Safe bash commands (ls, git status, npm test) → auto-approve</li><li>Dangerous patterns (rm -rf, force push) → escalate to user</li></ul>`,
+    'denied_dangerous': `<h4>Permission: Dangerous Pattern Detected</h4><p><code>isDangerousPattern()</code> detected a destructive command. These are <span class="detail-key">always blocked</span> regardless of user settings:</p><ul><li><code>rm -rf</code> with broad paths</li><li><code>git push --force</code> to main/master</li><li><code>DROP TABLE/SCHEMA CASCADE</code></li><li>Other irreversible data-loss patterns</li></ul>`,
+  };
   if (permitted) {
-    await addStep('&#9989;', `Permission: ALLOWED`, reasonLabel, 'done', null, null, null, null, permSrcMap[reason] || SRC.permissions);
+    await addStep('&#9989;', `Permission: ALLOWED`, reasonLabel, 'done', null, null, null, null, permSrcMap[reason] || SRC.permissions, permDetailMap[reason]);
   }
 }
 
@@ -856,20 +1337,46 @@ async function phaseToolResult(name, result) {
   await addStep('&#128230;', `Result: ${name}`, `${result.length} chars returned`, 'done', 'tool-result', `Tool Result — ${name}`, result, () => {
     addMsgChip('tool_result', result.slice(0, 80));
     updateTokenBar(Math.min(95, stats.input / 2000));
-  }, SRC.streamExec);
+  }, SRC.streamExec,
+  `<h4>Tool Result → Observe Step</h4>
+  <p>This is the <span class="detail-key">"Observe"</span> phase of the ReAct loop. The tool's output is added to the message array as a <code>tool_result</code> content block, linked to the original <code>tool_use</code> by its <code>tool_use_id</code>.</p>
+  <div class="detail-flow">tool_use (Claude's request) → execution → tool_result (appended to messages) → next API call</div>
+  <p>The result becomes part of the context for the next turn. Large results contribute to context growth — this is why <span class="detail-key">microcompact</span> later compresses old tool_use/tool_result pairs in-place to free tokens.</p>`
+  );
 }
 
 async function phaseToolDenied(name, reason) {
   await addStep('&#128683;', `Permission DENIED: ${name}`, 'Dangerous pattern classifier blocked this tool call', 'error', 'error', `Denied — ${name}`, reason, () => {
     addMsgChip('tool_result', `[DENIED] ${name} — dangerous pattern`);
-  }, SRC.dangerPatterns);
+  }, SRC.dangerPatterns,
+  `<h4>Permission Denied Flow</h4>
+  <p>When a tool is denied, the denial reason is sent back to Claude as a <code>tool_result</code> with <code>is_error: true</code>. Claude sees this and adjusts its approach.</p>
+  <div class="detail-flow">tool_use → permission check → DENIED → error result → Claude re-plans</div>
+  <p>The multi-layer permission system checks in order:</p>
+  <ul>
+    <li><strong>1. Rules</strong> — explicit allow/deny rules from settings</li>
+    <li><strong>2. Dangerous patterns</strong> — hard-coded destructive command detection</li>
+    <li><strong>3. YOLO classifier</strong> — pattern-matching for safe operations</li>
+    <li><strong>4. Pre-tool-use hooks</strong> — custom shell scripts that can approve/deny</li>
+    <li><strong>5. Interactive prompt</strong> — last resort, asks the user</li>
+  </ul>`
+  );
 }
 
 async function phaseParallelTools(tools, results) {
   await addStep('&#9881;', `Parallel Execution: ${tools.length} tools`, `Concurrent-safe tools running simultaneously`, 'done', null, null, null, () => {
     stats.tools += tools.length;
     stats.perms += tools.length;
-  }, SRC.streamExec);
+  }, SRC.streamExec,
+  `<h4>StreamingToolExecutor: Parallel Execution</h4>
+  <p>The <code>StreamingToolExecutor</code> implements a <span class="detail-key">read-write lock pattern</span> for concurrent tool execution:</p>
+  <ul>
+    <li><strong>Concurrent-safe</strong> tools (reads, greps, globs) run in parallel — no lock needed</li>
+    <li><strong>Exclusive</strong> tools (edits, writes, bash) acquire an exclusive lock — only one at a time</li>
+  </ul>
+  <div class="detail-flow">Stream tool_use blocks → addTool() queues them → processQueue() runs concurrent or exclusive</div>
+  <p>This is why Claude can send 3 GrepTool calls in one response and they all run simultaneously, but a FileEditTool will wait for any running tools to finish first.</p>`
+  );
   for (let i = 0; i < tools.length; i++) {
     const t = tools[i];
     const toolSrc = t.name === 'GrepTool' ? SRC.grepTool : t.name === 'BashTool' ? SRC.bashTool : SRC.toolExec;
@@ -889,7 +1396,20 @@ async function phaseAgentSpawn(type, prompt, mode) {
   await addStep('&#128640;', `Spawn Agent: ${type}`, `Mode: ${mode} | Isolated context window`, 'done', 'tool-call', `AgentTool — ${type}`, `{\n  "subagent_type": "${type}",\n  "prompt": "${prompt}",\n  "run_in_background": ${mode === 'background'}\n}`, () => {
     stats.tools++;
     addMsgChip('tool_use', `AgentTool(${type}, ${mode})`);
-  }, SRC.agentTool);
+  }, SRC.agentTool,
+  `<h4>Agent Spawning (Multi-Agent)</h4>
+  <p>The <code>AgentTool</code> creates a <span class="detail-key">sub-agent</span> — a child process with its own isolated context window, tools, and permission scope.</p>
+  <div class="detail-flow">Parent agent → AgentTool.call() → forkSubagent() → child process → own queryLoop()</div>
+  <p><span class="detail-key">Key properties:</span></p>
+  <ul>
+    <li><strong>Isolated context</strong> — child has its own 200K window, doesn't pollute parent</li>
+    <li><strong>Background mode</strong> — parent continues working while child runs in parallel</li>
+    <li><strong>Agent types</strong> — Explore (fast search), Plan (architecture), general-purpose</li>
+    <li><strong>Worktree isolation</strong> — can optionally run in a git worktree for safe file changes</li>
+    <li><strong>Model override</strong> — child can use a different model (e.g., Haiku for fast tasks)</li>
+  </ul>
+  <p>When done, the child's result is returned as a single <code>tool_result</code> to the parent.</p>`
+  );
   await addStep('&#128260;', `Agent Running (${mode})`, `${type} agent has its own context window, tools, and permissions`, 'done', null, null, null, null, SRC.agentFork);
 }
 
@@ -898,11 +1418,27 @@ async function phaseAgentComplete(type, result) {
     addMsgChip('tool_result', `[Agent:${type}] ${result.slice(0, 60)}...`);
     stats.input += Math.round(result.length / 3.5);
     updateStats();
-  }, SRC.agentTool);
+  }, SRC.agentTool,
+  `<h4>Agent Result Return</h4>
+  <p>The sub-agent completed its task and returned a single result message. This result is compressed from potentially many turns of the child's own ReAct loop into one <code>tool_result</code>.</p>
+  <p>For <span class="detail-key">background agents</span>, the parent was notified asynchronously — it may have been doing other work while waiting. The notification triggers the parent to incorporate the result in its next reasoning step.</p>`
+  );
 }
 
 async function phaseComplete() {
-  await addStep('&#127937;', 'Turn Complete', `${stats.turns} turn(s), ${stats.tools} tool calls, $${stats.cost.toFixed(3)}`, 'done', null, null, null, null, SRC.stopHooks);
+  await addStep('&#127937;', 'Turn Complete', `${stats.turns} turn(s), ${stats.tools} tool calls, $${stats.cost.toFixed(3)}`, 'done', null, null, null, null, SRC.stopHooks,
+  `<h4>Turn Complete: Stop Hooks</h4>
+  <p>When the agent loop finishes (Claude responds with <code>stop_reason: "end_turn"</code>), several cleanup tasks fire:</p>
+  <ul>
+    <li><strong>Stop hooks</strong> — custom shell commands registered for the "stop" event</li>
+    <li><strong>Memory extraction</strong> — scans the conversation for things worth remembering</li>
+    <li><strong>Prompt suggestions</strong> — generates suggested follow-up prompts</li>
+    <li><strong>Session save</strong> — persists the conversation to <code>~/.claude/projects/&lt;dir&gt;/</code></li>
+    <li><strong>Cost tracking</strong> — updates per-session and daily cost totals</li>
+    <li><strong>Microcompact</strong> — compresses old tool pairs to free context for next turn</li>
+  </ul>
+  <p>The session is now ready for the next user message, and the cycle repeats.</p>`
+  );
   document.getElementById('send-btn').disabled = false;
 }
 
