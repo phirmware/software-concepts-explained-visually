@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Production ML Pipeline — Interactive Playground</title>
+<style>
+:root {
+  --bg: #0a0e14;
+  --bg2: #12171f;
+  --bg3: #1a2030;
+  --bg4: #232d3f;
+  --border: #2a3545;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --accent: #8b5cf6;
+  --accent2: #a78bfa;
+  --green: #22c55e;
+  --green-dim: rgba(34,197,94,0.12);
+  --orange: #f59e0b;
+  --orange-dim: rgba(245,158,11,0.12);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.12);
+  --purple: #a78bfa;
+  --purple-dim: rgba(167,139,250,0.12);
+  --pink: #f472b6;
+  --pink-dim: rgba(244,114,182,0.12);
+  --cyan: #22d3ee;
+  --cyan-dim: rgba(34,211,238,0.12);
+  --yellow: #facc15;
+  --yellow-dim: rgba(250,204,21,0.08);
+  --blue: #3b82f6;
+  --blue-dim: rgba(59,130,246,0.1);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'SF Mono','Fira Code','JetBrains Mono',monospace;background:var(--bg);color:var(--text);overflow:hidden;height:100vh;}
+
+/* Layout */
+.app{display:grid;grid-template-rows:auto 1fr;height:100vh;}
+.topbar{display:flex;align-items:center;gap:16px;padding:10px 20px;background:var(--bg2);border-bottom:1px solid var(--border);z-index:10;}
+.topbar h1{font-size:0.95em;background:linear-gradient(135deg,var(--accent),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.main-area{display:grid;grid-template-columns:320px 1fr 340px;overflow:hidden;}
+
+/* Left: Input Panel */
+.input-panel{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;}
+.input-panel h3{padding:14px 16px 8px;font-size:0.75em;text-transform:uppercase;letter-spacing:1px;color:var(--muted);}
+.input-area{padding:0 16px 16px;}
+.input-area textarea{width:100%;height:60px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:0.82em;padding:10px 12px;resize:none;outline:none;transition:border-color 0.2s;}
+.input-area textarea:focus{border-color:var(--accent);}
+.send-btn{width:100%;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:0.82em;font-weight:600;cursor:pointer;transition:all 0.2s;margin-top:8px;}
+.send-btn:hover{background:var(--accent2);}
+.send-btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+/* Scenario presets */
+.presets{padding:0 16px 12px;}
+.preset-btn{display:block;width:100%;text-align:left;padding:9px 12px;margin-bottom:4px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:0.78em;cursor:pointer;transition:all 0.15s;}
+.preset-btn:hover{border-color:var(--accent);background:var(--bg4);}
+.preset-btn .preset-tag{font-size:0.7em;color:var(--muted);display:block;margin-top:2px;}
+
+/* Controls */
+.controls{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--border);align-items:center;}
+.speed-label{font-size:0.7em;color:var(--muted);}
+.speed-slider{flex:1;accent-color:var(--accent);}
+.ctrl-btn{padding:6px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:0.75em;cursor:pointer;transition:all 0.15s;}
+.ctrl-btn:hover{border-color:var(--accent);}
+
+/* Center: Flow Canvas */
+.flow-canvas{position:relative;overflow-y:auto;overflow-x:hidden;padding:24px 32px;scroll-behavior:smooth;}
+
+/* Flow step */
+.fstep{position:relative;margin-bottom:8px;padding-left:40px;opacity:0;transform:translateY(12px);transition:all 0.4s cubic-bezier(0.16,1,0.3,1);}
+.fstep.visible{opacity:1;transform:translateY(0);}
+.fstep.active .fstep-box{border-color:var(--accent);box-shadow:0 0 24px rgba(139,92,246,0.15);}
+
+/* Timeline rail */
+.fstep::before{content:'';position:absolute;left:14px;top:0;bottom:-8px;width:2px;background:var(--border);transition:background 0.3s;}
+.fstep.done::before{background:var(--green);}
+.fstep.active::before{background:var(--accent);box-shadow:0 0 6px var(--accent);}
+.fstep:last-child::before{display:none;}
+
+/* Timeline dot */
+.fstep::after{content:'';position:absolute;left:8px;top:16px;width:14px;height:14px;border-radius:50%;border:2px solid var(--border);background:var(--bg);z-index:1;transition:all 0.3s;}
+.fstep.done::after{border-color:var(--green);background:var(--green);box-shadow:0 0 8px rgba(34,197,94,0.4);}
+.fstep.active::after{border-color:var(--accent);background:var(--accent);box-shadow:0 0 10px rgba(139,92,246,0.5);animation:pulse-dot 1.5s infinite;}
+.fstep.error::after{border-color:var(--red);background:var(--red);box-shadow:0 0 8px rgba(239,68,68,0.4);}
+.fstep.warn::after{border-color:var(--orange);background:var(--orange);box-shadow:0 0 8px rgba(245,158,11,0.4);}
+.fstep.skip::after{border-color:var(--muted);background:var(--muted);}
+
+@keyframes pulse-dot{0%,100%{box-shadow:0 0 10px rgba(139,92,246,0.5);}50%{box-shadow:0 0 20px rgba(139,92,246,0.8);}}
+
+.fstep-box{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;transition:all 0.3s;}
+.fstep-header{display:flex;align-items:center;gap:8px;}
+.fstep-icon{font-size:1.1em;width:24px;text-align:center;flex-shrink:0;}
+.fstep-title{font-size:0.82em;font-weight:600;}
+.fstep-time{margin-left:auto;font-size:0.68em;color:var(--muted);}
+.fstep-subtitle{font-size:0.72em;color:var(--muted);margin-top:4px;}
+
+/* Message bubble inside step */
+.fmsg{margin-top:10px;padding:10px 14px;border-radius:8px;font-size:0.78em;line-height:1.6;max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;transition:all 0.4s;}
+.fmsg.data{background:var(--cyan-dim);border-left:3px solid var(--cyan);}
+.fmsg.config{background:var(--purple-dim);border-left:3px solid var(--purple);}
+.fmsg.metric{background:var(--green-dim);border-left:3px solid var(--green);}
+.fmsg.alert{background:var(--red-dim);border-left:3px solid var(--red);}
+.fmsg.warning{background:var(--orange-dim);border-left:3px solid var(--orange);}
+.fmsg.code{background:var(--blue-dim);border-left:3px solid var(--blue);}
+.fmsg.model{background:var(--pink-dim);border-left:3px solid var(--pink);}
+.fmsg.log{background:var(--yellow-dim);border-left:3px solid var(--yellow);}
+.fmsg .msg-label{font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;display:block;}
+.fmsg.data .msg-label{color:var(--cyan);}
+.fmsg.config .msg-label{color:var(--purple);}
+.fmsg.metric .msg-label{color:var(--green);}
+.fmsg.alert .msg-label{color:var(--red);}
+.fmsg.warning .msg-label{color:var(--orange);}
+.fmsg.code .msg-label{color:var(--blue);}
+.fmsg.model .msg-label{color:var(--pink);}
+.fmsg.log .msg-label{color:var(--yellow);}
+
+/* Typing animation */
+.typing-cursor::after{content:'|';animation:blink 0.8s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+
+/* Right: Inspector */
+.inspector{background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.inspector h3{padding:14px 16px 8px;font-size:0.75em;text-transform:uppercase;letter-spacing:1px;color:var(--muted);}
+.inspector-tabs{display:flex;border-bottom:1px solid var(--border);padding:0 12px;}
+.inspector-tabs button{background:none;border:none;color:var(--muted);font-family:inherit;font-size:0.75em;padding:8px 12px;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s;}
+.inspector-tabs button:hover{color:var(--text);}
+.inspector-tabs button.active{color:var(--accent);border-bottom-color:var(--accent);}
+.inspector-body{flex:1;overflow-y:auto;padding:12px 16px;font-size:0.78em;}
+.insp-panel{display:none;}
+.insp-panel.active{display:block;}
+
+/* Message array vis */
+.msg-stack{display:flex;flex-direction:column;gap:4px;}
+.msg-chip{padding:6px 10px;border-radius:6px;font-size:0.8em;display:flex;align-items:center;gap:6px;transition:all 0.3s;opacity:0;transform:translateX(12px);}
+.msg-chip.visible{opacity:1;transform:translateX(0);}
+.msg-chip .chip-role{font-weight:700;font-size:0.72em;text-transform:uppercase;width:70px;flex-shrink:0;}
+.msg-chip .chip-text{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
+.msg-chip.r-data{background:var(--cyan-dim);}.msg-chip.r-data .chip-role{color:var(--cyan);}
+.msg-chip.r-train{background:var(--pink-dim);}.msg-chip.r-train .chip-role{color:var(--pink);}
+.msg-chip.r-eval{background:var(--green-dim);}.msg-chip.r-eval .chip-role{color:var(--green);}
+.msg-chip.r-deploy{background:var(--blue-dim);}.msg-chip.r-deploy .chip-role{color:var(--blue);}
+.msg-chip.r-monitor{background:var(--orange-dim);}.msg-chip.r-monitor .chip-role{color:var(--orange);}
+.msg-chip.r-alert{background:var(--red-dim);}.msg-chip.r-alert .chip-role{color:var(--red);}
+.msg-chip.r-config{background:var(--purple-dim);}.msg-chip.r-config .chip-role{color:var(--purple);}
+
+/* Stat row */
+.stat-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(42,53,69,0.5);font-size:0.82em;}
+.stat-row:last-child{border-bottom:none;}
+.stat-row .stat-k{color:var(--muted);}
+.stat-row .stat-v{color:var(--text);font-weight:600;}
+
+/* Tool reference panel */
+.tool-entry{margin-bottom:12px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;transition:all 0.3s;opacity:0;transform:translateX(10px);}
+.tool-entry.visible{opacity:1;transform:translateX(0);}
+.tool-entry.active{border-color:var(--accent);box-shadow:0 0 12px rgba(139,92,246,0.1);}
+.tool-entry .tool-step{font-size:0.68em;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px;}
+.tool-entry .tool-name{font-size:0.82em;color:var(--cyan);font-weight:600;}
+.tool-entry .tool-tech{font-size:0.78em;color:var(--purple);margin-top:2px;}
+.tool-entry .tool-desc{font-size:0.72em;color:var(--muted);margin-top:4px;line-height:1.5;border-top:1px solid var(--border);padding-top:4px;}
+
+/* Tool badge on flow step */
+.fstep-tool{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:3px 8px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.15);border-radius:5px;font-size:0.68em;color:var(--accent2);cursor:default;transition:all 0.2s;}
+.fstep-tool:hover{background:rgba(139,92,246,0.15);border-color:var(--accent);}
+
+/* Expandable detail panel */
+.fstep-box.has-detail{cursor:pointer;}
+.fstep-box.has-detail:hover{border-color:var(--accent);background:var(--bg3);}
+.fstep-expand-hint{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:2px 8px;font-size:0.65em;color:var(--muted);background:var(--bg3);border-radius:4px;opacity:0.7;transition:opacity 0.2s;}
+.fstep-box.has-detail:hover .fstep-expand-hint{opacity:1;color:var(--accent);}
+.fstep-detail{max-height:0;overflow:hidden;transition:max-height 0.4s cubic-bezier(0.16,1,0.3,1),opacity 0.3s,margin 0.3s;opacity:0;margin-top:0;}
+.fstep-detail.open{max-height:900px;opacity:1;margin-top:10px;}
+.fstep-detail-inner{padding:12px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:0.78em;line-height:1.7;color:var(--text);}
+.fstep-detail-inner h4{font-size:0.82em;font-weight:700;color:var(--accent2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;}
+.fstep-detail-inner p{margin-bottom:8px;color:var(--muted);}
+.fstep-detail-inner p:last-child{margin-bottom:0;}
+.fstep-detail-inner code{background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:0.92em;color:var(--cyan);}
+.fstep-detail-inner .detail-key{color:var(--purple);font-weight:600;}
+.fstep-detail-inner .detail-flow{margin:6px 0;padding:8px 12px;background:var(--bg2);border-left:2px solid var(--accent);border-radius:0 6px 6px 0;font-size:0.9em;}
+.fstep-detail-inner ul{margin:4px 0 8px 16px;color:var(--muted);}
+.fstep-detail-inner li{margin-bottom:3px;}
+.fstep-chevron{margin-left:auto;font-size:0.7em;color:var(--muted);transition:transform 0.3s;}
+.fstep-box.expanded .fstep-chevron{transform:rotate(180deg);color:var(--accent);}
+
+/* Progress badge */
+.progress-badge{padding:4px 10px;background:var(--bg3);border-radius:12px;font-size:0.72em;color:var(--green);border:1px solid rgba(34,197,94,0.2);}
+
+/* Mobile toggle buttons */
+.mobile-bar{display:none;gap:6px;padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto;}
+.mob-btn{padding:7px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:0.75em;cursor:pointer;white-space:nowrap;transition:all 0.15s;}
+.mob-btn:hover,.mob-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(139,92,246,0.1);}
+
+/* Mobile drawer overlay */
+.drawer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:50;opacity:0;transition:opacity 0.25s;}
+.drawer-overlay.open{opacity:1;}
+
+/* Mobile bottom sheet */
+.bottom-sheet{display:none;position:fixed;left:0;right:0;bottom:0;max-height:60vh;background:var(--bg2);border-top:1px solid var(--border);border-radius:14px 14px 0 0;z-index:60;transform:translateY(100%);transition:transform 0.3s cubic-bezier(0.16,1,0.3,1);overflow-y:auto;padding-bottom:env(safe-area-inset-bottom,0);}
+.bottom-sheet.open{transform:translateY(0);}
+.bottom-sheet .sheet-handle{width:36px;height:4px;background:var(--muted);border-radius:2px;margin:10px auto 6px;}
+.bottom-sheet .sheet-content{padding:8px 16px 20px;}
+
+/* Responsive: tablet */
+@media(max-width:1100px){
+  .main-area{grid-template-columns:280px 1fr;}
+  .inspector{display:none;}
+  .mobile-bar{display:flex;}
+}
+
+/* Responsive: mobile */
+@media(max-width:700px){
+  body{overflow:auto;height:auto;min-height:100vh;min-height:100dvh;}
+  .app{height:auto;min-height:100vh;min-height:100dvh;grid-template-rows:auto auto auto 1fr;}
+  .topbar{padding:10px 14px;gap:10px;flex-wrap:wrap;}
+  .topbar h1{font-size:0.82em;}
+  .topbar>span{display:none;}
+  .main-area{display:flex;flex-direction:column;flex:1;overflow:visible;}
+  .input-panel{display:none;position:fixed;inset:0;z-index:55;overflow-y:auto;padding-bottom:20px;}
+  .input-panel.open{display:flex;}
+  .input-panel .close-panel{display:block;}
+  .flow-canvas{flex:1;min-height:0;overflow-y:auto;padding:16px 14px;}
+  .inspector{display:none;}
+  .mobile-bar{display:flex;}
+  .bottom-sheet{display:block;}
+  .drawer-overlay{display:block;pointer-events:none;}
+  .drawer-overlay.open{pointer-events:auto;}
+  .fstep{padding-left:30px;}
+  .fstep::before{left:10px;}
+  .fstep::after{left:4px;top:14px;width:12px;height:12px;}
+  .fstep-box{padding:10px 12px;}
+  .fstep-title{font-size:0.78em;}
+  .fmsg{font-size:0.72em;max-height:150px;}
+  .fstep-tool{font-size:0.62em;}
+  .fstep-detail-inner{font-size:0.72em;padding:10px 12px;}
+  .fstep-expand-hint{font-size:0.6em;}
+  .preset-btn{font-size:0.74em;padding:8px 10px;}
+}
+
+/* Close button for mobile panels */
+.close-panel{display:none;position:absolute;top:12px;right:14px;width:32px;height:32px;border-radius:50%;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:1.1em;cursor:pointer;z-index:5;line-height:30px;text-align:center;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <h1>Production ML Pipeline &mdash; Interactive Playground</h1>
+    <span style="color:var(--muted);font-size:0.75em;">Watch how ML models go from training to production monitoring</span>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+      <span class="progress-badge" id="phase-display">Idle</span>
+    </div>
+  </div>
+
+  <!-- Mobile control bar -->
+  <div class="mobile-bar" id="mobile-bar">
+    <button class="mob-btn" onclick="toggleMobileInput()">&#9998; Scenarios</button>
+    <button class="mob-btn" onclick="openSheet('pipeline')">&#128202; Pipeline</button>
+    <button class="mob-btn" onclick="openSheet('stats')">&#128202; Stats</button>
+    <button class="mob-btn" onclick="openSheet('tools')">&#128295; Tools</button>
+    <button class="mob-btn" onclick="resetFlow()">&#8635; Reset</button>
+  </div>
+
+  <!-- Mobile overlay -->
+  <div class="drawer-overlay" id="drawer-overlay" onclick="closeMobileAll()"></div>
+
+  <!-- Mobile bottom sheet -->
+  <div class="bottom-sheet" id="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-content" id="sheet-content"></div>
+  </div>
+
+  <div class="main-area">
+    <!-- LEFT: Input -->
+    <div class="input-panel" id="input-panel">
+      <button class="close-panel" onclick="toggleMobileInput()">&times;</button>
+      <h3>Pipeline Scenario</h3>
+      <div class="input-area">
+        <textarea id="user-input" placeholder="Describe the ML pipeline to simulate...">Train a fraud detection model and deploy to production</textarea>
+        <button class="send-btn" id="send-btn" onclick="runSimulation()">Run Pipeline</button>
+      </div>
+
+      <h3>Scenarios</h3>
+      <div class="presets">
+        <button class="preset-btn" onclick="loadPreset('full-pipeline')">
+          Full pipeline: train &rarr; deploy &rarr; monitor
+          <span class="preset-tag">End-to-end ML lifecycle</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('model-drift')">
+          Model drift detected &rarr; retrain
+          <span class="preset-tag">Monitoring &rarr; alert &rarr; retraining loop</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('ab-test')">
+          A/B test: champion vs challenger
+          <span class="preset-tag">Canary deployment + traffic splitting</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('feature-store')">
+          Feature engineering pipeline
+          <span class="preset-tag">Raw data &rarr; feature store &rarr; training</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('ci-cd')">
+          ML CI/CD: PR &rarr; test &rarr; deploy
+          <span class="preset-tag">MLOps automation with GitHub Actions</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('data-quality')">
+          Data quality failure &rarr; pipeline halt
+          <span class="preset-tag">Great Expectations + circuit breaker</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('gpu-training')">
+          Distributed GPU training
+          <span class="preset-tag">Multi-GPU with DeepSpeed/FSDP</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('incident')">
+          Production incident: model degradation
+          <span class="preset-tag">Alert &rarr; rollback &rarr; investigate &rarr; fix</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('llm-fine-tune')">
+          LLM fine-tuning pipeline
+          <span class="preset-tag">Dataset prep &rarr; LoRA &rarr; eval &rarr; serve</span>
+        </button>
+        <button class="preset-btn" onclick="loadPreset('batch-inference')">
+          Batch inference pipeline
+          <span class="preset-tag">Scheduled scoring on new data</span>
+        </button>
+      </div>
+
+      <div style="flex:1;"></div>
+      <div class="controls">
+        <span class="speed-label">Speed</span>
+        <input type="range" class="speed-slider" id="speed" min="1" max="10" value="5">
+        <button class="ctrl-btn" onclick="resetFlow()">Reset</button>
+      </div>
+    </div>
+
+    <!-- CENTER: Flow Canvas -->
+    <div class="flow-canvas" id="flow-canvas"></div>
+
+    <!-- RIGHT: Inspector -->
+    <div class="inspector">
+      <h3>Pipeline Inspector</h3>
+      <div class="inspector-tabs">
+        <button class="active" onclick="switchInspTab(this,'insp-pipeline')">Pipeline</button>
+        <button onclick="switchInspTab(this,'insp-stats')">Stats</button>
+        <button onclick="switchInspTab(this,'insp-tools')">Tools</button>
+        <button onclick="switchInspTab(this,'insp-artifacts')">Artifacts</button>
+      </div>
+      <div class="inspector-body">
+        <div class="insp-panel active" id="insp-pipeline">
+          <div class="msg-stack" id="msg-stack"></div>
+        </div>
+        <div class="insp-panel" id="insp-stats">
+          <div id="stats-body">
+            <div class="stat-row"><span class="stat-k">Pipeline stage</span><span class="stat-v" id="st-stage">—</span></div>
+            <div class="stat-row"><span class="stat-k">Steps completed</span><span class="stat-v" id="st-steps">0</span></div>
+            <div class="stat-row"><span class="stat-k">Data rows processed</span><span class="stat-v" id="st-rows">0</span></div>
+            <div class="stat-row"><span class="stat-k">Model version</span><span class="stat-v" id="st-model">—</span></div>
+            <div class="stat-row"><span class="stat-k">Training epochs</span><span class="stat-v" id="st-epochs">0</span></div>
+            <div class="stat-row"><span class="stat-k">Best metric</span><span class="stat-v" id="st-metric">—</span></div>
+            <div class="stat-row"><span class="stat-k">Infra cost</span><span class="stat-v" id="st-cost">$0.00</span></div>
+            <div class="stat-row"><span class="stat-k">Duration</span><span class="stat-v" id="st-duration">0m</span></div>
+          </div>
+        </div>
+        <div class="insp-panel" id="insp-tools">
+          <div id="tool-stack" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+        <div class="insp-panel" id="insp-artifacts">
+          <div id="artifact-body" style="color:var(--muted);font-size:0.9em;">
+            <p style="margin-bottom:8px;">Model artifacts and registry entries will appear here.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== STATE ==========
+let animTimer = null;
+const canvas = document.getElementById('flow-canvas');
+const msgStack = document.getElementById('msg-stack');
+const toolStack = document.getElementById('tool-stack');
+let stepCount = 0;
+let stats = { stage:'—', steps:0, rows:0, model:'—', epochs:0, metric:'—', cost:0, duration:0 };
+
+function getDelay() {
+  const v = document.getElementById('speed').value;
+  return 1200 - (v - 1) * 110;
+}
+
+// ========== TOOL REFERENCES ==========
+function addToolEntry(stepLabel, tool) {
+  if (!tool) return;
+  const prev = toolStack.querySelector('.tool-entry.active');
+  if (prev) prev.classList.remove('active');
+  const el = document.createElement('div');
+  el.className = 'tool-entry';
+  let html = `<div class="tool-step">${esc(stepLabel)}</div>`;
+  html += `<div class="tool-name">${esc(tool.name)}</div>`;
+  if (tool.tech) html += `<div class="tool-tech">${esc(tool.tech)}</div>`;
+  if (tool.desc) html += `<div class="tool-desc">${esc(tool.desc)}</div>`;
+  el.innerHTML = html;
+  toolStack.appendChild(el);
+  requestAnimationFrame(() => { el.classList.add('visible', 'active'); });
+  toolStack.parentElement.scrollTop = toolStack.parentElement.scrollHeight;
+}
+
+// ========== RESET ==========
+function resetFlow() {
+  if (animTimer) clearTimeout(animTimer);
+  animTimer = null;
+  canvas.innerHTML = '';
+  msgStack.innerHTML = '';
+  toolStack.innerHTML = '';
+  stepCount = 0;
+  stats = { stage:'—', steps:0, rows:0, model:'—', epochs:0, metric:'—', cost:0, duration:0 };
+  updateStats();
+  document.getElementById('phase-display').textContent = 'Idle';
+  document.getElementById('phase-display').style.color = 'var(--green)';
+  document.getElementById('artifact-body').innerHTML = '<p style="margin-bottom:8px;color:var(--muted);font-size:0.9em;">Model artifacts and registry entries will appear here.</p>';
+  document.getElementById('send-btn').disabled = false;
+}
+
+// ========== INSPECTOR ==========
+function switchInspTab(btn, id) {
+  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.insp-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function addMsgChip(role, text) {
+  const roleClass = { data:'r-data', train:'r-train', eval:'r-eval', deploy:'r-deploy', monitor:'r-monitor', alert:'r-alert', config:'r-config' }[role] || 'r-config';
+  const chip = document.createElement('div');
+  chip.className = `msg-chip ${roleClass}`;
+  chip.innerHTML = `<span class="chip-role">${role}</span><span class="chip-text">${esc(text.slice(0,80))}</span>`;
+  msgStack.appendChild(chip);
+  requestAnimationFrame(() => chip.classList.add('visible'));
+  msgStack.parentElement.scrollTop = msgStack.parentElement.scrollHeight;
+}
+
+function updateStats() {
+  document.getElementById('st-stage').textContent = stats.stage;
+  document.getElementById('st-steps').textContent = stats.steps;
+  document.getElementById('st-rows').textContent = stats.rows.toLocaleString();
+  document.getElementById('st-model').textContent = stats.model;
+  document.getElementById('st-epochs').textContent = stats.epochs;
+  document.getElementById('st-metric').textContent = stats.metric;
+  document.getElementById('st-cost').textContent = '$' + stats.cost.toFixed(2);
+  document.getElementById('st-duration').textContent = stats.duration + 'm';
+}
+
+function setPhase(text, color) {
+  const el = document.getElementById('phase-display');
+  el.textContent = text;
+  el.style.color = color || 'var(--green)';
+}
+
+function updateArtifacts(html) {
+  document.getElementById('artifact-body').innerHTML = html;
+}
+
+function esc(s) { return s.replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ========== FLOW STEP BUILDER ==========
+function addStep(icon, title, subtitle, state, msgType, msgLabel, msgContent, onDone, tool, detail) {
+  return new Promise(resolve => {
+    const step = document.createElement('div');
+    step.className = 'fstep';
+    let msgHtml = '';
+    if (msgContent) {
+      msgHtml = `<div class="fmsg ${msgType}"><span class="msg-label">${msgLabel}</span><span class="msg-text"></span></div>`;
+    }
+    let toolBadge = '';
+    if (tool) {
+      toolBadge = `<div class="fstep-tool"><span style="opacity:0.6;">&#128295;</span>${esc(tool.name)}${tool.tech ? ' · ' + esc(tool.tech) : ''}</div>`;
+    }
+    const hasDetail = !!detail;
+    const detailHtml = hasDetail ? `<div class="fstep-expand-hint">&#9432; Click to learn more</div><div class="fstep-detail"><div class="fstep-detail-inner">${detail}</div></div>` : '';
+    const chevron = hasDetail ? `<span class="fstep-chevron">&#9660;</span>` : '';
+    step.innerHTML = `
+      <div class="fstep-box${hasDetail ? ' has-detail' : ''}">
+        <div class="fstep-header">
+          <span class="fstep-icon">${icon}</span>
+          <span class="fstep-title">${title}</span>
+          <span class="fstep-time"></span>
+          ${chevron}
+        </div>
+        <div class="fstep-subtitle">${subtitle}</div>
+        ${toolBadge}
+        ${msgHtml}
+        ${detailHtml}
+      </div>`;
+    if (tool) addToolEntry(title, tool);
+    if (hasDetail) {
+      const box = step.querySelector('.fstep-box');
+      box.addEventListener('click', (e) => {
+        if (e.target.closest('.fmsg') || e.target.closest('a')) return;
+        const detailEl = box.querySelector('.fstep-detail');
+        detailEl.classList.toggle('open');
+        box.classList.toggle('expanded');
+        if (detailEl.classList.contains('open')) {
+          setTimeout(() => { canvas.scrollTop = step.offsetTop - 20; }, 100);
+        }
+      });
+    }
+    canvas.appendChild(step);
+    requestAnimationFrame(() => {
+      step.classList.add('visible', 'active');
+      canvas.scrollTop = canvas.scrollHeight;
+    });
+    const delay = getDelay();
+    if (msgContent) {
+      const textEl = step.querySelector('.msg-text');
+      let i = 0;
+      const chars = msgContent;
+      const charDelay = Math.max(4, Math.min(20, (delay * 0.7) / chars.length));
+      textEl.classList.add('typing-cursor');
+      const type = () => {
+        if (i < chars.length) {
+          textEl.textContent += chars[i]; i++;
+          const msgEl = step.querySelector('.fmsg');
+          if(msgEl) msgEl.scrollTop = msgEl.scrollHeight;
+          canvas.scrollTop = canvas.scrollHeight;
+          animTimer = setTimeout(type, charDelay);
+        } else {
+          textEl.classList.remove('typing-cursor');
+          finish();
+        }
+      };
+      animTimer = setTimeout(type, delay * 0.2);
+    } else {
+      animTimer = setTimeout(finish, delay);
+    }
+    function finish() {
+      step.classList.remove('active');
+      step.classList.add(state);
+      stats.steps++;
+      stats.duration += Math.round(delay * 0.05);
+      updateStats();
+      const t = step.querySelector('.fstep-time');
+      t.textContent = stats.duration + 'm';
+      if (onDone) onDone();
+      resolve();
+    }
+  });
+}
+
+// ========== TOOL REFERENCE MAPS ==========
+const TOOLS = {
+  airflow:        { name: 'Apache Airflow',     tech: 'DAG Orchestration',      desc: 'Schedules and monitors ML pipeline DAGs. The standard for production workflow orchestration.' },
+  kubeflow:       { name: 'Kubeflow Pipelines',  tech: 'K8s ML Orchestration',  desc: 'Kubernetes-native ML pipelines with containerized steps and artifact tracking.' },
+  spark:          { name: 'Apache Spark',         tech: 'Distributed Compute',   desc: 'Large-scale data processing for feature engineering and batch transformations.' },
+  dbt:            { name: 'dbt',                  tech: 'Data Transformation',   desc: 'SQL-based data transformation and testing framework for analytics engineering.' },
+  feast:          { name: 'Feast',                tech: 'Feature Store',         desc: 'Open-source feature store for serving and managing ML features in production.' },
+  greatExpect:    { name: 'Great Expectations',   tech: 'Data Validation',       desc: 'Data quality testing framework — define expectations, validate batches, alert on failures.' },
+  mlflow:         { name: 'MLflow',               tech: 'Experiment Tracking',   desc: 'Tracks experiments, parameters, metrics, and artifacts. Model registry for versioning.' },
+  wandb:          { name: 'Weights & Biases',     tech: 'Experiment Tracking',   desc: 'Experiment tracking, hyperparameter sweeps, and model visualization platform.' },
+  pytorch:        { name: 'PyTorch',              tech: 'Training Framework',    desc: 'Deep learning framework for model training with autograd, DataLoaders, and distributed training.' },
+  deepspeed:      { name: 'DeepSpeed',            tech: 'Distributed Training',  desc: 'Microsoft library for efficient large-scale distributed training with ZeRO optimization.' },
+  huggingface:    { name: 'HuggingFace',          tech: 'Model Hub + Transformers', desc: 'Transformers library + model hub for fine-tuning and sharing pretrained models.' },
+  triton:         { name: 'NVIDIA Triton',        tech: 'Inference Server',      desc: 'High-performance model serving with dynamic batching, model ensembles, and GPU scheduling.' },
+  seldon:         { name: 'Seldon Core',           tech: 'Model Serving (K8s)',  desc: 'Kubernetes-native model deployment with A/B testing, canary rollouts, and explainability.' },
+  bentoml:        { name: 'BentoML',              tech: 'Model Packaging',       desc: 'Package models into production-ready API services ("Bentos") with versioning.' },
+  prometheus:     { name: 'Prometheus',            tech: 'Metrics Collection',   desc: 'Time-series metrics collection and alerting — the standard for infrastructure monitoring.' },
+  grafana:        { name: 'Grafana',               tech: 'Dashboards',          desc: 'Visualization dashboards for metrics, logs, and traces. Custom ML model monitoring views.' },
+  evidently:      { name: 'Evidently AI',           tech: 'ML Monitoring',      desc: 'Open-source ML monitoring — data drift, prediction drift, model performance reports.' },
+  whylabs:        { name: 'WhyLabs',               tech: 'ML Observability',    desc: 'Production ML observability platform — data profiling, drift detection, anomaly alerts.' },
+  pagerduty:      { name: 'PagerDuty',             tech: 'Incident Management', desc: 'Alerting and incident response — routes ML alerts to on-call engineers.' },
+  docker:         { name: 'Docker',                tech: 'Containerization',     desc: 'Container images for reproducible training and serving environments.' },
+  k8s:            { name: 'Kubernetes',             tech: 'Container Orchestration', desc: 'Manages containerized ML workloads — scaling, scheduling, resource allocation.' },
+  githubActions:  { name: 'GitHub Actions',         tech: 'CI/CD',              desc: 'Automated ML CI/CD — train on PR, validate metrics, deploy on merge.' },
+  dvc:            { name: 'DVC',                    tech: 'Data Versioning',     desc: 'Git-like version control for datasets and ML models. Tracks data lineage.' },
+  s3:             { name: 'S3 / GCS / Azure Blob',  tech: 'Object Storage',     desc: 'Cloud object storage for datasets, model artifacts, and training checkpoints.' },
+  ray:            { name: 'Ray',                     tech: 'Distributed Compute', desc: 'Distributed compute framework for scaling training, tuning, and serving.' },
+  optuna:         { name: 'Optuna',                  tech: 'Hyperparameter Tuning', desc: 'Bayesian hyperparameter optimization with pruning and distributed search.' },
+  onnx:           { name: 'ONNX',                    tech: 'Model Format',       desc: 'Open neural network exchange format for framework-agnostic model portability.' },
+  terraform:      { name: 'Terraform',               tech: 'Infrastructure as Code', desc: 'Provisions cloud infrastructure (GPU instances, clusters, storage) declaratively.' },
+  lora:           { name: 'LoRA / QLoRA',            tech: 'Parameter-Efficient Fine-tuning', desc: 'Low-rank adaptation for fine-tuning large models on limited hardware.' },
+  vllm:           { name: 'vLLM',                    tech: 'LLM Serving',        desc: 'High-throughput LLM serving with PagedAttention and continuous batching.' },
+};
+
+// ========== PRESETS ==========
+const presets = {
+
+'full-pipeline': {
+  input: "Train a fraud detection model and deploy to production",
+  steps: async () => {
+    setPhase('Data Ingestion', 'var(--cyan)');
+    stats.stage = 'Data Ingestion';
+
+    await addStep('&#128230;', 'Data Source Connection', 'Connecting to production database and event streams', 'done', 'data', 'Data Sources', 'Sources configured:\n• PostgreSQL (transactions table) — 12M rows\n• Kafka stream (real-time events) — 50K events/hr\n• S3 bucket (historical labels) — 2 years of fraud labels', () => {
+      addMsgChip('data', 'Connected to 3 data sources');
+      stats.rows = 12000000;
+    }, TOOLS.spark,
+    `<h4>Data Ingestion</h4>
+    <p>Production ML pipelines start by connecting to <span class="detail-key">multiple data sources</span> — databases, streams, object storage. This is typically orchestrated by a workflow tool like Airflow or Kubeflow.</p>
+    <div class="detail-flow">Data Sources → Ingestion Layer → Raw Data Lake → Validation → Feature Engineering</div>
+    <p><span class="detail-key">Key considerations:</span></p>
+    <ul>
+      <li><strong>Schema evolution</strong> — source schemas change over time; your pipeline must handle this</li>
+      <li><strong>Backfill capability</strong> — ability to re-process historical data when features change</li>
+      <li><strong>Incremental ingestion</strong> — only pull new/changed data, not full table scans</li>
+      <li><strong>Data contracts</strong> — agreements with upstream teams about schema and quality</li>
+    </ul>`);
+
+    await addStep('&#128270;', 'Data Validation', 'Running Great Expectations suite on raw data', 'done', 'data', 'Validation Report', 'Suite: fraud_raw_data_v3\n\n✓ row_count between 10M and 15M: PASSED (12,003,481)\n✓ column "amount" no nulls: PASSED\n✓ column "amount" > 0: PASSED\n✓ column "merchant_id" in reference set: PASSED\n✓ column "timestamp" no future dates: PASSED\n✓ fraud_rate between 0.1% and 5%: PASSED (1.8%)\n\n6/6 expectations passed', () => {
+      addMsgChip('data', 'Data validation: 6/6 passed');
+    }, TOOLS.greatExpect,
+    `<h4>Data Validation</h4>
+    <p><span class="detail-key">Data validation</span> is a critical gate in any ML pipeline. Bad data in = bad model out. Tools like Great Expectations let you define "expectations" as code.</p>
+    <div class="detail-flow">Raw data → Expectation Suite → Validation Results → Pass (continue) or Fail (halt + alert)</div>
+    <p><span class="detail-key">What to validate:</span></p>
+    <ul>
+      <li><strong>Schema</strong> — columns present, correct types, no unexpected nulls</li>
+      <li><strong>Volume</strong> — row counts within expected range (catches broken ingestion)</li>
+      <li><strong>Distribution</strong> — value ranges, class balance, statistical properties</li>
+      <li><strong>Freshness</strong> — data isn't stale (timestamp checks)</li>
+      <li><strong>Referential integrity</strong> — foreign keys match reference tables</li>
+    </ul>
+    <p>If validation fails, the pipeline should <strong>halt</strong> and alert — never train on bad data. This is the "circuit breaker" pattern.</p>`);
+
+    setPhase('Feature Engineering', 'var(--purple)');
+    stats.stage = 'Feature Engineering';
+
+    await addStep('&#9881;', 'Feature Engineering', 'Computing features from raw data using Spark + Feast', 'done', 'code', 'Feature Computation', 'Computing 47 features:\n\n• tx_amount_zscore — normalized transaction amount\n• merchant_fraud_rate_30d — merchant fraud rate (30-day window)\n• user_tx_velocity_1h — transactions per hour per user\n• user_avg_amount_7d — rolling average amount (7 days)\n• time_since_last_tx — seconds since user\'s last transaction\n• is_new_merchant — first time user transacts with merchant\n• device_fingerprint_match — device matches known devices\n• geo_distance_from_home — km from user\'s typical location\n... +39 more features\n\nSpark job: 3 executors × 8 cores, 12 minutes', () => {
+      addMsgChip('data', 'Computed 47 features via Spark');
+      stats.cost += 2.40;
+    }, TOOLS.feast,
+    `<h4>Feature Engineering</h4>
+    <p>Feature engineering transforms raw data into <span class="detail-key">model-ready signals</span>. In production, features are managed through a <strong>feature store</strong> like Feast, which ensures consistency between training and serving.</p>
+    <div class="detail-flow">Raw data → Spark/SQL transformations → Feature Store → Training dataset + Online serving</div>
+    <p><span class="detail-key">Feature store benefits:</span></p>
+    <ul>
+      <li><strong>Training-serving consistency</strong> — same feature logic for offline training and online inference</li>
+      <li><strong>Point-in-time correctness</strong> — prevents data leakage by joining features as of each event's timestamp</li>
+      <li><strong>Feature reuse</strong> — teams share features across models instead of recomputing</li>
+      <li><strong>Backfill</strong> — recompute features historically when logic changes</li>
+    </ul>
+    <p>Common feature types: <strong>aggregations</strong> (rolling averages, counts), <strong>ratios</strong> (fraud rate), <strong>time-based</strong> (recency), <strong>embeddings</strong> (categorical encodings).</p>`);
+
+    await addStep('&#128202;', 'Train/Test Split', 'Time-based split to prevent data leakage', 'done', 'data', 'Split Strategy', 'Strategy: TEMPORAL SPLIT (no random shuffle!)\n\n• Train: 2023-01-01 to 2024-06-30 — 8.2M rows\n• Validation: 2024-07-01 to 2024-09-30 — 2.1M rows\n• Test: 2024-10-01 to 2024-12-31 — 1.7M rows\n\n⚠ Using temporal split because:\n  - Random split would leak future information\n  - Model must predict on future data it hasn\'t seen\n  - Simulates real production conditions', () => {
+      addMsgChip('data', 'Temporal split: 8.2M / 2.1M / 1.7M');
+    }, TOOLS.mlflow,
+    `<h4>Train/Test Split Strategy</h4>
+    <p>For time-series and fraud data, you must use a <span class="detail-key">temporal split</span>, not random. Random shuffling creates data leakage — the model "sees" future patterns during training.</p>
+    <div class="detail-flow">All data sorted by time → Train (oldest) → Validation (middle) → Test (newest)</div>
+    <p><span class="detail-key">Why this matters:</span></p>
+    <ul>
+      <li><strong>Random split</strong> — model sees 2024 data in training, then "predicts" 2024 data in test → inflated metrics</li>
+      <li><strong>Temporal split</strong> — model trains on past, validates on future → realistic performance estimate</li>
+      <li><strong>Walk-forward validation</strong> — even better: slide the window forward to test across multiple time periods</li>
+    </ul>
+    <p>This is one of the most common mistakes in ML — great offline metrics that don't hold in production, caused by data leakage through improper splitting.</p>`);
+
+    setPhase('Model Training', 'var(--pink)');
+    stats.stage = 'Model Training';
+
+    await addStep('&#129504;', 'Experiment Tracking Setup', 'Creating MLflow experiment with hyperparameter config', 'done', 'config', 'Experiment Config', 'Experiment: fraud-detection-v3\nRun: run_2024_q4_retrain\n\nHyperparameters:\n  model_type: XGBoost\n  n_estimators: 1000\n  max_depth: 8\n  learning_rate: 0.05\n  scale_pos_weight: 55.2 (auto-computed from class imbalance)\n  early_stopping_rounds: 50\n  eval_metric: aucpr (area under precision-recall curve)\n\nInfra:\n  instance: ml.m5.4xlarge (16 vCPU, 64GB RAM)\n  estimated_cost: ~$4.60 for training run', () => {
+      addMsgChip('config', 'MLflow experiment: fraud-detection-v3');
+      stats.model = 'fraud-v3 (training)';
+    }, TOOLS.mlflow,
+    `<h4>Experiment Tracking</h4>
+    <p><span class="detail-key">Experiment tracking</span> records every training run's parameters, metrics, and artifacts. This is essential for reproducibility and comparing approaches.</p>
+    <div class="detail-flow">Config → Training → Log params + metrics → Log model artifact → Compare runs → Register best</div>
+    <p><span class="detail-key">What gets tracked:</span></p>
+    <ul>
+      <li><strong>Parameters</strong> — hyperparameters, data version, feature set, split strategy</li>
+      <li><strong>Metrics</strong> — loss curves, accuracy, F1, AUC, precision/recall at thresholds</li>
+      <li><strong>Artifacts</strong> — model files, feature importance plots, confusion matrices</li>
+      <li><strong>Code version</strong> — git commit hash for full reproducibility</li>
+      <li><strong>Environment</strong> — Python version, package versions, hardware spec</li>
+    </ul>
+    <p>Tools like MLflow and Weights & Biases provide a UI for comparing runs side-by-side, which is critical when tuning models.</p>`);
+
+    await addStep('&#128293;', 'Model Training', 'Training XGBoost on 8.2M samples, 47 features', 'done', 'model', 'Training Progress', 'Epoch 100/1000 — train_aucpr: 0.812, val_aucpr: 0.784\nEpoch 200/1000 — train_aucpr: 0.856, val_aucpr: 0.821\nEpoch 300/1000 — train_aucpr: 0.879, val_aucpr: 0.843\nEpoch 400/1000 — train_aucpr: 0.891, val_aucpr: 0.852\nEpoch 500/1000 — train_aucpr: 0.903, val_aucpr: 0.857\nEpoch 600/1000 — train_aucpr: 0.912, val_aucpr: 0.859\nEpoch 650/1000 — train_aucpr: 0.916, val_aucpr: 0.859 ← early stop\n\n⏱ Training time: 23 minutes\n📊 Best val_aucpr: 0.859 at epoch 600\n🛑 Early stopping: no improvement for 50 rounds', () => {
+      addMsgChip('train', 'XGBoost training: val_aucpr=0.859');
+      stats.epochs = 650;
+      stats.metric = 'AUCPR: 0.859';
+      stats.cost += 4.60;
+    }, TOOLS.mlflow,
+    `<h4>Model Training</h4>
+    <p>The training loop runs the model through the data repeatedly, optimizing a loss function. <span class="detail-key">Early stopping</span> prevents overfitting by halting when validation metrics plateau.</p>
+    <div class="detail-flow">Training data → Model → Predict → Loss → Backprop/Update → Repeat → Early stop when val metric plateaus</div>
+    <p><span class="detail-key">For fraud detection specifically:</span></p>
+    <ul>
+      <li><strong>Class imbalance</strong> — fraud is rare (~1-2%), so we use <code>scale_pos_weight</code> or SMOTE</li>
+      <li><strong>AUCPR over AUC-ROC</strong> — precision-recall AUC is more informative for imbalanced datasets</li>
+      <li><strong>Early stopping</strong> — monitors validation metric, stops when no improvement for N rounds</li>
+      <li><strong>XGBoost</strong> — gradient-boosted trees are still the gold standard for tabular fraud detection</li>
+    </ul>
+    <p>Watch the gap between train and val metrics — a large gap indicates overfitting. Here, 0.916 vs 0.859 is a moderate gap, acceptable for this domain.</p>`);
+
+    setPhase('Model Evaluation', 'var(--green)');
+    stats.stage = 'Model Evaluation';
+
+    await addStep('&#128202;', 'Evaluation on Test Set', 'Running model on held-out test set (1.7M rows)', 'done', 'metric', 'Test Metrics', 'Test Set Results (1.7M rows, Oct-Dec 2024):\n\n  AUC-PR:     0.847 (target: >0.80) ✓\n  AUC-ROC:    0.963\n  Precision@95%recall: 0.42\n  F1 Score:   0.71\n\nAt production threshold (p=0.85):\n  Precision:  0.78 (78% of flagged are actually fraud)\n  Recall:     0.62 (catches 62% of all fraud)\n  False positive rate: 0.3%\n\nBusiness impact estimate:\n  Fraud caught:    $2.1M / quarter\n  False alerts:    ~180/day (ops team capacity: 250/day) ✓', () => {
+      addMsgChip('eval', 'Test AUCPR: 0.847, precision@95recall: 0.42');
+    }, TOOLS.mlflow,
+    `<h4>Model Evaluation</h4>
+    <p>Evaluation on the <span class="detail-key">held-out test set</span> gives you an unbiased estimate of production performance. This is the "moment of truth" — does the model generalize?</p>
+    <p><span class="detail-key">Key metrics for fraud detection:</span></p>
+    <ul>
+      <li><strong>AUC-PR</strong> — area under precision-recall curve; best single metric for imbalanced classes</li>
+      <li><strong>Precision@Recall</strong> — "at 95% recall, what's our precision?" Used for threshold selection</li>
+      <li><strong>False positive rate</strong> — how many legitimate transactions get flagged? Must be operationally feasible</li>
+      <li><strong>Business impact</strong> — translate metrics to dollars: fraud caught vs customer friction</li>
+    </ul>
+    <p>The production threshold (p=0.85 here) is a <span class="detail-key">business decision</span>, not a ML decision. The ML team provides the precision-recall tradeoff curve; the business picks where on it to operate.</p>`);
+
+    await addStep('&#9989;', 'Model Comparison: Challenger vs Champion', 'Comparing new model (v3) against current production model (v2)', 'done', 'metric', 'Comparison', 'Champion (v2, in production since Jul 2024):\n  AUC-PR: 0.812 | Precision@p=0.85: 0.71 | Recall: 0.58\n\nChallenger (v3, this run):\n  AUC-PR: 0.847 | Precision@p=0.85: 0.78 | Recall: 0.62\n\nImprovement:\n  AUC-PR:    +0.035 (+4.3%)\n  Precision: +0.07  (+9.9%)\n  Recall:    +0.04  (+6.9%)\n\n✓ Challenger WINS — statistically significant (p<0.001)\n→ Promoting to staging', () => {
+      addMsgChip('eval', 'Challenger v3 beats champion v2: +4.3% AUCPR');
+    }, TOOLS.mlflow,
+    `<h4>Champion-Challenger Testing</h4>
+    <p>Before deploying a new model, compare it against the <span class="detail-key">current production model</span> (champion). The new model (challenger) must demonstrate statistically significant improvement.</p>
+    <div class="detail-flow">Train challenger → Evaluate on same test set → Compare metrics → Statistical significance test → Promote or reject</div>
+    <p><span class="detail-key">Why not just deploy if metrics are better?</span></p>
+    <ul>
+      <li>Metrics can fluctuate — need statistical tests to confirm improvement is real</li>
+      <li>Must check across subgroups (different merchant categories, transaction sizes)</li>
+      <li>Regression testing — ensure no metric got <em>worse</em> even if overall improved</li>
+      <li>Fairness checks — model shouldn't discriminate across protected groups</li>
+    </ul>`);
+
+    setPhase('Model Registration', 'var(--purple)');
+    stats.stage = 'Model Registration';
+
+    await addStep('&#128230;', 'Register Model in Registry', 'Pushing model artifact + metadata to MLflow Model Registry', 'done', 'config', 'Registry Entry', 'Model Registry: fraud-detection\nVersion: 3\nStage: Staging\n\nArtifacts:\n  model.xgb          — 48MB serialized model\n  features.json       — feature schema + transformations\n  threshold.json      — production threshold config\n  metrics.json        — all evaluation metrics\n  requirements.txt    — pinned Python dependencies\n\nLineage:\n  training_data: s3://ml-data/fraud/v3/train.parquet\n  git_commit: a1b2c3d\n  mlflow_run: run_2024_q4_retrain\n  training_infra: ml.m5.4xlarge, 23min', () => {
+      addMsgChip('config', 'Registered fraud-detection v3 → Staging');
+      stats.model = 'fraud-v3 (staging)';
+    }, TOOLS.mlflow,
+    `<h4>Model Registry</h4>
+    <p>The <span class="detail-key">model registry</span> is a versioned catalog of all production models. It stores not just the model file, but everything needed to reproduce and serve it.</p>
+    <div class="detail-flow">Training → Artifacts → Registry (Staging) → Approval → Registry (Production) → Serving</div>
+    <p><span class="detail-key">What's stored:</span></p>
+    <ul>
+      <li><strong>Model artifact</strong> — serialized model file (pickle, ONNX, SavedModel)</li>
+      <li><strong>Feature schema</strong> — expected input features, types, transformations</li>
+      <li><strong>Threshold config</strong> — production decision boundary</li>
+      <li><strong>Lineage</strong> — training data, code version, hyperparameters, hardware</li>
+      <li><strong>Dependencies</strong> — exact Python package versions for reproducibility</li>
+    </ul>
+    <p>Models progress through stages: <code>None</code> → <code>Staging</code> → <code>Production</code> → <code>Archived</code>. Stage transitions require approval in production environments.</p>`);
+
+    setPhase('Deployment', 'var(--blue)');
+    stats.stage = 'Deployment';
+
+    await addStep('&#128230;', 'Build Serving Container', 'Packaging model into Docker image with inference server', 'done', 'code', 'Container Build', 'Dockerfile: fraud-detection-serving:v3\n\nBase: python:3.11-slim\nServer: FastAPI + uvicorn\nDependencies: xgboost==2.0.3, feast==0.38.0, numpy, pandas\n\nEndpoints:\n  POST /predict    — single transaction scoring\n  POST /batch      — batch scoring (up to 1000)\n  GET  /health     — health check\n  GET  /metrics    — Prometheus metrics\n\nImage size: 890MB\nStartup time: ~3.2s\nP99 latency: <15ms (single predict)', () => {
+      addMsgChip('deploy', 'Built serving container: fraud-detection:v3');
+      stats.cost += 0.50;
+    }, TOOLS.docker,
+    `<h4>Model Serving Container</h4>
+    <p>Production models are packaged into <span class="detail-key">Docker containers</span> with their inference server, dependencies, and model files baked in. This ensures reproducibility across environments.</p>
+    <div class="detail-flow">Model artifact → Dockerfile → Build → Push to registry → Pull in production</div>
+    <p><span class="detail-key">Serving architecture choices:</span></p>
+    <ul>
+      <li><strong>REST API</strong> (FastAPI, Flask) — simple, HTTP-based, good for most use cases</li>
+      <li><strong>gRPC</strong> (Triton, TF Serving) — lower latency, binary protocol, good for high-throughput</li>
+      <li><strong>Serverless</strong> (Lambda, Cloud Functions) — auto-scaling, pay-per-request, cold start issues</li>
+      <li><strong>Streaming</strong> (Kafka + Flink) — real-time scoring on event streams</li>
+    </ul>
+    <p>The container exposes a <code>/metrics</code> endpoint for Prometheus to scrape — this is how we monitor model health in production.</p>`);
+
+    await addStep('&#128640;', 'Canary Deployment', 'Rolling out to 5% of traffic first, then scaling up', 'done', 'code', 'Deployment Config', 'Deployment: fraud-detection (Kubernetes)\nStrategy: Canary\n\nPhase 1 (now):     5% traffic → v3, 95% → v2\nPhase 2 (1 hour):  25% traffic → v3 (if metrics OK)\nPhase 3 (4 hours): 50% traffic → v3\nPhase 4 (24 hours): 100% traffic → v3, v2 archived\n\nRollback trigger:\n  IF error_rate > 1% OR p99_latency > 50ms OR fraud_precision drops >10%\n  THEN auto-rollback to v2, page on-call\n\nCurrent: Phase 1 active — routing 5% traffic to v3', () => {
+      addMsgChip('deploy', 'Canary: 5% traffic → v3');
+    }, TOOLS.k8s,
+    `<h4>Canary Deployment</h4>
+    <p>A <span class="detail-key">canary deployment</span> gradually shifts traffic from the old model to the new one, with automatic rollback if metrics degrade. This is the safest deployment strategy for ML models.</p>
+    <div class="detail-flow">5% traffic → monitor → 25% → monitor → 50% → monitor → 100% (or rollback)</div>
+    <p><span class="detail-key">Why not just swap models?</span></p>
+    <ul>
+      <li>Offline metrics don't always match online performance</li>
+      <li>Real traffic has patterns not captured in test data</li>
+      <li>Gradual rollout limits blast radius if something goes wrong</li>
+      <li>Automatic rollback triggers prevent prolonged degradation</li>
+    </ul>
+    <p>The rollback triggers are defined in the deployment config — both <strong>technical</strong> (error rate, latency) and <strong>business</strong> (precision drop, false positive rate) thresholds.</p>`);
+
+    setPhase('Monitoring', 'var(--orange)');
+    stats.stage = 'Monitoring';
+
+    await addStep('&#128202;', 'Production Monitoring Active', 'Grafana dashboards + Evidently reports + PagerDuty alerts', 'done', 'metric', 'Monitoring Config', 'Dashboards configured:\n\n📊 Model Performance (Grafana)\n  • Prediction distribution histogram (updated every 5min)\n  • Precision/recall vs time (daily, with labeled data lag)\n  • Throughput: requests/sec, p50/p95/p99 latency\n\n📊 Data Drift (Evidently)\n  • Feature drift: PSI + KS test on all 47 features (hourly)\n  • Prediction drift: distribution of model scores (hourly)\n  • Target drift: actual fraud rate vs expected (daily, with 7-day lag)\n\n🚨 Alerts (PagerDuty)\n  • P0: error_rate > 1% → page on-call immediately\n  • P1: precision drop > 15% → page within 30min\n  • P2: feature drift PSI > 0.2 on >3 features → Slack notification\n  • P3: prediction score distribution shift → weekly report', () => {
+      addMsgChip('monitor', 'Monitoring: Grafana + Evidently + PagerDuty');
+    }, TOOLS.evidently,
+    `<h4>Production ML Monitoring</h4>
+    <p>ML monitoring goes beyond traditional application monitoring. You need to track <span class="detail-key">three layers</span>:</p>
+    <div class="detail-flow">Infrastructure metrics → Model operational metrics → ML-specific metrics (drift, performance)</div>
+    <p><span class="detail-key">The three monitoring layers:</span></p>
+    <ul>
+      <li><strong>Infrastructure</strong> — CPU, memory, latency, error rate, throughput (Prometheus + Grafana)</li>
+      <li><strong>Model operational</strong> — prediction distribution, confidence scores, feature value ranges</li>
+      <li><strong>ML performance</strong> — accuracy, drift, data quality (requires labeled data, often delayed)</li>
+    </ul>
+    <p><span class="detail-key">The labeled data lag problem:</span> In fraud detection, you know if a transaction was actually fraudulent only after investigation (days to weeks). So you monitor <strong>proxy metrics</strong> (prediction distribution, feature drift) in real-time, and <strong>true metrics</strong> (precision, recall) with a lag.</p>
+    <p>Alert severity should be tiered — not everything is a P0. Feature drift might be informational; error rate spikes need immediate response.</p>`);
+
+    await addStep('&#127937;', 'Pipeline Complete', 'Model v3 deployed, monitoring active, canary in progress', 'done', null, null, null, () => {
+      stats.model = 'fraud-v3 (production, canary 5%)';
+      setPhase('Complete', 'var(--green)');
+      updateArtifacts(`
+        <div style="margin-bottom:10px;"><strong style="color:var(--green);">Pipeline Artifacts</strong></div>
+        <div class="stat-row"><span class="stat-k">Model</span><span class="stat-v">fraud-detection v3</span></div>
+        <div class="stat-row"><span class="stat-k">Framework</span><span class="stat-v">XGBoost 2.0.3</span></div>
+        <div class="stat-row"><span class="stat-k">Features</span><span class="stat-v">47</span></div>
+        <div class="stat-row"><span class="stat-k">Training rows</span><span class="stat-v">8.2M</span></div>
+        <div class="stat-row"><span class="stat-k">Test AUCPR</span><span class="stat-v" style="color:var(--green);">0.847</span></div>
+        <div class="stat-row"><span class="stat-k">Registry</span><span class="stat-v">MLflow v3 (Production)</span></div>
+        <div class="stat-row"><span class="stat-k">Serving</span><span class="stat-v">K8s canary (5%)</span></div>
+        <div class="stat-row"><span class="stat-k">Infra cost</span><span class="stat-v">$${stats.cost.toFixed(2)}</span></div>
+      `);
+    }, null,
+    `<h4>End-to-End Pipeline Summary</h4>
+    <p>This pipeline covers the <span class="detail-key">complete ML lifecycle</span>:</p>
+    <ul>
+      <li><strong>Data</strong> → ingest, validate, engineer features, split</li>
+      <li><strong>Training</strong> → experiment tracking, train with early stopping, evaluate</li>
+      <li><strong>Deployment</strong> → containerize, canary rollout, auto-rollback</li>
+      <li><strong>Monitoring</strong> → drift detection, performance tracking, tiered alerts</li>
+    </ul>
+    <p>In production, this entire pipeline is <span class="detail-key">automated and versioned</span> — triggered by schedule (weekly retrain), alert (drift detected), or manually by an ML engineer. The goal is to make retraining as routine and safe as deploying a new code release.</p>`);
+  }
+},
+
+'model-drift': {
+  input: "Model drift detected in production — retrain needed",
+  steps: async () => {
+    setPhase('Monitoring', 'var(--orange)');
+    stats.stage = 'Monitoring';
+    stats.model = 'fraud-v3 (production)';
+
+    await addStep('&#128202;', 'Routine Monitoring Check', 'Evidently hourly drift report running...', 'done', 'metric', 'Drift Report — Hour 14:00', 'Hourly Drift Report — 2025-03-15 14:00 UTC\n\nFeature Drift (PSI — Population Stability Index):\n  tx_amount_zscore:        PSI=0.04 ✓ (stable)\n  merchant_fraud_rate_30d: PSI=0.08 ✓ (stable)\n  user_tx_velocity_1h:     PSI=0.31 ⚠ (DRIFT)\n  geo_distance_from_home:  PSI=0.28 ⚠ (DRIFT)\n  device_fingerprint_match: PSI=0.41 ⚠ (DRIFT)\n  is_new_merchant:         PSI=0.22 ⚠ (DRIFT)\n\n4/47 features drifted (PSI > 0.2)\nPrediction score distribution: KS=0.18 ⚠ (DRIFT)', () => {
+      addMsgChip('monitor', 'Drift detected: 4/47 features, prediction shift');
+    }, TOOLS.evidently,
+    `<h4>What is Model Drift?</h4>
+    <p><span class="detail-key">Model drift</span> occurs when the statistical properties of the data the model sees in production change over time, causing performance degradation.</p>
+    <div class="detail-flow">Training data (past) ≠ Production data (now) → Model assumptions break → Performance degrades</div>
+    <p><span class="detail-key">Types of drift:</span></p>
+    <ul>
+      <li><strong>Data drift (covariate shift)</strong> — input feature distributions change (e.g., users behave differently)</li>
+      <li><strong>Concept drift</strong> — the relationship between features and target changes (e.g., fraud tactics evolve)</li>
+      <li><strong>Prediction drift</strong> — model output distribution shifts (symptom of data or concept drift)</li>
+      <li><strong>Label drift</strong> — the actual target rate changes (e.g., fraud rate increases)</li>
+    </ul>
+    <p><span class="detail-key">PSI (Population Stability Index)</span> measures how much a distribution has shifted:</p>
+    <ul>
+      <li>PSI &lt; 0.1 → no significant change</li>
+      <li>PSI 0.1–0.2 → moderate change, monitor closely</li>
+      <li>PSI &gt; 0.2 → significant drift, investigate</li>
+    </ul>`);
+
+    await addStep('&#128680;', 'Drift Alert Triggered', 'P2 alert: >3 features drifted + prediction shift', 'warn', 'alert', 'Alert — PagerDuty', '🚨 Alert: ML_DRIFT_P2\nService: fraud-detection-v3\nSeverity: P2 (investigate within 4 hours)\n\nTrigger: 4 features with PSI > 0.2 + prediction distribution KS > 0.15\n\nNotified:\n  • #ml-alerts Slack channel\n  • ML platform on-call (via PagerDuty)\n\nRunbook: https://wiki.internal/ml/drift-runbook', () => {
+      addMsgChip('alert', 'P2: Drift alert → Slack + PagerDuty');
+      setPhase('Alert: Drift Detected', 'var(--red)');
+    }, TOOLS.pagerduty,
+    `<h4>Alert Routing & Severity</h4>
+    <p>ML alerts should be <span class="detail-key">tiered by severity</span> and routed to the right people with actionable runbooks:</p>
+    <ul>
+      <li><strong>P0</strong> — model errors, serving failures → page immediately, auto-rollback</li>
+      <li><strong>P1</strong> — performance degradation (known via delayed labels) → page within 30min</li>
+      <li><strong>P2</strong> — drift detected (proxy metrics) → investigate within 4 hours</li>
+      <li><strong>P3</strong> — informational (minor distribution shifts) → weekly review</li>
+    </ul>
+    <p>Every alert should link to a <span class="detail-key">runbook</span> — a step-by-step guide for the on-call engineer. Without runbooks, alerts become noise.</p>`);
+
+    setPhase('Investigation', 'var(--cyan)');
+    stats.stage = 'Investigation';
+
+    await addStep('&#128269;', 'Root Cause Investigation', 'Analyzing drifted features for common cause', 'done', 'data', 'Investigation', 'Root Cause Analysis:\n\nDrifted features are all related to USER BEHAVIOR patterns:\n  • user_tx_velocity_1h — users transacting more frequently\n  • geo_distance_from_home — more remote/travel transactions\n  • device_fingerprint_match — more new/unknown devices\n  • is_new_merchant — more first-time merchant interactions\n\nHypothesis: Major holiday season (spring break) causing behavioral shift.\n\nConfirmed: Same drift pattern observed in March 2024.\n\nImpact assessment (using delayed labels, 7-day lag):\n  Precision dropped: 0.78 → 0.64 (-18%)\n  False positives increased: 180/day → 340/day\n  → Exceeds ops team capacity (250/day) ⚠', () => {
+      addMsgChip('data', 'Root cause: seasonal behavioral shift');
+    }, TOOLS.grafana,
+    `<h4>Drift Investigation</h4>
+    <p>When drift is detected, the first step is <span class="detail-key">root cause analysis</span> — not immediately retraining. Understanding <em>why</em> features drifted determines the right response.</p>
+    <p><span class="detail-key">Common causes:</span></p>
+    <ul>
+      <li><strong>Seasonal patterns</strong> — holidays, events, weather changes affect behavior</li>
+      <li><strong>Product changes</strong> — new features, UX changes, pricing changes</li>
+      <li><strong>External events</strong> — market shifts, new fraud tactics, regulatory changes</li>
+      <li><strong>Data pipeline bugs</strong> — upstream schema changes, ETL failures, stale data</li>
+    </ul>
+    <p><span class="detail-key">Response matrix:</span></p>
+    <ul>
+      <li>Data pipeline bug → fix the pipeline, don't retrain</li>
+      <li>Seasonal pattern → retrain with recent data, or use seasonal features</li>
+      <li>Concept drift → retrain is necessary, may need new features</li>
+      <li>One-time event → may self-correct, monitor before acting</li>
+    </ul>`);
+
+    setPhase('Automated Retraining', 'var(--pink)');
+    stats.stage = 'Retraining';
+
+    await addStep('&#128260;', 'Trigger Retraining Pipeline', 'Launching Airflow DAG: fraud_detection_retrain', 'done', 'config', 'Retraining Trigger', 'DAG: fraud_detection_retrain\nTrigger: manual (drift investigation → approved retrain)\n\nConfig overrides:\n  training_window: 2024-04-01 to 2025-03-08 (shifted to include recent data)\n  include_seasonal_features: true (adding month, day_of_week, is_holiday)\n  validation_window: 2025-03-01 to 2025-03-08\n\nApproved by: ml-platform-oncall\nReason: Seasonal drift causing precision degradation', () => {
+      addMsgChip('config', 'Retraining DAG triggered');
+    }, TOOLS.airflow,
+    `<h4>Retraining Strategies</h4>
+    <p>Retraining can be triggered <span class="detail-key">automatically</span> (scheduled or alert-driven) or <strong>manually</strong> (after investigation). The strategy depends on the use case:</p>
+    <ul>
+      <li><strong>Scheduled retraining</strong> — retrain every N days/weeks regardless of drift (simplest, most common)</li>
+      <li><strong>Drift-triggered</strong> — retrain only when monitoring detects significant drift</li>
+      <li><strong>Performance-triggered</strong> — retrain when actual metrics (with delayed labels) drop below threshold</li>
+      <li><strong>Continuous training</strong> — online learning that updates incrementally with each new data point</li>
+    </ul>
+    <p>Most production systems use <span class="detail-key">scheduled + drift-triggered</span> as a hybrid: regular retraining on a cadence, plus emergency retraining when drift is severe.</p>`);
+
+    await addStep('&#128293;', 'Retraining: Model v4', 'Training on expanded window with seasonal features', 'done', 'model', 'Retraining Results', 'Model: fraud-detection-v4\n\nChanges from v3:\n  + 3 new seasonal features (month, day_of_week, is_holiday)\n  + Training window shifted forward by 3 months\n  + Includes March seasonal data from 2024\n\nResults:\n  val_aucpr: 0.867 (v3 was 0.859)\n  Test on recent data (Mar 1-8):\n    Precision: 0.81 (v3 had dropped to 0.64)\n    False positives: 160/day (below 250 capacity) ✓\n    Recall: 0.65 (v3: 0.62)\n\n✓ v4 handles seasonal patterns correctly', () => {
+      addMsgChip('train', 'Retrained v4: precision 0.81 (was 0.64)');
+      stats.model = 'fraud-v4 (staging)';
+      stats.epochs = 580;
+      stats.metric = 'AUCPR: 0.867';
+      stats.cost += 5.10;
+    }, TOOLS.mlflow);
+
+    await addStep('&#128640;', 'Deploy v4 (Canary)', 'Rolling out retrained model to replace drifted v3', 'done', 'code', 'Deployment', 'Deployment: fraud-detection\nStrategy: Accelerated canary (drift urgency)\n\nPhase 1: 10% traffic → v4 (30 min eval)\nPhase 2: 50% traffic → v4 (1 hour eval)\nPhase 3: 100% traffic → v4\n\nRollback: auto-rollback to v3 if metrics worse than v3 current (degraded) baseline\n\nStatus: Phase 3 complete — v4 serving 100% traffic\nv3 archived in model registry', () => {
+      addMsgChip('deploy', 'v4 deployed: 100% traffic');
+      stats.model = 'fraud-v4 (production)';
+    }, TOOLS.k8s);
+
+    await addStep('&#9989;', 'Incident Resolved', 'Drift addressed, model performance restored', 'done', 'metric', 'Post-Mortem', 'Incident: DRIFT-2025-03-15\nDuration: 6 hours (detection to resolution)\nImpact: ~960 excess false positives over 3 days\n\nTimeline:\n  14:00 — Drift detected by Evidently\n  14:05 — P2 alert to Slack + PagerDuty\n  14:30 — Investigation started\n  15:00 — Root cause identified (seasonal shift)\n  15:15 — Retraining approved and triggered\n  16:00 — v4 trained and evaluated\n  17:00 — v4 deployed via accelerated canary\n  20:00 — v4 serving 100%, metrics restored\n\nAction items:\n  • Add seasonal features to all fraud models\n  • Add historical drift patterns to runbook\n  • Consider scheduled monthly retraining', () => {
+      addMsgChip('monitor', 'Incident resolved: 6 hours total');
+      setPhase('Resolved', 'var(--green)');
+      stats.stage = 'Resolved';
+    }, TOOLS.grafana,
+    `<h4>Post-Incident Review</h4>
+    <p>Every ML incident should have a <span class="detail-key">post-mortem</span> with a timeline, impact assessment, and action items. This is how teams improve their monitoring and response processes.</p>
+    <p><span class="detail-key">Action items from drift incidents often include:</span></p>
+    <ul>
+      <li>Add features that capture the source of drift (seasonal, behavioral)</li>
+      <li>Adjust drift thresholds based on learned patterns</li>
+      <li>Update runbooks with investigation steps specific to this scenario</li>
+      <li>Consider more frequent scheduled retraining</li>
+      <li>Automate the retraining trigger for this drift pattern</li>
+    </ul>`);
+  }
+},
+
+'ab-test': {
+  input: "Run A/B test between champion and challenger model",
+  steps: async () => {
+    setPhase('A/B Test Setup', 'var(--purple)');
+    stats.stage = 'A/B Test Setup';
+    stats.model = 'v2 (champion) vs v3 (challenger)';
+
+    await addStep('&#9881;', 'A/B Test Configuration', 'Setting up traffic splitting and metric collection', 'done', 'config', 'A/B Config', 'Experiment: fraud_model_ab_test_q1_2025\nDuration: 14 days\n\nTraffic split:\n  Control (v2 champion): 50%\n  Treatment (v3 challenger): 50%\n\nAssignment: user_id hash (sticky sessions)\n\nPrimary metric: precision at 95% recall\nSecondary metrics: false positive rate, recall, latency\nGuardrail metrics: error rate < 1%, p99 latency < 50ms\n\nMinimum detectable effect: 5% relative improvement\nRequired sample size: ~2.4M transactions per arm\nStatistical power: 80%, significance level: 5%', () => {
+      addMsgChip('config', 'A/B test configured: 50/50 split, 14 days');
+    }, TOOLS.seldon,
+    `<h4>A/B Testing for ML Models</h4>
+    <p>Unlike canary deployments (gradual rollout), an <span class="detail-key">A/B test</span> runs both models simultaneously with random traffic assignment to measure which performs better with statistical rigor.</p>
+    <div class="detail-flow">Configure split → Assign users → Collect metrics → Statistical test → Declare winner</div>
+    <p><span class="detail-key">Critical design decisions:</span></p>
+    <ul>
+      <li><strong>Sticky sessions</strong> — same user always sees same model (consistent experience)</li>
+      <li><strong>Sample size calculation</strong> — pre-compute how much data you need for statistical power</li>
+      <li><strong>Guardrail metrics</strong> — metrics that must NOT degrade, regardless of primary metric improvement</li>
+      <li><strong>Duration</strong> — must cover full business cycles (weekday + weekend patterns)</li>
+    </ul>`);
+
+    await addStep('&#128202;', 'Day 7: Interim Analysis', 'Checking guardrails and early stopping criteria', 'done', 'metric', 'Interim Results', 'Day 7 of 14 — Interim Analysis\n\nGuardrails: ALL PASSING ✓\n  Error rate: v2=0.02%, v3=0.03% (both < 1%) ✓\n  P99 latency: v2=12ms, v3=14ms (both < 50ms) ✓\n\nPrimary metric (precision@95recall):\n  v2 (champion):   0.72 ± 0.03\n  v3 (challenger):  0.79 ± 0.03\n  Difference: +9.7% (p=0.023)\n\n⚠ Trending significant but not yet conclusive\n→ Continue to day 14 (pre-registered plan)', () => {
+      addMsgChip('eval', 'Day 7: +9.7% improvement, continuing test');
+    }, TOOLS.grafana);
+
+    await addStep('&#9989;', 'Day 14: Final Analysis', 'Test complete — analyzing results with full statistical rigor', 'done', 'metric', 'Final A/B Results', 'A/B Test Complete — Final Results\n\nTransactions: v2=3.1M, v3=3.1M\n\nPrimary metric (precision@95recall):\n  v2: 0.71 ± 0.02\n  v3: 0.78 ± 0.02\n  Lift: +9.9% (95% CI: [+5.2%, +14.6%])\n  p-value: 0.0003 ✓✓\n\nSecondary:\n  False positive rate: v2=0.35%, v3=0.28% (-20%) ✓\n  Recall: v2=0.59, v3=0.63 (+6.8%) ✓\n  P99 latency: v2=12ms, v3=14ms (acceptable) ✓\n\n✅ DECISION: Promote v3 to 100% traffic\n   Estimated annual impact: ~$3.2M additional fraud prevented', () => {
+      addMsgChip('eval', 'A/B winner: v3 +9.9% precision (p=0.0003)');
+      stats.metric = 'Precision +9.9% (p<0.001)';
+      setPhase('Winner: v3', 'var(--green)');
+    }, TOOLS.mlflow,
+    `<h4>Statistical Analysis of A/B Tests</h4>
+    <p>A/B test conclusions require <span class="detail-key">statistical rigor</span> — you can't just compare raw numbers.</p>
+    <ul>
+      <li><strong>p-value</strong> — probability of seeing this difference by chance. p &lt; 0.05 is typical threshold.</li>
+      <li><strong>Confidence interval</strong> — range of plausible true effect sizes. [+5.2%, +14.6%] means we're 95% confident the real improvement is in this range.</li>
+      <li><strong>Pre-registration</strong> — define metrics, duration, and decision criteria BEFORE the test starts to prevent p-hacking.</li>
+      <li><strong>Multiple comparison correction</strong> — if testing many metrics, adjust significance threshold (Bonferroni, etc.)</li>
+    </ul>`);
+  }
+},
+
+'feature-store': {
+  input: "Build feature engineering pipeline with feature store",
+  steps: async () => {
+    setPhase('Data Sources', 'var(--cyan)');
+    stats.stage = 'Data Ingestion';
+
+    await addStep('&#128230;', 'Raw Data Sources', 'Connecting to upstream data systems', 'done', 'data', 'Data Catalog', 'Sources:\n\n1. Transactional DB (PostgreSQL)\n   Tables: transactions, users, merchants\n   Update: real-time (CDC via Debezium)\n\n2. Clickstream (Kafka)\n   Topics: page_views, cart_events, search_queries\n   Volume: ~2M events/hour\n\n3. External APIs\n   • IP geolocation service\n   • Device fingerprinting\n   • Merchant risk scores (third-party)\n\n4. Labeled Data (S3)\n   • Fraud investigation outcomes\n   • Chargeback data (30-day delay)', () => {
+      addMsgChip('data', 'Connected: PostgreSQL, Kafka, APIs, S3');
+      stats.rows = 2000000;
+    }, TOOLS.spark);
+
+    setPhase('Feature Engineering', 'var(--purple)');
+    stats.stage = 'Feature Engineering';
+
+    await addStep('&#9881;', 'Batch Feature Computation (Spark)', 'Computing aggregate features from historical data', 'done', 'code', 'Batch Features (Spark SQL)', '-- User spending profile (30-day rolling window)\nSELECT\n  user_id,\n  AVG(amount) as user_avg_amount_30d,\n  STDDEV(amount) as user_stddev_amount_30d,\n  COUNT(*) as user_tx_count_30d,\n  COUNT(DISTINCT merchant_id) as user_unique_merchants_30d,\n  MAX(amount) as user_max_amount_30d\nFROM transactions\nWHERE timestamp > current_date - INTERVAL 30 DAY\nGROUP BY user_id\n\n-- Similar for merchant profiles, time-of-day patterns, etc.\n-- Total: 32 batch features computed\n-- Spark job: 8 executors, 14 minutes', () => {
+      addMsgChip('data', 'Computed 32 batch features via Spark');
+      stats.cost += 3.20;
+    }, TOOLS.spark,
+    `<h4>Batch vs Streaming Features</h4>
+    <p>Production feature engineering typically has <span class="detail-key">two paths</span>:</p>
+    <div class="detail-flow">Batch path: historical data → Spark/SQL → aggregate features → Feature Store (offline)<br>Stream path: real-time events → Flink/Kafka → low-latency features → Feature Store (online)</div>
+    <ul>
+      <li><strong>Batch features</strong> — computed from historical data (30-day averages, lifetime aggregates). Updated hourly/daily.</li>
+      <li><strong>Streaming features</strong> — computed from real-time events (last 5 transactions, velocity). Updated per-event.</li>
+    </ul>
+    <p>The feature store unifies both — it stores batch features for offline training and serves them with low latency for online inference.</p>`);
+
+    await addStep('&#9881;', 'Streaming Feature Computation (Flink)', 'Computing real-time features from event streams', 'done', 'code', 'Streaming Features (Flink)', 'Flink streaming job: fraud_realtime_features\n\nFeatures (updated per-event):\n  • user_tx_count_1h — transactions in last hour (sliding window)\n  • user_tx_velocity_5m — tx rate in last 5 minutes\n  • time_since_last_tx — seconds since previous transaction\n  • unique_merchants_1h — distinct merchants in last hour\n  • amount_vs_avg_ratio — current amount / user\'s 30-day average\n  • geo_velocity_kmh — km/hour between last two transactions\n  • device_match — does device match known user devices?\n\nTotal: 15 streaming features\nLatency: p99 < 50ms per feature update', () => {
+      addMsgChip('data', 'Computed 15 streaming features via Flink');
+    }, TOOLS.feast);
+
+    await addStep('&#128230;', 'Feature Store: Feast', 'Registering features and materializing to online/offline stores', 'done', 'config', 'Feature Store Config', 'Feast Feature Store:\n\nOffline store: BigQuery (for training)\n  • user_spending_profile (32 batch features)\n  • merchant_risk_profile (12 batch features)\n  Materialization: daily at 02:00 UTC\n\nOnline store: Redis (for serving)\n  • user_realtime_signals (15 streaming features)\n  • user_spending_profile (32 batch features)\n  TTL: 24 hours\n  Read latency: p99 < 5ms\n\nFeature service: fraud_detection_v3\n  Total features: 47 (32 batch + 15 streaming)\n  Entity key: user_id + transaction_id\n\nPoint-in-time join enabled for training:\n  Prevents data leakage by joining features AS OF each event timestamp', () => {
+      addMsgChip('config', 'Feast: 47 features, Redis online + BQ offline');
+    }, TOOLS.feast,
+    `<h4>Feature Store Architecture</h4>
+    <p>A <span class="detail-key">feature store</span> solves the "training-serving skew" problem — ensuring the exact same feature computation logic is used in training and production inference.</p>
+    <div class="detail-flow">Feature definitions (code) → Offline store (training) + Online store (serving) → Same features, different latency requirements</div>
+    <p><span class="detail-key">Core concepts:</span></p>
+    <ul>
+      <li><strong>Feature view</strong> — a group of related features with a data source and entity key</li>
+      <li><strong>Entity</strong> — the "key" for feature lookup (user_id, merchant_id)</li>
+      <li><strong>Materialization</strong> — batch process that syncs offline store → online store</li>
+      <li><strong>Point-in-time join</strong> — when creating training data, join features as of each event's timestamp to prevent leakage</li>
+      <li><strong>Online serving</strong> — low-latency reads from Redis/DynamoDB for real-time inference</li>
+      <li><strong>Offline retrieval</strong> — bulk reads from BigQuery/S3 for training dataset creation</li>
+    </ul>
+    <p>Without a feature store, teams end up with duplicated feature logic across training notebooks and serving code, leading to subtle bugs and metric discrepancies.</p>`);
+
+    await addStep('&#128202;', 'Create Training Dataset', 'Point-in-time join to build labeled training set', 'done', 'data', 'Training Dataset', 'feast.get_historical_features(\n  entity_df=labeled_transactions,  # with event timestamps\n  features=[\n    "user_spending_profile:user_avg_amount_30d",\n    "user_spending_profile:user_tx_count_30d",\n    "user_realtime_signals:user_tx_velocity_5m",\n    "merchant_risk_profile:merchant_fraud_rate_30d",\n    ... # all 47 features\n  ]\n)\n\nResult: 8.2M rows × 49 columns (47 features + label + timestamp)\nStored: s3://ml-data/fraud/v3/train.parquet\nData version: DVC tag v3.0.0', () => {
+      addMsgChip('data', 'Training dataset: 8.2M × 49 columns');
+      stats.rows = 8200000;
+      setPhase('Ready for Training', 'var(--green)');
+      stats.stage = 'Dataset Ready';
+    }, TOOLS.feast);
+  }
+},
+
+'ci-cd': {
+  input: "ML CI/CD pipeline: code change triggers training and deployment",
+  steps: async () => {
+    setPhase('Code Change', 'var(--cyan)');
+    stats.stage = 'CI/CD Trigger';
+
+    await addStep('&#128221;', 'Pull Request Opened', 'ML engineer pushes changes to feature branch', 'done', 'code', 'PR #247', 'PR #247: Add seasonal features to fraud model\n\nChanges:\n  features/fraud_features.py — 3 new features added\n  configs/fraud_v4.yaml — updated hyperparameters\n  tests/test_features.py — new feature tests\n\nBranch: feature/seasonal-fraud-features\nAuthor: @ml-engineer\nCI: GitHub Actions workflow triggered', () => {
+      addMsgChip('config', 'PR #247 opened: seasonal features');
+    }, TOOLS.githubActions,
+    `<h4>ML CI/CD: Code-Triggered Pipelines</h4>
+    <p><span class="detail-key">ML CI/CD</span> extends traditional CI/CD to include model training, evaluation, and deployment as automated pipeline steps triggered by code changes.</p>
+    <div class="detail-flow">PR opened → Unit tests → Data validation → Training → Evaluation → Review → Merge → Deploy</div>
+    <p>Unlike software CI/CD, ML pipelines must also validate:</p>
+    <ul>
+      <li><strong>Data integrity</strong> — feature computation is correct</li>
+      <li><strong>Model quality</strong> — metrics meet minimum thresholds</li>
+      <li><strong>Performance regression</strong> — new model isn't worse than current</li>
+      <li><strong>Fairness</strong> — no bias introduced across protected groups</li>
+    </ul>`);
+
+    await addStep('&#9989;', 'Stage 1: Unit Tests', 'Testing feature computation and data pipeline logic', 'done', 'code', 'Test Results', '✓ test_seasonal_features — month extraction: PASSED\n✓ test_seasonal_features — day_of_week encoding: PASSED\n✓ test_seasonal_features — is_holiday flag: PASSED\n✓ test_feature_schema — output schema validation: PASSED\n✓ test_feature_nulls — no null outputs: PASSED\n✓ test_feature_ranges — values in expected ranges: PASSED\n\n6/6 tests passed in 8.2s', () => {
+      addMsgChip('eval', 'Unit tests: 6/6 passed');
+    }, TOOLS.githubActions);
+
+    await addStep('&#128202;', 'Stage 2: Data Validation', 'Running Great Expectations on feature outputs', 'done', 'data', 'Data Validation', 'Validation on sample dataset (10K rows):\n\n✓ All 50 features computed (47 existing + 3 new)\n✓ No nulls in new features\n✓ month values in [1,12]\n✓ day_of_week values in [0,6]\n✓ is_holiday is boolean\n✓ Feature distributions within expected ranges\n\n6/6 expectations passed', () => {
+      addMsgChip('data', 'Data validation: 6/6 passed');
+    }, TOOLS.greatExpect);
+
+    setPhase('CI Training', 'var(--pink)');
+    stats.stage = 'CI Training';
+
+    await addStep('&#128293;', 'Stage 3: Training Run (CI)', 'Training on reduced dataset for CI speed', 'done', 'model', 'CI Training', 'CI training run (reduced for speed):\n\nDataset: 500K rows (6% sample, stratified)\nModel: XGBoost, same hyperparameters as config\nTime: 2 minutes\n\nResults:\n  val_aucpr: 0.851 (target: >0.80) ✓\n  No regression vs baseline: +2.1% ✓\n\nNote: Full training on merge will use complete 8.2M dataset', () => {
+      addMsgChip('train', 'CI training: val_aucpr=0.851 ✓');
+      stats.epochs = 400;
+      stats.cost += 0.80;
+    }, TOOLS.mlflow);
+
+    await addStep('&#9989;', 'Stage 4: Model Quality Gates', 'Checking all quality criteria before allowing merge', 'done', 'metric', 'Quality Gates', 'Model Quality Gates:\n\n✓ AUCPR > 0.80 (got 0.851)\n✓ No regression vs current production model\n✓ Precision@95recall > 0.35 (got 0.44)\n✓ False positive rate < 0.5% (got 0.29%)\n✓ Inference latency < 20ms (got 11ms)\n✓ No fairness regression across age/region groups\n\n6/6 gates passed ✅\n\nPR status: ✅ All checks passed — ready for review', () => {
+      addMsgChip('eval', 'Quality gates: 6/6 passed');
+    }, TOOLS.githubActions);
+
+    setPhase('Merge → Deploy', 'var(--blue)');
+    stats.stage = 'Deployment';
+
+    await addStep('&#128640;', 'PR Merged → Full Training Triggered', 'Merge to main triggers production training pipeline', 'done', 'code', 'Production Pipeline', 'PR #247 merged to main by @ml-lead\n\nTriggered: production_training_pipeline (Airflow)\n\nSteps:\n  1. ✅ Full dataset build (8.2M rows, 50 features)\n  2. ✅ Full training (XGBoost, 650 epochs, 23 min)\n  3. ✅ Full evaluation (test AUCPR: 0.867)\n  4. ✅ Model registered: fraud-detection v4 → Staging\n  5. ✅ Container built: fraud-detection-serving:v4\n  6. ✅ Canary deployment started (5% traffic)\n\nTotal pipeline time: 48 minutes\nAll automated, zero manual intervention', () => {
+      addMsgChip('deploy', 'Merged → trained → deployed (48 min total)');
+      stats.model = 'fraud-v4 (canary 5%)';
+      stats.metric = 'AUCPR: 0.867';
+      stats.cost += 6.40;
+      setPhase('Deployed', 'var(--green)');
+    }, TOOLS.airflow,
+    `<h4>Merge-to-Deploy Pipeline</h4>
+    <p>When the PR merges, the <span class="detail-key">full production pipeline</span> runs automatically — no manual steps. This is the gold standard for ML CI/CD.</p>
+    <div class="detail-flow">Merge → Full training (Airflow) → Evaluation → Registry → Container build → Canary deploy</div>
+    <p>The key insight: <strong>CI trains on a sample for speed</strong> (minutes), while the <strong>production pipeline trains on full data</strong> (tens of minutes to hours). The CI run validates the approach; the production run creates the actual deployment artifact.</p>`);
+  }
+},
+
+'data-quality': {
+  input: "Data quality check fails — pipeline halted",
+  steps: async () => {
+    setPhase('Data Ingestion', 'var(--cyan)');
+    stats.stage = 'Data Ingestion';
+
+    await addStep('&#128230;', 'Scheduled Pipeline Trigger', 'Weekly retraining DAG triggered by Airflow', 'done', 'config', 'DAG Run', 'DAG: fraud_weekly_retrain\nSchedule: Every Monday 02:00 UTC\nRun ID: weekly_2025_03_17\n\nStep 1: Data ingestion... started', () => {
+      addMsgChip('config', 'Weekly retrain triggered');
+    }, TOOLS.airflow);
+
+    await addStep('&#128230;', 'Data Ingestion Complete', 'Pulled latest data from all sources', 'done', 'data', 'Ingestion Summary', 'Data pulled:\n  transactions: 13.1M rows (expected: 12-14M) ✓\n  user_profiles: 2.3M rows\n  merchant_data: 45K rows\n\nTimestamp range: 2024-04-01 to 2025-03-16', () => {
+      addMsgChip('data', 'Ingested 13.1M transactions');
+      stats.rows = 13100000;
+    }, TOOLS.spark);
+
+    setPhase('Data Validation', 'var(--orange)');
+    stats.stage = 'Data Validation';
+
+    await addStep('&#128683;', 'Data Validation FAILED', 'Great Expectations suite detected critical failures', 'error', 'alert', 'Validation Failures', 'Suite: fraud_raw_data_v3\n\n✓ row_count between 10M and 15M: PASSED (13,102,847)\n✓ column "amount" no nulls: PASSED\n✗ column "amount" > 0: FAILED\n    17,423 rows with amount = 0 or negative\n    Expected: 0 failures\n✗ column "merchant_id" in reference set: FAILED\n    2,891 rows with unknown merchant_id\n    Expected: < 100 unknown\n✓ column "timestamp" no future dates: PASSED\n✗ fraud_rate between 0.1% and 5%: FAILED\n    fraud_rate = 0.02% (expected 0.1%-5%)\n    ⚠ Labels appear to be mostly missing!\n\n3/6 expectations FAILED ✗\n\n⛔ PIPELINE HALTED — circuit breaker activated', () => {
+      addMsgChip('alert', 'VALIDATION FAILED: 3/6 expectations');
+      setPhase('HALTED: Data Quality', 'var(--red)');
+    }, TOOLS.greatExpect,
+    `<h4>Circuit Breaker Pattern</h4>
+    <p>The <span class="detail-key">circuit breaker</span> pattern halts the pipeline when data quality checks fail, preventing bad data from flowing into model training.</p>
+    <div class="detail-flow">Data → Validation → FAIL → Circuit breaker → Pipeline HALTED → Alert → Manual investigation</div>
+    <p><span class="detail-key">Why this is critical:</span></p>
+    <ul>
+      <li><strong>Training on bad data silently degrades the model</strong> — you might not notice until production metrics drop</li>
+      <li><strong>Garbage in, garbage out</strong> — no amount of hyperparameter tuning fixes corrupted data</li>
+      <li><strong>Missing labels</strong> (fraud_rate=0.02%) is especially dangerous — model learns "nothing is fraud"</li>
+      <li><strong>Better to skip a retraining cycle</strong> than to deploy a model trained on corrupted data</li>
+    </ul>
+    <p>The existing production model continues serving — the pipeline halt only affects the <em>new</em> model training.</p>`);
+
+    await addStep('&#128680;', 'Alert: Pipeline Halted', 'PagerDuty alert to data engineering and ML teams', 'warn', 'alert', 'PagerDuty Alert', '🚨 Alert: DATA_QUALITY_FAILURE_P1\nPipeline: fraud_weekly_retrain\nSeverity: P1 (investigate within 1 hour)\n\nFailures:\n  1. 17K rows with zero/negative amounts\n  2. 2.9K rows with unknown merchant IDs\n  3. Fraud labels almost entirely missing (0.02%)\n\nNotified:\n  • #data-quality Slack channel\n  • Data engineering on-call\n  • ML platform on-call\n\nImpact: Weekly retrain SKIPPED\nProduction model (v4) continues serving unchanged', () => {
+      addMsgChip('alert', 'P1: Data quality failure → pipeline halted');
+    }, TOOLS.pagerduty);
+
+    setPhase('Investigation', 'var(--cyan)');
+    stats.stage = 'Root Cause';
+
+    await addStep('&#128269;', 'Root Cause Investigation', 'Data engineering investigates upstream issues', 'done', 'data', 'Investigation', 'Root Cause Analysis:\n\n1. Zero/negative amounts:\n   → Upstream migration introduced a bug in transaction ETL\n   → Refund transactions now have negative amounts (previously excluded)\n   → Fix: update ETL filter, backfill affected rows\n\n2. Unknown merchant IDs:\n   → New merchant onboarding pipeline delayed\n   → 2,891 transactions from merchants not yet in reference table\n   → Fix: accelerate merchant pipeline, add to reference set\n\n3. Missing fraud labels:\n   → Fraud investigation team labeling pipeline crashed on Mar 10\n   → No labels produced for 6 days\n   → Fix: restart labeling pipeline, backfill labels\n\nEstimated fix time: 4-8 hours\nNext retrain: manual trigger after data fixes confirmed', () => {
+      addMsgChip('data', 'Root causes: ETL bug, pipeline crash, delayed onboarding');
+      setPhase('Fixing', 'var(--orange)');
+    }, TOOLS.grafana);
+
+    await addStep('&#9989;', 'Data Fixed — Pipeline Re-triggered', 'Issues resolved, validation re-run, pipeline continues', 'done', 'metric', 'Re-validation', 'Fixes applied:\n  ✅ ETL filter updated — refunds excluded\n  ✅ Merchant reference table updated\n  ✅ Fraud labels backfilled (6 days)\n\nRe-validation:\n  ✓ column "amount" > 0: PASSED\n  ✓ column "merchant_id" in reference set: PASSED\n  ✓ fraud_rate = 1.7%: PASSED\n  6/6 expectations passed ✅\n\n→ Pipeline re-triggered, continuing to feature engineering', () => {
+      addMsgChip('data', 'Re-validation passed: 6/6 ✓');
+      setPhase('Pipeline Resumed', 'var(--green)');
+      stats.stage = 'Resumed';
+    }, TOOLS.greatExpect);
+  }
+},
+
+'gpu-training': {
+  input: "Train large model with distributed GPU training",
+  steps: async () => {
+    setPhase('Infrastructure', 'var(--purple)');
+    stats.stage = 'Infrastructure';
+
+    await addStep('&#9881;', 'Provision GPU Cluster', 'Terraform provisioning GPU nodes on cloud', 'done', 'config', 'Infrastructure', 'Provisioning via Terraform:\n\nCluster: ml-training-gpu-cluster\nProvider: AWS EKS\nNodes: 4 × p4d.24xlarge\n  • 8 × NVIDIA A100 (80GB) per node\n  • 32 GPUs total\n  • 96 vCPUs per node\n  • 1.1TB RAM per node\n  • 400 Gbps inter-node networking (EFA)\n\nStorage: FSx for Lustre (high-throughput parallel FS)\nEstimated cost: $128/hour for cluster\nBudget limit: $2,500 for this training run', () => {
+      addMsgChip('config', 'Provisioned: 4 nodes × 8 A100 GPUs = 32 GPUs');
+      stats.cost += 128;
+    }, TOOLS.terraform,
+    `<h4>GPU Infrastructure for Training</h4>
+    <p>Large model training requires <span class="detail-key">multi-GPU clusters</span> with high-bandwidth interconnects. The infrastructure is typically provisioned on-demand and torn down after training to save costs.</p>
+    <p><span class="detail-key">Key hardware considerations:</span></p>
+    <ul>
+      <li><strong>GPU memory</strong> — determines max batch size and model size per GPU</li>
+      <li><strong>Inter-node bandwidth</strong> — critical for distributed training (gradient sync)</li>
+      <li><strong>Storage throughput</strong> — data loading must not bottleneck GPU utilization</li>
+      <li><strong>Spot instances</strong> — 60-70% cheaper but can be interrupted (need checkpointing)</li>
+    </ul>`);
+
+    setPhase('Training Setup', 'var(--pink)');
+    stats.stage = 'Training Setup';
+
+    await addStep('&#129504;', 'Distributed Training Config', 'Configuring DeepSpeed ZeRO-3 for multi-node training', 'done', 'config', 'DeepSpeed Config', 'Training configuration:\n\nModel: Custom transformer (1.3B parameters)\nFramework: PyTorch 2.2 + DeepSpeed ZeRO-3\n\nDistribution strategy:\n  • ZeRO Stage 3: partition optimizer states, gradients, AND parameters\n  • Activation checkpointing: enabled (trade compute for memory)\n  • Mixed precision: BF16 (better numerical stability than FP16)\n  • Gradient accumulation: 4 steps (effective batch = 32 × 4 × 32 GPUs = 4096)\n\nOptimizer: AdamW\n  lr: 3e-4, warmup: 2000 steps, cosine decay\n  weight_decay: 0.01\n  max_grad_norm: 1.0\n\nData: 200GB tokenized text, streamed from Lustre\nEpochs: 3\nEstimated time: ~6 hours\nEstimated cost: ~$768', () => {
+      addMsgChip('config', 'DeepSpeed ZeRO-3: 32 GPUs, 1.3B params');
+    }, TOOLS.deepspeed,
+    `<h4>Distributed Training with DeepSpeed</h4>
+    <p><span class="detail-key">DeepSpeed ZeRO</span> (Zero Redundancy Optimizer) distributes model training across GPUs by partitioning memory-heavy components:</p>
+    <div class="detail-flow">ZeRO-1: partition optimizer states | ZeRO-2: + partition gradients | ZeRO-3: + partition parameters</div>
+    <p><span class="detail-key">Why ZeRO-3 for large models:</span></p>
+    <ul>
+      <li><strong>ZeRO-1</strong> — optimizer states (Adam has 2× model size) partitioned across GPUs. 4× memory reduction.</li>
+      <li><strong>ZeRO-2</strong> — gradients also partitioned. 8× memory reduction.</li>
+      <li><strong>ZeRO-3</strong> — even model parameters partitioned. Linear memory reduction with GPU count.</li>
+    </ul>
+    <p>A 1.3B parameter model in FP32 needs ~5.2GB just for parameters. With optimizer states: ~20GB. ZeRO-3 across 32 GPUs: ~625MB per GPU — fits easily with room for activations.</p>`);
+
+    await addStep('&#128293;', 'Training in Progress', 'Monitoring GPU utilization and loss curves', 'done', 'model', 'Training Progress', 'Epoch 1/3 [████████░░] 80%\n\nStep 8000/10000:\n  train_loss: 2.847 → 1.234 (steady decrease ✓)\n  learning_rate: 2.8e-4 (warming up complete)\n  throughput: 142K tokens/sec\n  GPU utilization: 94% average across 32 GPUs\n  GPU memory: 71GB / 80GB per GPU\n  Inter-node bandwidth: 340 Gbps / 400 Gbps\n\nCheckpoints saved: every 1000 steps\nLatest: s3://ml-checkpoints/custom-1.3b/step-8000/\nEstimated remaining: 4h 12min', () => {
+      addMsgChip('train', 'Training: loss 2.847→1.234, 94% GPU util');
+      stats.epochs = 1;
+      stats.metric = 'Loss: 1.234';
+      stats.cost += 384;
+    }, TOOLS.wandb,
+    `<h4>Training Monitoring</h4>
+    <p>During distributed training, you monitor several <span class="detail-key">key signals</span>:</p>
+    <ul>
+      <li><strong>Loss curve</strong> — should steadily decrease. Spikes may indicate data issues or learning rate problems.</li>
+      <li><strong>GPU utilization</strong> — should be >90%. Low utilization means data loading or communication bottleneck.</li>
+      <li><strong>GPU memory</strong> — running close to limit is fine. OOM crashes mean you need to reduce batch size or increase ZeRO stage.</li>
+      <li><strong>Throughput</strong> — tokens/sec or samples/sec. Compare against theoretical maximum for your hardware.</li>
+      <li><strong>Gradient norm</strong> — monitors training stability. Spikes indicate potential divergence.</li>
+    </ul>
+    <p><span class="detail-key">Checkpointing</span> is critical — if a node fails or a spot instance is reclaimed, you resume from the last checkpoint instead of starting over. Save checkpoints every N steps to cloud storage.</p>`);
+
+    await addStep('&#9989;', 'Training Complete', '3 epochs finished, final model saved', 'done', 'metric', 'Final Results', 'Training complete!\n\nFinal metrics:\n  train_loss: 0.892\n  val_loss: 0.934\n  val_perplexity: 2.54\n\nTotal time: 5h 48min\nTotal cost: $742\nCheckpoints: 30 saved\nFinal model: s3://ml-models/custom-1.3b/final/\nModel size: 2.6GB (BF16)\n\nGPU cluster terminated (Terraform destroy)', () => {
+      addMsgChip('train', 'Training complete: val_loss=0.934, $742');
+      stats.epochs = 3;
+      stats.metric = 'Val loss: 0.934';
+      stats.cost += 358;
+      setPhase('Training Complete', 'var(--green)');
+      stats.stage = 'Complete';
+    }, TOOLS.wandb);
+  }
+},
+
+'incident': {
+  input: "Production alert: model performance degrading rapidly",
+  steps: async () => {
+    setPhase('INCIDENT', 'var(--red)');
+    stats.stage = 'Active Incident';
+    stats.model = 'fraud-v4 (production)';
+
+    await addStep('&#128680;', 'P0 Alert: Model Degradation', 'Prometheus alert: fraud detection precision dropped below threshold', 'error', 'alert', 'PagerDuty — P0', '🚨🚨 P0 ALERT: MODEL_PERFORMANCE_CRITICAL 🚨🚨\n\nService: fraud-detection-v4\nMetric: precision_at_threshold dropped to 0.31 (threshold: 0.60)\nDuration: sustained for 45 minutes\n\nImpact:\n  False positive rate: 2.1% (normal: 0.3%)\n  Estimated false alerts: ~1,200/hour (ops capacity: 250/day)\n  Customer friction: CRITICAL\n\nPaged: ML on-call, Backend on-call, Ops lead\nWar room: #incident-fraud-model-2025-03-20', () => {
+      addMsgChip('alert', 'P0: precision=0.31, false positives 7× normal');
+    }, TOOLS.pagerduty,
+    `<h4>ML Incident Response</h4>
+    <p>ML model incidents follow the same <span class="detail-key">incident management</span> framework as software incidents, but with ML-specific investigation steps.</p>
+    <div class="detail-flow">Alert → Triage → Mitigate (rollback?) → Investigate → Fix → Post-mortem</div>
+    <p><span class="detail-key">The first question in any ML incident: should we rollback?</span></p>
+    <ul>
+      <li>If the previous model was working fine → rollback immediately, investigate later</li>
+      <li>If this is a new deployment → rollback to the last known good version</li>
+      <li>If it's a data issue affecting all model versions → might need to take the model offline</li>
+    </ul>`);
+
+    await addStep('&#128260;', 'Immediate Mitigation: Rollback', 'Rolling back from v4 to v3 (last known good)', 'done', 'code', 'Rollback', 'Rollback initiated:\n  Current: fraud-detection-v4 (100% traffic)\n  Target:  fraud-detection-v3 (archived)\n\nRollback steps:\n  1. ✅ Promote v3 from archived → production in registry\n  2. ✅ Update Kubernetes deployment to v3 image\n  3. ✅ Traffic shifted: 100% → v3\n  4. ✅ Health check: v3 responding, latency normal\n\nRollback time: 3 minutes\nv4 kept running at 0% traffic for investigation', () => {
+      addMsgChip('deploy', 'Rolled back to v3 in 3 minutes');
+      stats.model = 'fraud-v3 (rollback)';
+    }, TOOLS.k8s);
+
+    await addStep('&#128202;', 'Verify Rollback', 'Checking if v3 performance is normal', 'done', 'metric', 'Post-Rollback Metrics', 'v3 metrics (15 min after rollback):\n\n  Precision: 0.69 (normal range: 0.68-0.74) ✓\n  False positive rate: 0.36% (normal: 0.30-0.40%) ✓\n  Latency p99: 13ms ✓\n  Error rate: 0.01% ✓\n\n⚠ Wait — v3 precision is at lower end of normal range\n  Could this be a data issue affecting all models?', () => {
+      addMsgChip('monitor', 'v3 metrics: mostly normal, precision at lower bound');
+    }, TOOLS.grafana);
+
+    setPhase('Investigation', 'var(--cyan)');
+    stats.stage = 'Investigation';
+
+    await addStep('&#128269;', 'Root Cause: Data Pipeline Issue', 'Investigating why v4 degraded and v3 is borderline', 'done', 'data', 'Investigation', 'Root Cause Found:\n\nUpstream data issue in feature pipeline:\n  • Merchant risk scores API (third-party) returning stale data\n  • API started returning cached scores from 30 days ago at 12:15 UTC\n  • Feature: merchant_fraud_rate_30d now wrong for all merchants\n\nImpact on models:\n  • v4 relied more heavily on merchant features (higher feature importance)\n  • v3 used merchant features less → less affected, but still degraded\n\nTimeline:\n  12:15 — Third-party API starts returning stale data\n  12:30 — Feature pipeline writes stale features to online store\n  13:00 — Model predictions start degrading\n  13:45 — Alert fires (45 min sustained degradation)\n  13:48 — Rollback initiated\n  13:51 — Rollback complete', () => {
+      addMsgChip('data', 'Root cause: third-party API returning stale data');
+    }, TOOLS.grafana);
+
+    await addStep('&#9989;', 'Fix & Restore', 'Third-party issue resolved, features refreshed', 'done', 'metric', 'Resolution', 'Resolution steps:\n  1. ✅ Contacted third-party API vendor — cache issue on their side\n  2. ✅ Vendor flushed stale cache at 15:00 UTC\n  3. ✅ Verified fresh scores returning correctly\n  4. ✅ Feature pipeline re-materialized online store with correct data\n  5. ✅ v4 tested with correct features — precision back to 0.79\n  6. ✅ v4 re-deployed via canary (5% → 25% → 100%)\n\nIncident duration: 3 hours 45 minutes\nCustomer impact: ~3,600 excess false positives\n\nAction items:\n  • Add feature freshness monitoring (detect stale upstream data)\n  • Add fallback for third-party API (use last known good + flag)\n  • Reduce v4 dependency on merchant features (regularization)', () => {
+      addMsgChip('monitor', 'Incident resolved: 3h45m, v4 restored');
+      stats.model = 'fraud-v4 (restored)';
+      setPhase('Resolved', 'var(--green)');
+      stats.stage = 'Resolved';
+    }, TOOLS.grafana);
+  }
+},
+
+'llm-fine-tune': {
+  input: "Fine-tune an LLM for customer support with LoRA",
+  steps: async () => {
+    setPhase('Dataset Prep', 'var(--cyan)');
+    stats.stage = 'Dataset Preparation';
+
+    await addStep('&#128230;', 'Curate Training Dataset', 'Preparing instruction-tuning dataset from support tickets', 'done', 'data', 'Dataset', 'Source: Zendesk support ticket exports (18 months)\n\nProcessing pipeline:\n  1. Extract resolved tickets with CSAT ≥ 4/5 — 42K tickets\n  2. Convert to instruction format:\n     {"instruction": "<customer query>", "response": "<agent reply>"}\n  3. Quality filtering:\n     - Remove PII (regex + NER model)\n     - Remove tickets with multiple back-and-forth (keep single-turn)\n     - Filter responses < 50 chars or > 2000 chars\n     - Deduplicate (cosine similarity > 0.95)\n  4. Human review: sample 500 for quality audit\n\nFinal dataset: 28,400 instruction-response pairs\nSplit: 26K train / 1.2K val / 1.2K test\nStored: s3://ml-data/support-llm/v1/', () => {
+      addMsgChip('data', 'Curated 28.4K instruction-response pairs');
+      stats.rows = 28400;
+    }, TOOLS.dvc,
+    `<h4>Fine-tuning Dataset Preparation</h4>
+    <p>Dataset quality is the <span class="detail-key">most important factor</span> in fine-tuning success. "Garbage in, garbage out" applies even more strongly to LLMs.</p>
+    <p><span class="detail-key">Key steps:</span></p>
+    <ul>
+      <li><strong>Source selection</strong> — use only high-quality examples (high CSAT, resolved tickets)</li>
+      <li><strong>Format conversion</strong> — instruction/response format matching the base model's expected template</li>
+      <li><strong>PII removal</strong> — critical for compliance; use both regex patterns and NER models</li>
+      <li><strong>Quality filtering</strong> — remove short, long, duplicated, or low-quality examples</li>
+      <li><strong>Human review</strong> — sample audit catches issues automated filters miss</li>
+    </ul>
+    <p>A smaller, high-quality dataset (5K-30K examples) typically outperforms a larger, noisy one for fine-tuning.</p>`);
+
+    setPhase('Fine-tuning', 'var(--pink)');
+    stats.stage = 'Fine-tuning';
+
+    await addStep('&#129504;', 'LoRA Configuration', 'Setting up parameter-efficient fine-tuning', 'done', 'config', 'LoRA Config', 'Base model: Llama-3-8B-Instruct\nMethod: QLoRA (4-bit quantization + LoRA)\n\nLoRA config:\n  r: 64 (rank — higher = more capacity)\n  alpha: 128 (scaling factor)\n  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]\n  dropout: 0.05\n  trainable params: 167M / 8B total (2.1%)\n\nQuantization: NF4 (4-bit NormalFloat)\nCompute dtype: BF16\n\nTraining:\n  batch_size: 4\n  gradient_accumulation: 8 (effective batch = 32)\n  learning_rate: 2e-4\n  epochs: 3\n  max_seq_length: 2048\n\nHardware: 1 × A100 80GB\nEstimated time: 4 hours\nEstimated cost: ~$16', () => {
+      addMsgChip('config', 'QLoRA: rank=64, 167M/8B trainable params');
+    }, TOOLS.lora,
+    `<h4>LoRA: Parameter-Efficient Fine-tuning</h4>
+    <p><span class="detail-key">LoRA</span> (Low-Rank Adaptation) freezes the base model and trains small "adapter" matrices that modify the model's behavior. Only 1-5% of parameters are trained.</p>
+    <div class="detail-flow">Frozen base model (8B) + Trainable LoRA adapters (167M) → Fine-tuned behavior</div>
+    <p><span class="detail-key">QLoRA</span> adds 4-bit quantization of the base model, reducing memory from ~32GB to ~8GB, making it possible to fine-tune on a single GPU.</p>
+    <ul>
+      <li><strong>Rank (r)</strong> — controls adapter capacity. r=64 is common; higher for complex adaptations</li>
+      <li><strong>Alpha</strong> — scaling factor. Rule of thumb: alpha = 2× rank</li>
+      <li><strong>Target modules</strong> — which layers get adapters. Attention layers are most effective</li>
+    </ul>`);
+
+    await addStep('&#128293;', 'Fine-tuning Training', 'Training LoRA adapters on support dataset', 'done', 'model', 'Training Progress', 'Epoch 1/3: loss=1.82, val_loss=1.71\nEpoch 2/3: loss=1.34, val_loss=1.29\nEpoch 3/3: loss=1.12, val_loss=1.18\n\nBest checkpoint: epoch 2, step 2438 (val_loss=1.29)\n\nTraining time: 3h 42min\nGPU memory: 24GB / 80GB (QLoRA is efficient!)\nAdapter size: 335MB (vs 16GB full model)', () => {
+      addMsgChip('train', 'LoRA training: val_loss=1.29, 3h42m');
+      stats.epochs = 3;
+      stats.metric = 'Val loss: 1.29';
+      stats.cost += 16;
+    }, TOOLS.huggingface);
+
+    setPhase('Evaluation', 'var(--green)');
+    stats.stage = 'Evaluation';
+
+    await addStep('&#128202;', 'Automated Evaluation', 'Running eval suite on test set', 'done', 'metric', 'Eval Results', 'Automated Evaluation (1,200 test examples):\n\nMetrics vs base Llama-3-8B-Instruct:\n  ROUGE-L:     0.42 → 0.61 (+45%)\n  BERTScore:   0.78 → 0.89 (+14%)\n  Tone match:  0.65 → 0.91 (+40%) (custom classifier)\n  Format compliance: 72% → 96% (follows support template)\n\nLLM-as-judge (GPT-4 evaluation on 200 samples):\n  Helpfulness: 3.2/5 → 4.4/5\n  Accuracy:    3.8/5 → 4.1/5\n  Tone:        3.0/5 → 4.6/5\n\nSafety checks:\n  ✓ No hallucinated policies (0/200 samples)\n  ✓ Appropriate escalation language when unsure\n  ✓ No PII leakage in responses', () => {
+      addMsgChip('eval', 'Eval: ROUGE-L 0.61, tone match 91%');
+    }, TOOLS.mlflow,
+    `<h4>LLM Evaluation</h4>
+    <p>Evaluating fine-tuned LLMs requires <span class="detail-key">multiple evaluation approaches</span> because no single metric captures all aspects of quality.</p>
+    <ul>
+      <li><strong>Automated metrics</strong> — ROUGE, BERTScore, exact match (fast, cheap, but limited)</li>
+      <li><strong>LLM-as-judge</strong> — use a stronger model (GPT-4) to evaluate outputs (better signal, more expensive)</li>
+      <li><strong>Human evaluation</strong> — gold standard but slow and expensive; use for final validation</li>
+      <li><strong>Domain-specific metrics</strong> — tone classifiers, format compliance, policy adherence</li>
+      <li><strong>Safety checks</strong> — hallucination detection, PII leakage, toxic content</li>
+    </ul>`);
+
+    setPhase('Serving', 'var(--blue)');
+    stats.stage = 'Deployment';
+
+    await addStep('&#128640;', 'Deploy with vLLM', 'Serving fine-tuned model with high-throughput inference', 'done', 'code', 'Serving Config', 'Serving: vLLM inference server\n\nConfig:\n  base_model: meta-llama/Llama-3-8B-Instruct\n  lora_adapter: s3://ml-models/support-llm-lora/v1/\n  quantization: AWQ (4-bit, faster than NF4 for inference)\n  tensor_parallel: 1 GPU\n  max_model_len: 4096\n  gpu_memory_utilization: 0.90\n\nPerformance:\n  Throughput: ~1,200 tokens/sec\n  TTFT (time to first token): ~120ms\n  P99 latency (full response): ~2.1s\n  Concurrent requests: up to 64 (continuous batching)\n\nDeployed to: K8s, 2 replicas, auto-scaling 2-8 based on queue depth', () => {
+      addMsgChip('deploy', 'Deployed: vLLM + LoRA adapter, 2 replicas');
+      stats.model = 'support-llm-v1 (production)';
+      stats.cost += 8;
+      setPhase('Live', 'var(--green)');
+    }, TOOLS.vllm,
+    `<h4>LLM Serving with vLLM</h4>
+    <p><span class="detail-key">vLLM</span> uses PagedAttention and continuous batching for high-throughput LLM serving. It can serve LoRA adapters on top of a base model efficiently.</p>
+    <ul>
+      <li><strong>PagedAttention</strong> — manages KV cache like virtual memory pages, reducing memory waste by 60-80%</li>
+      <li><strong>Continuous batching</strong> — dynamically adds/removes requests from the batch as they complete</li>
+      <li><strong>LoRA serving</strong> — load multiple LoRA adapters on one base model, switch per-request</li>
+      <li><strong>Quantization</strong> — AWQ/GPTQ for inference (different from QLoRA's NF4 used in training)</li>
+    </ul>`);
+  }
+},
+
+'batch-inference': {
+  input: "Run weekly batch inference on new customer data",
+  steps: async () => {
+    setPhase('Batch Job', 'var(--cyan)');
+    stats.stage = 'Batch Inference';
+
+    await addStep('&#9203;', 'Scheduled Batch Trigger', 'Airflow DAG: churn_weekly_scoring triggered on schedule', 'done', 'config', 'DAG Run', 'DAG: churn_weekly_scoring\nSchedule: Every Sunday 04:00 UTC\nRun: 2025-03-16\n\nPipeline:\n  1. Pull new customer activity data\n  2. Compute features from feature store\n  3. Load model from registry\n  4. Score all active customers\n  5. Write predictions to database\n  6. Notify marketing team', () => {
+      addMsgChip('config', 'Weekly churn scoring triggered');
+    }, TOOLS.airflow,
+    `<h4>Batch Inference</h4>
+    <p><span class="detail-key">Batch inference</span> scores a large set of data points on a schedule, rather than in real-time. Common for use cases where predictions don't need to be instant:</p>
+    <ul>
+      <li><strong>Churn prediction</strong> — score all customers weekly, feed to retention campaigns</li>
+      <li><strong>Lead scoring</strong> — rank prospects daily for sales team prioritization</li>
+      <li><strong>Recommendations</strong> — pre-compute product recommendations nightly</li>
+      <li><strong>Risk scoring</strong> — score loan applicants in batch for underwriting review</li>
+    </ul>
+    <p>Batch is simpler than real-time serving: no latency requirements, no scaling concerns, and the full feature store is available offline.</p>`);
+
+    await addStep('&#128230;', 'Load Scoring Dataset', 'Pulling active customers and computing features', 'done', 'data', 'Scoring Data', 'Active customers: 847,293\n\nFeature computation (Feast offline):\n  • account_age_days\n  • login_count_30d\n  • feature_usage_score\n  • support_tickets_90d\n  • payment_failures_30d\n  • last_active_days_ago\n  ... 24 features total\n\nDataset: 847K × 24 features\nSize: 340MB parquet', () => {
+      addMsgChip('data', 'Loaded 847K customers × 24 features');
+      stats.rows = 847293;
+    }, TOOLS.feast);
+
+    await addStep('&#129504;', 'Load Model from Registry', 'Loading churn-prediction v2 from MLflow', 'done', 'config', 'Model Info', 'Model: churn-prediction\nVersion: v2 (Production stage)\nFramework: LightGBM\nRegistered: 2025-02-01\nTest AUC: 0.892\n\nLoaded from: s3://ml-models/churn-v2/model.lgb\nFeature schema validated: ✓ (all 24 features match)', () => {
+      addMsgChip('config', 'Loaded churn-prediction v2 (AUC: 0.892)');
+      stats.model = 'churn-v2';
+    }, TOOLS.mlflow);
+
+    await addStep('&#128202;', 'Run Batch Scoring', 'Scoring 847K customers on Spark cluster', 'done', 'model', 'Scoring Results', 'Batch scoring complete:\n\nProcessed: 847,293 customers\nDuration: 4 minutes (Spark, 8 executors)\n\nPrediction distribution:\n  High risk (>0.8):   12,340 (1.5%)\n  Medium risk (0.4-0.8): 89,200 (10.5%)\n  Low risk (<0.4):     745,753 (88.0%)\n\nTop signals for high-risk customers:\n  1. last_active_days_ago > 14 (strongest predictor)\n  2. support_tickets_90d > 3\n  3. login_count_30d < 2\n  4. payment_failures_30d > 0', () => {
+      addMsgChip('eval', 'Scored 847K: 12.3K high risk, 89.2K medium');
+      stats.metric = 'AUC: 0.892';
+      stats.cost += 1.80;
+    }, TOOLS.spark);
+
+    await addStep('&#128230;', 'Write Predictions to Database', 'Upserting scores to customer_churn_scores table', 'done', 'data', 'Database Write', 'UPSERT INTO customer_churn_scores (\n  customer_id, churn_score, risk_tier, scored_at, model_version\n)\nSELECT ... FROM batch_results\n\nRows upserted: 847,293\nTable: analytics.customer_churn_scores\nPartition: scored_date=2025-03-16\n\nAlso written:\n  • S3: s3://ml-predictions/churn/2025-03-16.parquet (archive)\n  • Snowflake: ml_predictions.churn_weekly (BI team access)', () => {
+      addMsgChip('data', 'Predictions written to DB + S3 + Snowflake');
+    }, TOOLS.dbt);
+
+    await addStep('&#9989;', 'Notify Downstream Consumers', 'Alerting marketing and success teams', 'done', 'log', 'Notifications', 'Notifications sent:\n\n📧 Email: marketing@company.com\n  Subject: "Weekly Churn Scores Ready — 12,340 high-risk customers"\n  Includes: summary stats, top 100 high-risk list\n\n📊 Tableau: dashboard auto-refreshed with new scores\n  Dashboard: "Customer Health — Churn Risk"\n\n🔔 Slack: #customer-success\n  "Churn scoring complete: 12,340 high-risk customers identified.\n   View in Tableau: [link]"\n\nPipeline duration: 8 minutes total\nNext run: 2025-03-23 04:00 UTC', () => {
+      addMsgChip('config', 'Notified: email, Tableau, Slack');
+      setPhase('Complete', 'var(--green)');
+      stats.stage = 'Complete';
+    }, TOOLS.airflow);
+  }
+}
+
+};
+
+// ========== RUN ==========
+function loadPreset(id) {
+  const p = presets[id];
+  if (!p) return;
+  document.getElementById('user-input').value = p.input;
+}
+
+async function runSimulation() {
+  const input = document.getElementById('user-input').value.trim();
+  if (!input) return;
+  resetFlow();
+  document.getElementById('send-btn').disabled = true;
+
+  let matched = null;
+  for (const [k, v] of Object.entries(presets)) {
+    if (v.input === input) { matched = v; break; }
+  }
+  if (!matched) {
+    matched = presets['full-pipeline'];
+  }
+
+  await matched.steps();
+  document.getElementById('send-btn').disabled = false;
+}
+
+// ========== MOBILE ==========
+function toggleMobileInput() {
+  const panel = document.getElementById('input-panel');
+  const overlay = document.getElementById('drawer-overlay');
+  const isOpen = panel.classList.contains('open');
+  if (isOpen) {
+    panel.classList.remove('open');
+    overlay.classList.remove('open');
+  } else {
+    closeSheet();
+    panel.classList.add('open');
+    overlay.classList.add('open');
+  }
+}
+
+function openSheet(type) {
+  const sheet = document.getElementById('bottom-sheet');
+  const content = document.getElementById('sheet-content');
+  const overlay = document.getElementById('drawer-overlay');
+  document.getElementById('input-panel').classList.remove('open');
+  let html = '';
+  if (type === 'pipeline') {
+    html = '<h3 style="font-size:0.75em;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px;">Pipeline Events</h3>';
+    html += document.getElementById('msg-stack').outerHTML.replace('id="msg-stack"','id="mob-msg-stack"');
+    html = html.replace(/class="msg-chip /g, 'class="msg-chip visible ');
+  } else if (type === 'stats') {
+    html = '<h3 style="font-size:0.75em;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px;">Stats</h3>';
+    html += document.getElementById('stats-body').innerHTML;
+  } else if (type === 'tools') {
+    html = '<h3 style="font-size:0.75em;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px;">Tools & Infrastructure</h3>';
+    html += document.getElementById('tool-stack').innerHTML;
+    html = html.replace(/class="tool-entry /g, 'class="tool-entry visible ');
+  }
+  content.innerHTML = html;
+  sheet.classList.add('open');
+  overlay.classList.add('open');
+}
+
+function closeSheet() {
+  document.getElementById('bottom-sheet').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('open');
+}
+
+function closeMobileAll() {
+  document.getElementById('input-panel').classList.remove('open');
+  closeSheet();
+}
+
+// On mobile, close input panel after sending
+const origRunSim = runSimulation;
+runSimulation = async function() {
+  document.getElementById('input-panel').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('open');
+  await origRunSim();
+};
+
+// Swipe down to close bottom sheet
+(function() {
+  const sheet = document.getElementById('bottom-sheet');
+  let startY = 0;
+  sheet.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, { passive: true });
+  sheet.addEventListener('touchmove', e => {
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 60) closeSheet();
+  }, { passive: true });
+})();
+
+// Init
+document.getElementById('user-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runSimulation(); }
+});
+</script>
+</body>
+</html>
