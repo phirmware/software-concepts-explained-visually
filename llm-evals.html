@@ -1,0 +1,1512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Evaluation & Evals Pipeline — Interactive Deep Dive</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e14;
+  --bg2: #12171f;
+  --bg3: #1a2030;
+  --bg4: #232d3f;
+  --border: #2a3545;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --accent: #8b5cf6;
+  --accent2: #a78bfa;
+  --accent-dim: rgba(139,92,246,0.1);
+  --green: #22c55e;
+  --green-dim: rgba(34,197,94,0.12);
+  --orange: #f59e0b;
+  --orange-dim: rgba(245,158,11,0.12);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.12);
+  --cyan: #22d3ee;
+  --cyan-dim: rgba(34,211,238,0.12);
+  --pink: #f472b6;
+  --pink-dim: rgba(244,114,182,0.12);
+  --blue: #3b82f6;
+  --blue-dim: rgba(59,130,246,0.1);
+  --yellow: #facc15;
+  --yellow-dim: rgba(250,204,21,0.08);
+  --purple: #a78bfa;
+  --purple-dim: rgba(167,139,250,0.12);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden;}
+
+/* Top bar */
+.topbar{position:sticky;top:0;z-index:100;background:rgba(10,14,20,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;}
+.topbar a{color:var(--muted);text-decoration:none;font-size:0.85em;transition:color 0.2s;}
+.topbar a:hover{color:var(--text);}
+.topbar h1{font-size:0.95em;font-weight:600;background:linear-gradient(135deg,var(--accent),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+
+/* Section nav */
+.section-nav{position:sticky;top:49px;z-index:99;background:rgba(10,14,20,0.88);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:8px 24px;display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.section-nav::-webkit-scrollbar{display:none;}
+.nav-pill{padding:6px 16px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:inherit;font-size:0.78em;font-weight:500;cursor:pointer;white-space:nowrap;transition:all 0.2s;}
+.nav-pill:hover{border-color:var(--accent);color:var(--text);}
+.nav-pill.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+/* Main content */
+.content{max-width:960px;margin:0 auto;padding:40px 24px 80px;}
+.section{display:none;animation:fadeIn 0.4s ease;}
+.section.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+
+/* Typography */
+h2{font-size:1.6em;font-weight:700;margin-bottom:8px;letter-spacing:-0.02em;}
+h3{font-size:1.15em;font-weight:600;margin:28px 0 12px;color:var(--accent2);}
+h4{font-size:0.95em;font-weight:600;margin:20px 0 8px;color:var(--cyan);}
+.subtitle{color:var(--muted);font-size:0.95em;margin-bottom:32px;}
+p{margin-bottom:16px;color:var(--text);font-size:0.92em;line-height:1.7;}
+.dim{color:var(--muted);}
+
+/* Cards */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin:20px 0;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px;cursor:pointer;transition:all 0.25s;}
+.card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.3);}
+.card.active{border-color:var(--accent);box-shadow:0 0 20px var(--accent-dim);}
+.card-label{font-size:0.7em;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;display:inline-block;padding:2px 8px;border-radius:4px;}
+.card h4{margin:8px 0 6px;color:var(--text);font-size:0.95em;}
+.card p{font-size:0.82em;color:var(--muted);margin:0;}
+
+/* Code blocks */
+.code-block{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;margin:16px 0;overflow-x:auto;font-family:'DM Mono',monospace;font-size:0.8em;line-height:1.7;color:var(--cyan);}
+.code-block .kw{color:var(--purple);}
+.code-block .str{color:var(--green);}
+.code-block .cmt{color:var(--muted);}
+.code-block .fn{color:var(--pink);}
+.code-block .num{color:var(--orange);}
+
+/* Interactive boxes */
+.interactive-box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;margin:24px 0;position:relative;}
+.interactive-box::before{content:'INTERACTIVE';position:absolute;top:-10px;left:16px;padding:2px 10px;background:var(--accent);color:#fff;font-size:0.65em;font-weight:700;letter-spacing:0.08em;border-radius:4px;}
+.interactive-box h4{margin-top:8px;}
+
+/* Pipeline visualization */
+.pipeline{display:flex;gap:0;margin:24px 0;overflow-x:auto;padding:12px 0;}
+.pipe-step{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;position:relative;min-width:130px;}
+.pipe-dot{width:40px;height:40px;border-radius:50%;border:2px solid var(--border);background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:0.85em;font-weight:700;transition:all 0.4s;z-index:2;cursor:pointer;}
+.pipe-dot:hover{border-color:var(--accent);background:var(--bg3);}
+.pipe-step.active .pipe-dot{border-color:var(--accent);background:var(--accent);color:#fff;box-shadow:0 0 16px rgba(139,92,246,0.4);}
+.pipe-step.done .pipe-dot{border-color:var(--green);background:var(--green);color:#fff;}
+.pipe-label{font-size:0.72em;color:var(--muted);margin-top:8px;text-align:center;max-width:110px;}
+.pipe-step.active .pipe-label{color:var(--accent2);}
+.pipe-step.done .pipe-label{color:var(--green);}
+.pipe-arrow{width:40px;height:2px;background:var(--border);margin-top:20px;position:relative;}
+.pipe-arrow.done{background:var(--green);}
+.pipe-arrow.active{background:var(--accent);box-shadow:0 0 8px var(--accent-dim);}
+
+/* Comparison panels */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0;}
+.compare-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px;position:relative;}
+.compare-panel.bad{border-color:rgba(239,68,68,0.3);}
+.compare-panel.good{border-color:rgba(34,197,94,0.3);}
+.compare-label{font-size:0.7em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.compare-label .dot{width:8px;height:8px;border-radius:50%;}
+
+/* Metric bars */
+.metric-row{display:flex;align-items:center;gap:12px;margin:8px 0;font-size:0.82em;}
+.metric-name{width:100px;color:var(--muted);flex-shrink:0;}
+.metric-bar-bg{flex:1;height:22px;background:var(--bg3);border-radius:4px;overflow:hidden;position:relative;}
+.metric-bar{height:100%;border-radius:4px;transition:width 0.8s cubic-bezier(0.16,1,0.3,1);display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:0.75em;font-weight:600;color:#fff;}
+.metric-val{width:50px;text-align:right;font-weight:600;font-family:'DM Mono',monospace;font-size:0.85em;}
+
+/* Eval method selector */
+.method-tabs{display:flex;gap:8px;margin:16px 0;flex-wrap:wrap;}
+.method-tab{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-family:inherit;font-size:0.8em;cursor:pointer;transition:all 0.2s;}
+.method-tab:hover{border-color:var(--accent);color:var(--text);}
+.method-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+/* Score display */
+.score-display{display:flex;align-items:center;gap:16px;padding:16px;background:var(--bg3);border-radius:10px;margin:12px 0;}
+.score-big{font-size:2.2em;font-weight:700;font-family:'DM Mono',monospace;line-height:1;}
+.score-label{font-size:0.8em;color:var(--muted);}
+
+/* Timeline chart */
+.timeline-chart{position:relative;height:200px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px;margin:20px 0;overflow:hidden;}
+.chart-line{position:absolute;bottom:40px;left:60px;right:20px;height:120px;}
+.chart-dot{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);z-index:2;cursor:pointer;transition:all 0.3s;}
+.chart-dot:hover{transform:scale(1.5);box-shadow:0 0 12px var(--accent);}
+.chart-dot.regression{background:var(--red);}
+.chart-dot.improvement{background:var(--green);}
+.chart-y-label{position:absolute;left:8px;font-size:0.68em;color:var(--muted);font-family:'DM Mono',monospace;}
+.chart-x-label{position:absolute;bottom:8px;font-size:0.68em;color:var(--muted);font-family:'DM Mono',monospace;}
+.chart-gridline{position:absolute;left:60px;right:20px;height:1px;background:rgba(42,53,69,0.5);}
+
+/* Rubric table */
+.rubric-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:0.82em;}
+.rubric-table th{text-align:left;padding:10px 12px;background:var(--bg3);color:var(--muted);font-weight:600;font-size:0.82em;text-transform:uppercase;letter-spacing:0.04em;border-bottom:1px solid var(--border);}
+.rubric-table td{padding:10px 12px;border-bottom:1px solid rgba(42,53,69,0.3);vertical-align:top;}
+.rubric-table tr:hover{background:var(--bg3);}
+.rubric-table .score-cell{font-family:'DM Mono',monospace;font-weight:600;text-align:center;}
+
+/* Detail panel */
+.detail-panel{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:20px;margin:16px 0;display:none;animation:slideDown 0.3s ease;}
+.detail-panel.open{display:block;}
+@keyframes slideDown{from{opacity:0;max-height:0;}to{opacity:1;max-height:600px;}}
+
+/* Animated flow particles */
+.flow-container{position:relative;height:60px;margin:16px 0;}
+.flow-track{position:absolute;top:28px;left:0;right:0;height:4px;background:var(--border);border-radius:2px;}
+.flow-particle{position:absolute;top:24px;width:12px;height:12px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);animation:flowRight 2s infinite linear;}
+@keyframes flowRight{0%{left:0;opacity:0;}10%{opacity:1;}90%{opacity:1;}100%{left:calc(100% - 12px);opacity:0;}}
+
+/* Step indicator */
+.step-indicator{display:flex;align-items:center;gap:4px;margin:8px 0;}
+.step-dot-sm{width:6px;height:6px;border-radius:50%;background:var(--border);}
+.step-dot-sm.active{background:var(--accent);}
+.step-dot-sm.done{background:var(--green);}
+
+/* Judge animation */
+.judge-box{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px;margin:12px 0;position:relative;overflow:hidden;}
+.judge-thinking{height:3px;background:linear-gradient(90deg,transparent,var(--accent),transparent);position:absolute;top:0;left:0;right:0;animation:judgeThink 1.5s ease-in-out infinite;opacity:0;}
+.judge-thinking.active{opacity:1;}
+@keyframes judgeThink{0%{transform:translateX(-100%);}100%{transform:translateX(100%);};}
+
+/* Radar chart */
+.radar-container{width:300px;height:300px;margin:20px auto;position:relative;}
+
+/* Responsive */
+@media(max-width:768px){
+  .compare{grid-template-columns:1fr;}
+  .card-grid{grid-template-columns:1fr;}
+  .pipeline{flex-direction:column;align-items:flex-start;}
+  .pipe-arrow{width:2px;height:20px;margin:0 0 0 19px;}
+  .content{padding:24px 16px 60px;}
+  h2{font-size:1.3em;}
+  .radar-container{width:240px;height:240px;}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html">← Back</a>
+  <h1>LLM Evaluation & Evals Pipeline</h1>
+</div>
+
+<div class="section-nav" id="sectionNav">
+  <button class="nav-pill active" onclick="showSection(0)">Why Evals Matter</button>
+  <button class="nav-pill" onclick="showSection(1)">Types of Evals</button>
+  <button class="nav-pill" onclick="showSection(2)">Eval Pipeline</button>
+  <button class="nav-pill" onclick="showSection(3)">Advanced Patterns</button>
+  <button class="nav-pill" onclick="showSection(4)">Eval Simulator</button>
+</div>
+
+<div class="content">
+
+<!-- ============ SECTION 0: WHY EVALS MATTER ============ -->
+<div class="section active" id="sec0">
+  <h2>Why Evals Matter</h2>
+  <p class="subtitle">The difference between a demo and a production AI system is evaluation.</p>
+
+  <p>Every AI engineer can build a prototype that looks impressive in a demo. The hard part — the part that defines staff-level work — is knowing whether your system actually works, and proving it systematically.</p>
+
+  <h3>The Eval-Driven Development Loop</h3>
+  <p>At top AI companies, the development cycle revolves around evals. You don't ship a prompt change without running it through your eval suite, just like you don't ship code without running tests.</p>
+
+  <div class="interactive-box">
+    <h4>Development Loop</h4>
+    <p class="dim" style="font-size:0.82em;">Click each stage to see what happens there.</p>
+    <div class="pipeline" id="devLoop">
+      <div class="pipe-step active" onclick="showLoopDetail(0)">
+        <div class="pipe-dot">1</div>
+        <div class="pipe-label">Define Task</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step" onclick="showLoopDetail(1)">
+        <div class="pipe-dot">2</div>
+        <div class="pipe-label">Write Evals First</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step" onclick="showLoopDetail(2)">
+        <div class="pipe-dot">3</div>
+        <div class="pipe-label">Build / Change</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step" onclick="showLoopDetail(3)">
+        <div class="pipe-dot">4</div>
+        <div class="pipe-label">Run Evals</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step" onclick="showLoopDetail(4)">
+        <div class="pipe-dot">5</div>
+        <div class="pipe-label">Analyze & Iterate</div>
+      </div>
+    </div>
+    <div class="detail-panel open" id="loopDetail">
+      <h4 style="color:var(--accent2);">Define the Task</h4>
+      <p style="font-size:0.85em;">Start with a clear specification of what your LLM system should do. What are the inputs? What does a good output look like? What are the edge cases and failure modes? Write this down before touching any code.</p>
+      <p style="font-size:0.85em;color:var(--muted);">Example: "The system should extract structured event data from calendar invites. It must handle timezone conversions, recurring events, and multi-day events."</p>
+    </div>
+  </div>
+
+  <h3>Vibes-Based vs Systematic Evaluation</h3>
+  <p>Most teams start with "vibes-based" evaluation — trying a few examples manually and deciding it looks good. This breaks down immediately at scale.</p>
+
+  <div class="compare">
+    <div class="compare-panel bad">
+      <div class="compare-label"><span class="dot" style="background:var(--red)"></span> Vibes-Based</div>
+      <p style="font-size:0.82em;color:var(--muted);margin-bottom:12px;">Try 5 examples, looks good, ship it</p>
+      <div style="font-size:0.8em;color:var(--muted);line-height:2;">
+        <div>Manual spot-checking a few examples</div>
+        <div>No baseline to compare against</div>
+        <div>Regressions go unnoticed for weeks</div>
+        <div>Can't measure impact of changes</div>
+        <div>Team disagrees on quality</div>
+        <div>"It works on my examples" syndrome</div>
+      </div>
+    </div>
+    <div class="compare-panel good">
+      <div class="compare-label"><span class="dot" style="background:var(--green)"></span> Systematic Evals</div>
+      <p style="font-size:0.82em;color:var(--muted);margin-bottom:12px;">Automated, reproducible, measurable</p>
+      <div style="font-size:0.8em;color:var(--muted);line-height:2;">
+        <div>Hundreds/thousands of test cases</div>
+        <div>Version-controlled baselines</div>
+        <div>Regressions caught in CI/CD</div>
+        <div>Every change has measurable impact</div>
+        <div>Objective quality criteria (rubrics)</div>
+        <div>Coverage across edge cases</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>How Top Companies Think About Evals</h3>
+  <div class="card-grid">
+    <div class="card" onclick="toggleCompanyDetail(this, 0)">
+      <div class="card-label" style="background:var(--purple-dim);color:var(--purple);">Model Provider</div>
+      <h4>Anthropic's Approach</h4>
+      <p>Evals are first-class infrastructure. Separate eval teams, thousands of test cases per capability, automated regression gating on model releases.</p>
+      <div class="detail-panel" id="companyDetail0">
+        <p style="font-size:0.82em;">Anthropic maintains eval suites for safety (RLHF alignment), capability (coding, math, reasoning), and character (helpfulness, honesty). Every model checkpoint is evaluated against these suites before any deployment decision. The eval suite is versioned and grows continuously — new failure modes discovered in production become new eval cases.</p>
+      </div>
+    </div>
+    <div class="card" onclick="toggleCompanyDetail(this, 1)">
+      <div class="card-label" style="background:var(--blue-dim);color:var(--blue);">Applied AI</div>
+      <h4>Production Teams</h4>
+      <p>Feature-specific evals tied to business metrics. Every prompt change requires eval comparison showing no regressions.</p>
+      <div class="detail-panel" id="companyDetail1">
+        <p style="font-size:0.82em;">Production teams at companies like Stripe, Notion, and Cursor maintain task-specific eval suites. A typical setup: 200-500 golden examples per feature, LLM-as-judge scoring on a rubric, automated comparison in CI. No prompt change ships without a green eval run showing improvement or no regression on the metrics that matter.</p>
+      </div>
+    </div>
+    <div class="card" onclick="toggleCompanyDetail(this, 2)">
+      <div class="card-label" style="background:var(--green-dim);color:var(--green);">Infra</div>
+      <h4>Eval Infrastructure</h4>
+      <p>Dedicated eval platforms — Braintrust, Humanloop, LangSmith — because in-house eval tooling is a competitive advantage.</p>
+      <div class="detail-panel" id="companyDetail2">
+        <p style="font-size:0.82em;">The eval platform is treated like the testing framework: it handles dataset management, parallel execution, scoring aggregation, regression detection, and reporting. Top teams build custom eval harnesses that integrate with their CI/CD pipeline, often running evals on every PR that touches prompt templates or model configuration.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SECTION 1: TYPES OF EVALS ============ -->
+<div class="section" id="sec1">
+  <h2>Types of Evaluations</h2>
+  <p class="subtitle">Each eval type trades off cost, speed, and correlation with real quality.</p>
+
+  <p>There is no single "best" eval. Production systems use a layered approach — fast automated metrics for CI, LLM-as-judge for nuanced assessment, and targeted human evaluation for calibration.</p>
+
+  <div class="method-tabs" id="evalTypeTabs">
+    <button class="method-tab active" onclick="showEvalType(0)">Automated Metrics</button>
+    <button class="method-tab" onclick="showEvalType(1)">LLM-as-Judge</button>
+    <button class="method-tab" onclick="showEvalType(2)">Human Evaluation</button>
+    <button class="method-tab" onclick="showEvalType(3)">Code Evals</button>
+    <button class="method-tab" onclick="showEvalType(4)">Safety Evals</button>
+  </div>
+
+  <!-- Automated Metrics -->
+  <div class="eval-type-panel" id="evalType0" style="display:block;">
+    <h3>Automated Metrics</h3>
+    <p>Reference-based metrics that compare model output against a known-correct answer. Fast, cheap, deterministic — but limited to tasks where you have gold-standard references.</p>
+
+    <div class="interactive-box">
+      <h4>Interactive Metric Calculator</h4>
+      <p class="dim" style="font-size:0.82em;">See how BLEU, ROUGE, and Exact Match scores are computed on real text.</p>
+
+      <div style="margin:16px 0;">
+        <label style="font-size:0.78em;color:var(--muted);display:block;margin-bottom:4px;">Reference (ground truth):</label>
+        <textarea id="metricRef" rows="2" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:0.85em;padding:10px;resize:none;outline:none;" oninput="computeMetrics()">The cat sat on the mat in the living room</textarea>
+      </div>
+      <div style="margin:16px 0;">
+        <label style="font-size:0.78em;color:var(--muted);display:block;margin-bottom:4px;">Candidate (model output):</label>
+        <textarea id="metricCand" rows="2" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:0.85em;padding:10px;resize:none;outline:none;" oninput="computeMetrics()">The cat was sitting on the mat in the room</textarea>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:16px;">
+        <div class="score-display" style="flex-direction:column;align-items:flex-start;">
+          <div class="score-label">BLEU (1-gram)</div>
+          <div class="score-big" id="bleuScore" style="color:var(--cyan);">0.00</div>
+          <div style="font-size:0.72em;color:var(--muted);margin-top:4px;">Precision of n-gram overlap</div>
+        </div>
+        <div class="score-display" style="flex-direction:column;align-items:flex-start;">
+          <div class="score-label">ROUGE-1</div>
+          <div class="score-big" id="rougeScore" style="color:var(--green);">0.00</div>
+          <div style="font-size:0.72em;color:var(--muted);margin-top:4px;">Recall of unigram overlap</div>
+        </div>
+        <div class="score-display" style="flex-direction:column;align-items:flex-start;">
+          <div class="score-label">F1 Score</div>
+          <div class="score-big" id="f1Score" style="color:var(--orange);">0.00</div>
+          <div style="font-size:0.72em;color:var(--muted);margin-top:4px;">Harmonic mean of P & R</div>
+        </div>
+        <div class="score-display" style="flex-direction:column;align-items:flex-start;">
+          <div class="score-label">Exact Match</div>
+          <div class="score-big" id="emScore" style="color:var(--red);">0</div>
+          <div style="font-size:0.72em;color:var(--muted);margin-top:4px;">Binary: identical or not</div>
+        </div>
+      </div>
+
+      <div id="metricExplanation" style="margin-top:16px;padding:12px;background:var(--bg);border-radius:8px;font-size:0.8em;color:var(--muted);line-height:1.7;"></div>
+    </div>
+
+    <h4>When to use automated metrics</h4>
+    <div style="font-size:0.88em;color:var(--muted);line-height:2;">
+      <p><span style="color:var(--green);">Good for:</span> Translation (BLEU), summarization (ROUGE), QA extraction (F1/EM), classification (accuracy/F1)</p>
+      <p><span style="color:var(--red);">Bad for:</span> Open-ended generation, creative tasks, anything where multiple valid answers exist. A paraphrase that conveys the same meaning can score 0 on exact match and poorly on BLEU.</p>
+    </div>
+  </div>
+
+  <!-- LLM-as-Judge -->
+  <div class="eval-type-panel" id="evalType1" style="display:none;">
+    <h3>LLM-as-Judge</h3>
+    <p>Using a capable model (like Claude or GPT-4) to evaluate the output of another model. This is the most important eval technique for production AI systems — it scales like automated metrics but captures nuance like human evaluation.</p>
+
+    <h4>The Judge Prompt Pattern</h4>
+    <div class="code-block">
+<span class="cmt"># Typical LLM-as-Judge prompt structure</span>
+
+<span class="kw">SYSTEM</span>: You are an expert evaluator. Score the following
+response on a scale of 1-5 for each criterion.
+
+<span class="kw">RUBRIC</span>:
+  <span class="str">Accuracy</span> (1-5): Does the response contain factual errors?
+    1 = Major factual errors
+    3 = Minor inaccuracies
+    5 = Completely accurate
+
+  <span class="str">Completeness</span> (1-5): Does it address all parts of the query?
+    1 = Misses key aspects
+    3 = Covers main points
+    5 = Comprehensive coverage
+
+  <span class="str">Relevance</span> (1-5): Is the response focused on the question?
+    1 = Off-topic
+    3 = Partially relevant
+    5 = Directly addresses the query
+
+<span class="kw">USER QUERY</span>: {query}
+<span class="kw">MODEL RESPONSE</span>: {response}
+<span class="kw">REFERENCE</span> (optional): {reference_answer}
+
+Provide your evaluation as JSON:
+{"accuracy": <span class="num">N</span>, "completeness": <span class="num">N</span>, "relevance": <span class="num">N</span>,
+ "reasoning": "<span class="str">...</span>"}
+    </div>
+
+    <div class="interactive-box">
+      <h4>Watch an LLM Judge Evaluate</h4>
+      <p class="dim" style="font-size:0.82em;">Click "Run Judge" to see step-by-step evaluation with reasoning.</p>
+
+      <div class="judge-box" id="judgeDemo">
+        <div class="judge-thinking" id="judgeThinking"></div>
+        <div style="margin-bottom:12px;">
+          <div style="font-size:0.72em;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Query</div>
+          <div style="font-size:0.85em;padding:8px;background:var(--bg);border-radius:6px;">"What causes seasons on Earth?"</div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="font-size:0.72em;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Model Response</div>
+          <div style="font-size:0.85em;padding:8px;background:var(--bg);border-radius:6px;">"Seasons are caused by the tilt of Earth's axis (23.5 degrees) relative to its orbital plane. As Earth orbits the Sun, different hemispheres receive more direct sunlight at different times. When the Northern Hemisphere tilts toward the Sun, it's summer there and winter in the Southern Hemisphere."</div>
+        </div>
+        <div id="judgeOutput" style="display:none;margin-top:16px;">
+          <div style="font-size:0.72em;color:var(--accent2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Judge Reasoning</div>
+          <div id="judgeSteps"></div>
+        </div>
+        <button onclick="runJudgeDemo()" id="judgeBtn" style="margin-top:12px;padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-family:inherit;font-size:0.82em;cursor:pointer;">Run Judge</button>
+      </div>
+    </div>
+
+    <h4>Key Design Decisions for LLM-as-Judge</h4>
+    <div class="card-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="card" style="cursor:default;">
+        <h4 style="color:var(--cyan);">Pointwise vs Pairwise</h4>
+        <p><strong style="color:var(--text);">Pointwise:</strong> Score each response independently on a rubric (1-5). More stable but harder to calibrate.</p>
+        <p><strong style="color:var(--text);">Pairwise:</strong> Show two responses side by side, ask which is better. More reliable for ranking but O(n^2) comparisons.</p>
+      </div>
+      <div class="card" style="cursor:default;">
+        <h4 style="color:var(--cyan);">Calibration & Bias</h4>
+        <p><strong style="color:var(--text);">Position bias:</strong> Judges favor the first response in pairwise evals. Mitigate by swapping order and averaging.</p>
+        <p><strong style="color:var(--text);">Verbosity bias:</strong> Longer responses scored higher. Add "brevity is acceptable" to rubrics.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Human Evaluation -->
+  <div class="eval-type-panel" id="evalType2" style="display:none;">
+    <h3>Human Evaluation</h3>
+    <p>The gold standard — but expensive and slow. Use sparingly for calibrating your automated evals and for tasks where human judgment is the only valid signal.</p>
+
+    <h4>Human Eval Patterns</h4>
+    <div class="card-grid">
+      <div class="card" style="cursor:default;">
+        <div class="card-label" style="background:var(--green-dim);color:var(--green);">Common</div>
+        <h4>Likert Scale Rating</h4>
+        <p>Annotators rate responses on a 1-5 scale for specific dimensions (quality, helpfulness, safety). Simple but requires clear rubric calibration.</p>
+      </div>
+      <div class="card" style="cursor:default;">
+        <div class="card-label" style="background:var(--cyan-dim);color:var(--cyan);">Preferred</div>
+        <h4>A/B Preference</h4>
+        <p>Show two responses, ask which is better. More reliable than absolute scoring. Used by Anthropic and OpenAI for RLHF data collection.</p>
+      </div>
+      <div class="card" style="cursor:default;">
+        <div class="card-label" style="background:var(--orange-dim);color:var(--orange);">Advanced</div>
+        <h4>Inter-Annotator Agreement</h4>
+        <p>Measure Cohen's kappa or Krippendorff's alpha across annotators. If annotators disagree, your rubric is ambiguous — fix it before trusting scores.</p>
+      </div>
+    </div>
+
+    <h4>Cost/Speed/Quality Tradeoff</h4>
+    <div style="margin:16px 0;">
+      <div class="metric-row">
+        <span class="metric-name">Automated</span>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:95%;background:var(--green);">Speed</div></div>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:95%;background:var(--green);">Cost</div></div>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:35%;background:var(--red);">Nuance</div></div>
+      </div>
+      <div class="metric-row">
+        <span class="metric-name">LLM Judge</span>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:75%;background:var(--cyan);">Speed</div></div>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:65%;background:var(--cyan);">Cost</div></div>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:78%;background:var(--cyan);">Nuance</div></div>
+      </div>
+      <div class="metric-row">
+        <span class="metric-name">Human</span>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:15%;background:var(--orange);">Speed</div></div>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:15%;background:var(--orange);">Cost</div></div>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:95%;background:var(--green);">Nuance</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Code Evals -->
+  <div class="eval-type-panel" id="evalType3" style="display:none;">
+    <h3>Code Evaluations</h3>
+    <p>For code generation tasks, execution-based evaluation is the gold standard. Don't compare strings — run the code and check if it works.</p>
+
+    <h4>Pass@k Metric</h4>
+    <p>Generate k code samples, check how many pass the test suite. Pass@1 measures single-attempt success. Pass@10 measures the chance that at least one of 10 attempts works.</p>
+
+    <div class="code-block">
+<span class="cmt"># Pass@k calculation</span>
+<span class="cmt"># n = total samples generated</span>
+<span class="cmt"># c = number that pass</span>
+<span class="cmt"># k = number of attempts allowed</span>
+
+<span class="kw">def</span> <span class="fn">pass_at_k</span>(n, c, k):
+    <span class="str">"""Unbiased estimator of pass@k"""</span>
+    <span class="kw">if</span> n - c < k:
+        <span class="kw">return</span> <span class="num">1.0</span>
+    <span class="kw">return</span> <span class="num">1.0</span> - <span class="fn">comb</span>(n - c, k) / <span class="fn">comb</span>(n, k)
+
+<span class="cmt"># Example: generated 20 samples, 8 pass tests</span>
+<span class="fn">pass_at_k</span>(<span class="num">20</span>, <span class="num">8</span>, <span class="num">1</span>)   <span class="cmt"># = 0.40  (40% single-attempt success)</span>
+<span class="fn">pass_at_k</span>(<span class="num">20</span>, <span class="num">8</span>, <span class="num">10</span>)  <span class="cmt"># = 0.99  (99% with 10 attempts)</span>
+    </div>
+
+    <h4>Execution-Based Eval Pipeline</h4>
+    <div class="card-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="card" style="cursor:default;">
+        <h4 style="color:var(--green);">Sandboxed Execution</h4>
+        <p>Run generated code in isolated containers (Docker, gVisor, Firecracker). Prevent filesystem access, network calls, and resource exhaustion. Time-limit execution (typically 10-30s).</p>
+      </div>
+      <div class="card" style="cursor:default;">
+        <h4 style="color:var(--orange);">Test Harness Design</h4>
+        <p>Write test cases that check behavior, not implementation. Use property-based tests when possible. Include edge cases: empty inputs, large inputs, Unicode, error handling.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Safety Evals -->
+  <div class="eval-type-panel" id="evalType4" style="display:none;">
+    <h3>Safety Evaluations</h3>
+    <p>Safety evals verify that your system handles adversarial inputs, refuses harmful requests, and doesn't leak sensitive information. This is non-negotiable for production systems.</p>
+
+    <h4>Safety Eval Categories</h4>
+    <div class="card-grid">
+      <div class="card" style="cursor:default;">
+        <div class="card-label" style="background:var(--red-dim);color:var(--red);">Critical</div>
+        <h4>Red-Teaming</h4>
+        <p>Systematic adversarial testing — prompt injections, jailbreak attempts, social engineering. Automated red-team suites + human red-teamers for creative attacks.</p>
+      </div>
+      <div class="card" style="cursor:default;">
+        <div class="card-label" style="background:var(--orange-dim);color:var(--orange);">Important</div>
+        <h4>Toxicity & Bias</h4>
+        <p>Measure output toxicity (Perspective API), stereotype reinforcement, demographic biases. Test across protected categories with paired prompts.</p>
+      </div>
+      <div class="card" style="cursor:default;">
+        <div class="card-label" style="background:var(--purple-dim);color:var(--purple);">Compliance</div>
+        <h4>Data Leakage</h4>
+        <p>Verify the model doesn't memorize and regurgitate training data, PII, or secrets. Test with known canary strings and extraction attacks.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SECTION 2: EVAL PIPELINE ============ -->
+<div class="section" id="sec2">
+  <h2>Building an Eval Pipeline</h2>
+  <p class="subtitle">The infrastructure that turns ad-hoc testing into systematic quality assurance.</p>
+
+  <div class="interactive-box">
+    <h4>The 6-Stage Eval Pipeline</h4>
+    <p class="dim" style="font-size:0.82em;">Click each stage to explore it in depth.</p>
+
+    <div class="pipeline" id="evalPipeline">
+      <div class="pipe-step active" onclick="showPipeDetail(0)">
+        <div class="pipe-dot">1</div>
+        <div class="pipe-label">Dataset Curation</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step" onclick="showPipeDetail(1)">
+        <div class="pipe-dot">2</div>
+        <div class="pipe-label">Prompt Versioning</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step" onclick="showPipeDetail(2)">
+        <div class="pipe-dot">3</div>
+        <div class="pipe-label">Execution</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step" onclick="showPipeDetail(3)">
+        <div class="pipe-dot">4</div>
+        <div class="pipe-label">Scoring</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step" onclick="showPipeDetail(4)">
+        <div class="pipe-dot">5</div>
+        <div class="pipe-label">Regression Check</div>
+      </div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-step" onclick="showPipeDetail(5)">
+        <div class="pipe-dot">6</div>
+        <div class="pipe-label">Report & Gate</div>
+      </div>
+    </div>
+
+    <div id="pipeDetail" class="detail-panel open"></div>
+  </div>
+
+  <h3>Eval Pipeline in Code</h3>
+  <div class="code-block">
+<span class="cmt"># eval_pipeline.py — Production eval framework skeleton</span>
+
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Callable
+<span class="kw">import</span> json, hashlib, datetime
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">EvalCase</span>:
+    id: <span class="str">str</span>
+    input: <span class="str">str</span>
+    expected: <span class="str">str</span>          <span class="cmt"># reference answer (optional)</span>
+    tags: List[<span class="str">str</span>]        <span class="cmt"># ["edge-case", "multilingual"]</span>
+    metadata: Dict          <span class="cmt"># source, difficulty, etc.</span>
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">EvalResult</span>:
+    case_id: <span class="str">str</span>
+    output: <span class="str">str</span>
+    scores: Dict[<span class="str">str</span>, <span class="str">float</span>]  <span class="cmt"># {"accuracy": 4, "relevance": 5}</span>
+    latency_ms: <span class="str">float</span>
+    prompt_version: <span class="str">str</span>
+    model: <span class="str">str</span>
+    timestamp: <span class="str">str</span>
+
+<span class="kw">class</span> <span class="fn">EvalPipeline</span>:
+    <span class="kw">def</span> <span class="fn">run</span>(self, dataset, prompt_template, model, scorers):
+        results = []
+        <span class="kw">for</span> case <span class="kw">in</span> dataset:
+            output = model.<span class="fn">generate</span>(
+                prompt_template.<span class="fn">format</span>(**case.input)
+            )
+            scores = {
+                name: scorer(case, output)
+                <span class="kw">for</span> name, scorer <span class="kw">in</span> scorers.items()
+            }
+            results.<span class="fn">append</span>(<span class="fn">EvalResult</span>(
+                case_id=case.id,
+                output=output,
+                scores=scores,
+                prompt_version=prompt_template.version,
+                ...
+            ))
+        <span class="kw">return</span> self.<span class="fn">aggregate</span>(results)
+  </div>
+
+  <h3>Eval Score Timeline</h3>
+  <p>Track how your eval scores change across prompt versions. Regressions should block deployment.</p>
+
+  <div class="interactive-box">
+    <h4>Score History Across Prompt Versions</h4>
+    <p class="dim" style="font-size:0.82em;">Hover over data points to see details. Green = improvement, red = regression.</p>
+    <div class="timeline-chart" id="timelineChart">
+      <div class="chart-y-label" style="top:16px;">1.0</div>
+      <div class="chart-y-label" style="top:56px;">0.8</div>
+      <div class="chart-y-label" style="top:96px;">0.6</div>
+      <div class="chart-y-label" style="top:136px;">0.4</div>
+      <div class="chart-gridline" style="top:40px;"></div>
+      <div class="chart-gridline" style="top:80px;"></div>
+      <div class="chart-gridline" style="top:120px;"></div>
+      <div class="chart-gridline" style="top:160px;"></div>
+      <div class="chart-line" id="chartLine"></div>
+    </div>
+    <div id="chartTooltip" style="font-size:0.8em;color:var(--muted);padding:8px;min-height:24px;"></div>
+  </div>
+</div>
+
+<!-- ============ SECTION 3: ADVANCED PATTERNS ============ -->
+<div class="section" id="sec3">
+  <h2>Advanced Patterns</h2>
+  <p class="subtitle">Staff-level techniques that separate production-grade eval systems from toy setups.</p>
+
+  <h3>Eval-Driven Development (EDD)</h3>
+  <p>Like Test-Driven Development, but for AI. Write evals BEFORE changing your prompts or model configuration. This ensures you have a baseline to compare against and know exactly what you're optimizing for.</p>
+
+  <div class="compare">
+    <div class="compare-panel">
+      <div class="compare-label"><span class="dot" style="background:var(--muted)"></span> Typical Workflow</div>
+      <div style="font-size:0.82em;color:var(--muted);line-height:2.2;">
+        <div>1. Get feature request</div>
+        <div>2. Change prompt</div>
+        <div>3. Try a few examples</div>
+        <div>4. Ship it</div>
+        <div>5. Find out it broke something else</div>
+        <div>6. Scramble to fix regression</div>
+      </div>
+    </div>
+    <div class="compare-panel good">
+      <div class="compare-label"><span class="dot" style="background:var(--green)"></span> EDD Workflow</div>
+      <div style="font-size:0.82em;color:var(--muted);line-height:2.2;">
+        <div>1. Get feature request</div>
+        <div>2. Write eval cases for the new behavior</div>
+        <div>3. Run evals — confirm new cases fail</div>
+        <div>4. Change prompt</div>
+        <div>5. Run evals — new cases pass, old don't regress</div>
+        <div>6. Ship with confidence</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Bootstrapping Eval Datasets with LLMs</h3>
+  <p>You need hundreds of eval cases but creating them manually is slow. Use an LLM to generate candidate eval cases, then human-review them for quality.</p>
+
+  <div class="code-block">
+<span class="cmt"># Generate eval cases with an LLM</span>
+<span class="kw">BOOTSTRAP_PROMPT</span> = <span class="str">"""
+Generate 20 diverse test cases for a calendar event extractor.
+
+Each test case should have:
+- input: A natural language message containing event information
+- expected_output: Structured JSON with the extracted event
+
+Include edge cases:
+- Ambiguous times ("next Tuesday")
+- Multiple events in one message
+- Timezone conversions
+- Recurring events
+- Cancellations and modifications
+
+Format as JSON array.
+"""</span>
+
+<span class="cmt"># Then human-review to remove bad examples</span>
+<span class="cmt"># and add cases the LLM didn't think of</span>
+  </div>
+
+  <h3>Multi-Dimensional Scoring</h3>
+  <p>Real systems need to balance multiple competing objectives. A response can be accurate but unhelpful, or helpful but verbose. Track dimensions independently.</p>
+
+  <div class="interactive-box">
+    <h4>Multi-Dimensional Eval Radar</h4>
+    <p class="dim" style="font-size:0.82em;">Click a prompt version to see its score profile. Notice how improving one dimension can regress another.</p>
+    <div style="display:flex;gap:16px;margin:16px 0;flex-wrap:wrap;">
+      <button class="method-tab active" onclick="showRadarVersion(0)">v1.0 (Baseline)</button>
+      <button class="method-tab" onclick="showRadarVersion(1)">v1.1 (More Detail)</button>
+      <button class="method-tab" onclick="showRadarVersion(2)">v1.2 (Balanced)</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+      <canvas id="radarCanvas" width="300" height="300" style="border-radius:8px;"></canvas>
+      <div id="radarScores" style="flex:1;min-width:200px;"></div>
+    </div>
+  </div>
+
+  <h3>A/B Testing Prompts in Production</h3>
+  <p>When you can't decide between two prompt versions offline, run them both in production and measure real user outcomes.</p>
+
+  <div class="card-grid" style="grid-template-columns:1fr 1fr;">
+    <div class="card" style="cursor:default;">
+      <h4 style="color:var(--cyan);">Simple A/B Split</h4>
+      <p>Route 50/50 traffic between two prompt versions. Measure user satisfaction (thumbs up/down), task completion rate, and downstream metrics. Need statistical significance (p &lt; 0.05) before declaring a winner.</p>
+    </div>
+    <div class="card" style="cursor:default;">
+      <h4 style="color:var(--orange);">Multi-Armed Bandit</h4>
+      <p>Thompson sampling: start equal, gradually shift traffic to the better-performing version. Minimizes regret — you expose fewer users to the worse version while still gathering enough data to be confident.</p>
+    </div>
+  </div>
+
+  <h3>Continuous Evaluation & Drift Detection</h3>
+  <p>Eval scores can degrade over time even without any changes to your system. User behavior changes, data distributions shift, and the world moves on.</p>
+
+  <div class="interactive-box">
+    <h4>Drift Detection Simulation</h4>
+    <p class="dim" style="font-size:0.82em;">Watch eval scores drift over time. Click "Detect Drift" to run the detection algorithm.</p>
+    <div style="display:flex;gap:12px;margin:16px 0;">
+      <button onclick="startDriftSim()" id="driftBtn" style="padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-family:inherit;font-size:0.82em;cursor:pointer;">Start Simulation</button>
+      <button onclick="detectDrift()" id="detectBtn" style="padding:8px 20px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:0.82em;cursor:pointer;" disabled>Detect Drift</button>
+    </div>
+    <canvas id="driftCanvas" width="800" height="200" style="width:100%;height:200px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);"></canvas>
+    <div id="driftResult" style="margin-top:12px;font-size:0.82em;color:var(--muted);min-height:24px;"></div>
+  </div>
+</div>
+
+<!-- ============ SECTION 4: EVAL SIMULATOR ============ -->
+<div class="section" id="sec4">
+  <h2>Interactive Eval Simulator</h2>
+  <p class="subtitle">See how different eval methods score the same response — and why they disagree.</p>
+
+  <div class="interactive-box">
+    <h4>Choose a Scenario</h4>
+    <div class="method-tabs" id="scenarioTabs">
+      <button class="method-tab active" onclick="selectScenario(0)">Factual Q&A</button>
+      <button class="method-tab" onclick="selectScenario(1)">Summarization</button>
+      <button class="method-tab" onclick="selectScenario(2)">Code Generation</button>
+    </div>
+
+    <div id="scenarioDisplay" style="margin:20px 0;">
+      <div style="margin-bottom:12px;">
+        <div style="font-size:0.72em;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Input Query</div>
+        <div id="simQuery" style="font-size:0.88em;padding:12px;background:var(--bg3);border-radius:8px;border-left:3px solid var(--cyan);"></div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <div style="font-size:0.72em;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Reference Answer</div>
+        <div id="simRef" style="font-size:0.88em;padding:12px;background:var(--bg3);border-radius:8px;border-left:3px solid var(--green);"></div>
+      </div>
+      <div>
+        <div style="font-size:0.72em;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Model Output</div>
+        <div id="simOutput" style="font-size:0.88em;padding:12px;background:var(--bg3);border-radius:8px;border-left:3px solid var(--purple);"></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Run Evaluations</h3>
+  <p>Click each method to run it against the model output above. Watch how they score differently.</p>
+
+  <div class="card-grid" style="grid-template-columns:repeat(3,1fr);">
+    <div class="card" id="evalCard0" onclick="runSimEval(0)" style="text-align:center;">
+      <div class="card-label" style="background:var(--cyan-dim);color:var(--cyan);">Method 1</div>
+      <h4>Automated Metrics</h4>
+      <p>BLEU, ROUGE, F1</p>
+      <div id="evalResult0" style="margin-top:12px;display:none;">
+        <div class="score-big" style="color:var(--cyan);font-size:1.8em;"></div>
+        <div style="font-size:0.75em;color:var(--muted);margin-top:4px;"></div>
+      </div>
+    </div>
+    <div class="card" id="evalCard1" onclick="runSimEval(1)" style="text-align:center;">
+      <div class="card-label" style="background:var(--purple-dim);color:var(--purple);">Method 2</div>
+      <h4>LLM-as-Judge</h4>
+      <p>Rubric-based scoring</p>
+      <div id="evalResult1" style="margin-top:12px;display:none;">
+        <div class="score-big" style="color:var(--purple);font-size:1.8em;"></div>
+        <div style="font-size:0.75em;color:var(--muted);margin-top:4px;"></div>
+      </div>
+    </div>
+    <div class="card" id="evalCard2" onclick="runSimEval(2)" style="text-align:center;">
+      <div class="card-label" style="background:var(--green-dim);color:var(--green);">Method 3</div>
+      <h4>Execution-Based</h4>
+      <p>Run & verify output</p>
+      <div id="evalResult2" style="margin-top:12px;display:none;">
+        <div class="score-big" style="color:var(--green);font-size:1.8em;"></div>
+        <div style="font-size:0.75em;color:var(--muted);margin-top:4px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="evalComparison" style="display:none;margin-top:24px;">
+    <h3>Comparison Summary</h3>
+    <table class="rubric-table">
+      <thead>
+        <tr>
+          <th>Method</th>
+          <th>Score</th>
+          <th>Strengths</th>
+          <th>Limitations</th>
+        </tr>
+      </thead>
+      <tbody id="comparisonBody"></tbody>
+    </table>
+    <div style="margin-top:16px;padding:16px;background:var(--bg3);border-radius:10px;border-left:3px solid var(--accent);">
+      <h4 style="color:var(--accent2);margin:0 0 8px;">Key Insight</h4>
+      <p id="comparisonInsight" style="font-size:0.88em;color:var(--muted);margin:0;"></p>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<script>
+// ============ NAVIGATION ============
+let currentSection = 0;
+const sections = document.querySelectorAll('.section');
+const pills = document.querySelectorAll('.nav-pill');
+
+function showSection(idx) {
+  currentSection = idx;
+  sections.forEach((s,i) => s.classList.toggle('active', i === idx));
+  pills.forEach((p,i) => p.classList.toggle('active', i === idx));
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+// ============ DEV LOOP ============
+const loopDetails = [
+  {title:'Define the Task', text:'Start with a clear specification of what your LLM system should do. What are the inputs? What does a good output look like? What are the edge cases and failure modes? Write this down before touching any code.\n\nExample: "The system should extract structured event data from calendar invites. It must handle timezone conversions, recurring events, and multi-day events."'},
+  {title:'Write Evals First', text:'Before changing anything, create your eval dataset and scoring criteria. This is the AI equivalent of writing tests before code (TDD). Your eval suite becomes the objective measure of whether your change is an improvement.\n\nInclude: golden examples (10-20 easy, expected cases), edge cases (10-20 tricky scenarios), adversarial examples (5-10 inputs designed to break the system).'},
+  {title:'Build / Change', text:'Now make your prompt, model, or pipeline change. This could be editing a system prompt, switching models, adding a retrieval step, or changing the output format.\n\nBecause you wrote evals first, you have a clear target. You know exactly what success looks like and can iterate quickly against your eval suite.'},
+  {title:'Run Evals', text:'Execute your full eval suite against the new version. Compare against the baseline (the previous version\'s scores). Look at aggregate metrics AND individual failures.\n\nAutomate this in CI/CD: every PR that touches prompt templates or model config should trigger an eval run. The eval results should be posted as a PR comment.'},
+  {title:'Analyze & Iterate', text:'If evals pass: ship with confidence. You have data showing improvement with no regressions.\n\nIf evals fail: analyze the failures. Are they new regressions or pre-existing issues? Is the eval itself wrong? Update your approach and re-run.\n\nAdd any new failure modes you discover back into the eval dataset. The eval suite grows continuously.'}
+];
+
+function showLoopDetail(idx) {
+  const steps = document.querySelectorAll('#devLoop .pipe-step');
+  const arrows = document.querySelectorAll('#devLoop .pipe-arrow');
+  steps.forEach((s,i) => {
+    s.classList.remove('active','done');
+    if(i < idx) s.classList.add('done');
+    if(i === idx) s.classList.add('active');
+  });
+  arrows.forEach((a,i) => {
+    a.classList.remove('active','done');
+    if(i < idx) a.classList.add('done');
+    if(i === idx) a.classList.add('active');
+  });
+  const d = loopDetails[idx];
+  document.getElementById('loopDetail').innerHTML = `<h4 style="color:var(--accent2);">${d.title}</h4><p style="font-size:0.85em;white-space:pre-line;">${d.text}</p>`;
+  document.getElementById('loopDetail').classList.add('open');
+}
+
+// ============ COMPANY DETAILS ============
+function toggleCompanyDetail(el, idx) {
+  const panel = document.getElementById('companyDetail'+idx);
+  const isOpen = panel.classList.contains('open');
+  document.querySelectorAll('[id^=companyDetail]').forEach(p => p.classList.remove('open'));
+  document.querySelectorAll('.card-grid .card').forEach(c => c.classList.remove('active'));
+  if(!isOpen) {
+    panel.classList.add('open');
+    el.classList.add('active');
+  }
+}
+
+// ============ EVAL TYPE TABS ============
+function showEvalType(idx) {
+  document.querySelectorAll('.eval-type-panel').forEach((p,i) => p.style.display = i===idx?'block':'none');
+  document.querySelectorAll('#evalTypeTabs .method-tab').forEach((t,i) => t.classList.toggle('active',i===idx));
+}
+
+// ============ METRIC CALCULATOR ============
+function computeMetrics() {
+  const ref = document.getElementById('metricRef').value.toLowerCase().trim();
+  const cand = document.getElementById('metricCand').value.toLowerCase().trim();
+  if(!ref || !cand) return;
+
+  const refTokens = ref.split(/\s+/);
+  const candTokens = cand.split(/\s+/);
+  const refSet = new Set(refTokens);
+  const candSet = new Set(candTokens);
+
+  // BLEU-1 (unigram precision)
+  let matches = 0;
+  candTokens.forEach(t => { if(refSet.has(t)) matches++; });
+  const bleu = candTokens.length > 0 ? matches / candTokens.length : 0;
+
+  // ROUGE-1 (unigram recall)
+  let recallMatches = 0;
+  refTokens.forEach(t => { if(candSet.has(t)) recallMatches++; });
+  const rouge = refTokens.length > 0 ? recallMatches / refTokens.length : 0;
+
+  // F1
+  const precision = bleu;
+  const recall = rouge;
+  const f1 = (precision + recall) > 0 ? 2 * precision * recall / (precision + recall) : 0;
+
+  // Exact match
+  const em = ref === cand ? 1 : 0;
+
+  document.getElementById('bleuScore').textContent = bleu.toFixed(2);
+  document.getElementById('rougeScore').textContent = rouge.toFixed(2);
+  document.getElementById('f1Score').textContent = f1.toFixed(2);
+  document.getElementById('emScore').textContent = em;
+
+  // Explanation
+  const overlap = [...candSet].filter(t => refSet.has(t));
+  const missed = [...refSet].filter(t => !candSet.has(t));
+  document.getElementById('metricExplanation').innerHTML =
+    `<strong style="color:var(--cyan);">Overlapping tokens:</strong> ${overlap.join(', ') || 'none'}<br>` +
+    `<strong style="color:var(--red);">Missed from reference:</strong> ${missed.join(', ') || 'none'}<br>` +
+    `<strong style="color:var(--muted);">BLEU-1</strong> = matching candidate tokens / total candidate tokens = ${matches}/${candTokens.length}<br>` +
+    `<strong style="color:var(--muted);">ROUGE-1</strong> = matching reference tokens / total reference tokens = ${recallMatches}/${refTokens.length}`;
+}
+computeMetrics();
+
+// ============ JUDGE DEMO ============
+const judgeSteps = [
+  {criterion:'Accuracy', score:5, reasoning:'The response correctly identifies axial tilt (23.5 degrees) as the cause of seasons, not distance from the Sun. The explanation of how tilt affects sunlight directness is factually correct. The hemisphere relationship is accurately described.'},
+  {criterion:'Completeness', score:4, reasoning:'Covers the primary mechanism well. Minor gap: doesn\'t mention how axial tilt affects day length, which is a contributing factor. Also doesn\'t mention equinoxes/solstices. But for a concise answer, this is nearly complete.'},
+  {criterion:'Relevance', score:5, reasoning:'The response directly and exclusively addresses the question. No tangential information or filler content. Every sentence contributes to answering "what causes seasons."'},
+];
+let judgeStep = 0;
+let judgeTimer = null;
+
+function runJudgeDemo() {
+  const btn = document.getElementById('judgeBtn');
+  btn.disabled = true;
+  btn.textContent = 'Evaluating...';
+  document.getElementById('judgeThinking').classList.add('active');
+  document.getElementById('judgeOutput').style.display = 'block';
+  document.getElementById('judgeSteps').innerHTML = '';
+  judgeStep = 0;
+
+  function addStep() {
+    if(judgeStep >= judgeSteps.length) {
+      document.getElementById('judgeThinking').classList.remove('active');
+      btn.disabled = false;
+      btn.textContent = 'Run Again';
+      // Add summary
+      const total = judgeSteps.reduce((s,st) => s + st.score, 0);
+      const avg = (total / judgeSteps.length).toFixed(1);
+      document.getElementById('judgeSteps').innerHTML += `
+        <div style="margin-top:16px;padding:12px;background:var(--accent-dim);border-radius:8px;border-left:3px solid var(--accent);">
+          <strong style="color:var(--accent2);">Overall Score: ${avg}/5.0</strong>
+          <span style="color:var(--muted);font-size:0.85em;margin-left:8px;">(${total}/${judgeSteps.length * 5} total points)</span>
+        </div>`;
+      return;
+    }
+    const step = judgeSteps[judgeStep];
+    const color = step.score >= 4 ? 'var(--green)' : step.score >= 3 ? 'var(--orange)' : 'var(--red)';
+    document.getElementById('judgeSteps').innerHTML += `
+      <div style="margin-bottom:12px;padding:10px;background:var(--bg);border-radius:6px;animation:fadeIn 0.3s ease;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-weight:600;font-size:0.88em;">${step.criterion}</span>
+          <span style="font-family:'DM Mono',monospace;font-weight:700;color:${color};">${step.score}/5</span>
+        </div>
+        <p style="font-size:0.8em;color:var(--muted);margin:0;">${step.reasoning}</p>
+      </div>`;
+    judgeStep++;
+    judgeTimer = setTimeout(addStep, 800);
+  }
+  judgeTimer = setTimeout(addStep, 600);
+}
+
+// ============ PIPELINE DETAIL ============
+const pipeDetails = [
+  {title:'Dataset Curation', content:`
+    <p style="font-size:0.85em;">Your eval dataset is the foundation of everything. A bad dataset means bad signals — you'll optimize for the wrong thing.</p>
+    <h4 style="color:var(--cyan);font-size:0.88em;">Composition of a Good Eval Dataset</h4>
+    <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+      <div><span style="color:var(--green);">Golden examples (60%)</span> — Representative, expected inputs with verified correct outputs</div>
+      <div><span style="color:var(--orange);">Edge cases (25%)</span> — Unusual inputs, boundary conditions, ambiguous queries</div>
+      <div><span style="color:var(--red);">Adversarial (15%)</span> — Inputs designed to break the system, prompt injections, out-of-distribution</div>
+    </div>
+    <p style="font-size:0.82em;color:var(--muted);margin-top:12px;">Minimum viable size: 100-200 cases for initial development, 500+ for production confidence. Tag each case with metadata (difficulty, category, source) for slice-level analysis.</p>
+  `},
+  {title:'Prompt Versioning', content:`
+    <p style="font-size:0.85em;">Every prompt template gets a version hash. This lets you trace any eval result back to the exact prompt that produced it.</p>
+    <div class="code-block" style="font-size:0.78em;">
+<span class="cmt"># Version your prompts like code</span>
+<span class="kw">class</span> <span class="fn">PromptTemplate</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, template, version=<span class="kw">None</span>):
+        self.template = template
+        self.version = version <span class="kw">or</span> hashlib.sha256(
+            template.encode()
+        ).hexdigest()[:8]
+    </div>
+    <p style="font-size:0.82em;color:var(--muted);">Store prompt templates in version control alongside your eval datasets. A PR that changes a prompt template should always include the eval comparison in the PR description.</p>
+  `},
+  {title:'Execution', content:`
+    <p style="font-size:0.85em;">Run the model against every case in your eval dataset. This needs to be fast, reliable, and reproducible.</p>
+    <h4 style="color:var(--cyan);font-size:0.88em;">Production Execution Patterns</h4>
+    <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+      <div><span style="color:var(--cyan);">Parallel execution</span> — Run 10-50 eval cases concurrently to finish in minutes, not hours</div>
+      <div><span style="color:var(--green);">Deterministic settings</span> — temperature=0 for reproducibility (or fixed seed)</div>
+      <div><span style="color:var(--orange);">Rate limiting</span> — Respect API rate limits with exponential backoff</div>
+      <div><span style="color:var(--purple);">Caching</span> — Cache model outputs keyed on (prompt_hash, model, temperature) to avoid re-running unchanged cases</div>
+    </div>
+  `},
+  {title:'Scoring', content:`
+    <p style="font-size:0.85em;">Apply your evaluation criteria to every (input, output, reference) triple. Layer multiple scoring methods for a complete picture.</p>
+    <h4 style="color:var(--cyan);font-size:0.88em;">Scoring Stack</h4>
+    <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+      <div><span style="color:var(--green);">Layer 1: Deterministic checks</span> — Format validation, required field extraction, regex patterns (fast, free)</div>
+      <div><span style="color:var(--cyan);">Layer 2: Automated metrics</span> — BLEU, ROUGE, F1 against references (fast, cheap)</div>
+      <div><span style="color:var(--purple);">Layer 3: LLM-as-judge</span> — Rubric-based scoring for quality dimensions (slower, costs per eval)</div>
+      <div><span style="color:var(--orange);">Layer 4: Human review</span> — Spot-check a sample of cases (slow, expensive, but highest signal)</div>
+    </div>
+  `},
+  {title:'Regression Detection', content:`
+    <p style="font-size:0.85em;">Compare the new version's scores against the baseline. The question isn't just "did the average improve?" but "did anything get worse?"</p>
+    <h4 style="color:var(--cyan);font-size:0.88em;">Regression Analysis</h4>
+    <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+      <div><span style="color:var(--green);">Aggregate comparison</span> — Overall score change with confidence intervals</div>
+      <div><span style="color:var(--red);">Per-case regression</span> — Flag any case that scored lower than baseline</div>
+      <div><span style="color:var(--orange);">Slice analysis</span> — Check performance by category (did "multilingual" cases regress?)</div>
+      <div><span style="color:var(--purple);">Statistical significance</span> — Use paired t-test or bootstrap to confirm the change is real, not noise</div>
+    </div>
+    <p style="font-size:0.82em;color:var(--muted);margin-top:8px;">Rule of thumb: block deployment if any slice regresses by more than 5%, or if overall score drops by more than 2%.</p>
+  `},
+  {title:'Report & Gate', content:`
+    <p style="font-size:0.85em;">Generate a human-readable report and enforce quality gates in your CI/CD pipeline.</p>
+    <div class="code-block" style="font-size:0.78em;">
+<span class="cmt"># CI/CD eval gate (e.g., GitHub Action)</span>
+<span class="kw">eval_result</span> = run_eval_suite(new_prompt, dataset)
+<span class="kw">baseline</span> = load_baseline(current_prod_version)
+
+<span class="cmt"># Quality gates</span>
+<span class="kw">assert</span> eval_result.overall_score >= baseline.overall_score * <span class="num">0.98</span>, \\
+    <span class="str">"Overall regression > 2%"</span>
+<span class="kw">assert</span> eval_result.worst_slice_delta > <span class="num">-0.05</span>, \\
+    <span class="str">"Slice regression > 5%"</span>
+<span class="kw">assert</span> eval_result.safety_score >= <span class="num">0.99</span>, \\
+    <span class="str">"Safety score below threshold"</span>
+
+<span class="cmt"># Post report to PR</span>
+post_eval_report_to_pr(eval_result, baseline)
+    </div>
+  `}
+];
+
+function showPipeDetail(idx) {
+  const steps = document.querySelectorAll('#evalPipeline .pipe-step');
+  const arrows = document.querySelectorAll('#evalPipeline .pipe-arrow');
+  steps.forEach((s,i) => {
+    s.classList.remove('active','done');
+    if(i < idx) s.classList.add('done');
+    if(i === idx) s.classList.add('active');
+  });
+  arrows.forEach((a,i) => {
+    a.classList.remove('active','done');
+    if(i < idx) a.classList.add('done');
+    if(i === idx) a.classList.add('active');
+  });
+  const d = pipeDetails[idx];
+  document.getElementById('pipeDetail').innerHTML = `<h4 style="color:var(--accent2);">${d.title}</h4>${d.content}`;
+  document.getElementById('pipeDetail').classList.add('open');
+}
+showPipeDetail(0);
+
+// ============ TIMELINE CHART ============
+const chartData = [
+  {version:'v1.0', score:0.72, type:'baseline', note:'Initial prompt'},
+  {version:'v1.1', score:0.68, type:'regression', note:'Added system prompt — regressed on edge cases'},
+  {version:'v1.2', score:0.75, type:'improvement', note:'Fixed edge case handling'},
+  {version:'v1.3', score:0.81, type:'improvement', note:'Few-shot examples added'},
+  {version:'v1.4', score:0.79, type:'regression', note:'Model upgrade — slight format regression'},
+  {version:'v1.5', score:0.85, type:'improvement', note:'Chain-of-thought prompting'},
+  {version:'v2.0', score:0.88, type:'improvement', note:'Major rewrite with structured output'},
+  {version:'v2.1', score:0.91, type:'improvement', note:'Added output validation'},
+];
+
+function renderChart() {
+  const container = document.getElementById('chartLine');
+  container.innerHTML = '';
+  const w = container.offsetWidth;
+  const h = container.offsetHeight;
+  if(w === 0) return;
+
+  // Draw connecting lines with SVG
+  let svg = `<svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">`;
+  chartData.forEach((d, i) => {
+    const x = (i / (chartData.length - 1)) * (w - 20) + 5;
+    const y = h - ((d.score - 0.4) / 0.6) * h;
+    if(i > 0) {
+      const px = ((i-1) / (chartData.length - 1)) * (w - 20) + 5;
+      const py = h - ((chartData[i-1].score - 0.4) / 0.6) * h;
+      svg += `<line x1="${px}" y1="${py}" x2="${x}" y2="${y}" stroke="var(--border)" stroke-width="2"/>`;
+    }
+  });
+  svg += '</svg>';
+  container.innerHTML = svg;
+
+  chartData.forEach((d, i) => {
+    const x = (i / (chartData.length - 1)) * (w - 20) + 5;
+    const y = h - ((d.score - 0.4) / 0.6) * h;
+    const dot = document.createElement('div');
+    dot.className = 'chart-dot ' + (d.type === 'regression' ? 'regression' : d.type === 'improvement' ? 'improvement' : '');
+    dot.style.left = (x - 5) + 'px';
+    dot.style.top = (y - 5) + 'px';
+    dot.onmouseenter = () => {
+      document.getElementById('chartTooltip').innerHTML =
+        `<span style="color:var(--text);font-weight:600;">${d.version}</span> ` +
+        `<span style="color:var(--${d.type === 'regression' ? 'red' : 'green'});">Score: ${d.score.toFixed(2)}</span> — ` +
+        `<span style="color:var(--muted);">${d.note}</span>`;
+    };
+    container.appendChild(dot);
+
+    // X labels
+    const label = document.createElement('div');
+    label.className = 'chart-x-label';
+    label.style.left = (x + 55) + 'px';
+    label.textContent = d.version;
+    document.getElementById('timelineChart').appendChild(label);
+  });
+}
+
+// ============ RADAR CHART ============
+const radarVersions = [
+  {name:'v1.0 (Baseline)', scores:{Accuracy:0.72, Helpfulness:0.68, Safety:0.90, Brevity:0.85, Relevance:0.75}},
+  {name:'v1.1 (More Detail)', scores:{Accuracy:0.78, Helpfulness:0.82, Safety:0.88, Brevity:0.45, Relevance:0.80}},
+  {name:'v1.2 (Balanced)', scores:{Accuracy:0.82, Helpfulness:0.79, Safety:0.92, Brevity:0.72, Relevance:0.85}},
+];
+
+function drawRadar(version) {
+  const canvas = document.getElementById('radarCanvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const cx = w/2, cy = h/2, r = 110;
+  ctx.clearRect(0, 0, w, h);
+
+  const dims = Object.keys(version.scores);
+  const n = dims.length;
+
+  // Draw grid
+  for(let ring = 1; ring <= 5; ring++) {
+    const rr = (ring/5) * r;
+    ctx.beginPath();
+    for(let i = 0; i <= n; i++) {
+      const angle = (i/n) * Math.PI * 2 - Math.PI/2;
+      const x = cx + Math.cos(angle) * rr;
+      const y = cy + Math.sin(angle) * rr;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = 'rgba(42,53,69,0.6)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Draw axes
+  dims.forEach((dim, i) => {
+    const angle = (i/n) * Math.PI * 2 - Math.PI/2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+    ctx.strokeStyle = 'rgba(42,53,69,0.4)';
+    ctx.stroke();
+
+    // Labels
+    const lx = cx + Math.cos(angle) * (r + 18);
+    const ly = cy + Math.sin(angle) * (r + 18);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px DM Sans';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(dim, lx, ly);
+  });
+
+  // Draw data
+  ctx.beginPath();
+  dims.forEach((dim, i) => {
+    const angle = (i/n) * Math.PI * 2 - Math.PI/2;
+    const val = version.scores[dim];
+    const x = cx + Math.cos(angle) * r * val;
+    const y = cy + Math.sin(angle) * r * val;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(139,92,246,0.15)';
+  ctx.fill();
+  ctx.strokeStyle = '#8b5cf6';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Draw dots
+  dims.forEach((dim, i) => {
+    const angle = (i/n) * Math.PI * 2 - Math.PI/2;
+    const val = version.scores[dim];
+    const x = cx + Math.cos(angle) * r * val;
+    const y = cy + Math.sin(angle) * r * val;
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#8b5cf6';
+    ctx.fill();
+  });
+
+  // Update scores panel
+  const scoresDiv = document.getElementById('radarScores');
+  scoresDiv.innerHTML = `<h4 style="color:var(--accent2);margin-top:0;">${version.name}</h4>` +
+    dims.map(dim => {
+      const val = version.scores[dim];
+      const color = val >= 0.8 ? 'var(--green)' : val >= 0.6 ? 'var(--orange)' : 'var(--red)';
+      return `<div class="metric-row">
+        <span class="metric-name">${dim}</span>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:${val*100}%;background:${color};"></div></div>
+        <span class="metric-val" style="color:${color};">${(val*100).toFixed(0)}%</span>
+      </div>`;
+    }).join('');
+}
+
+function showRadarVersion(idx) {
+  document.querySelectorAll('#sec3 .method-tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  drawRadar(radarVersions[idx]);
+}
+
+// ============ DRIFT SIMULATION ============
+let driftData = [];
+let driftAnimFrame = null;
+let driftRunning = false;
+
+function startDriftSim() {
+  const canvas = document.getElementById('driftCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth * 2;
+  canvas.height = 400;
+  ctx.scale(2,2);
+
+  driftData = [];
+  driftRunning = true;
+  document.getElementById('driftBtn').disabled = true;
+  document.getElementById('driftBtn').textContent = 'Running...';
+  document.getElementById('detectBtn').disabled = true;
+  document.getElementById('driftResult').textContent = '';
+
+  let step = 0;
+  const totalSteps = 100;
+  const baseScore = 0.85;
+
+  function addPoint() {
+    if(step >= totalSteps) {
+      driftRunning = false;
+      document.getElementById('driftBtn').disabled = false;
+      document.getElementById('driftBtn').textContent = 'Restart';
+      document.getElementById('detectBtn').disabled = false;
+      return;
+    }
+    let noise = (Math.random() - 0.5) * 0.06;
+    let drift = 0;
+    if(step > 40) drift = -(step - 40) * 0.002;
+    if(step > 70) drift = -(step - 40) * 0.004;
+    driftData.push(Math.max(0.3, Math.min(1.0, baseScore + drift + noise)));
+    drawDrift(ctx, canvas.offsetWidth, 200);
+    step++;
+    setTimeout(addPoint, 50);
+  }
+  addPoint();
+}
+
+function drawDrift(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(42,53,69,0.4)';
+  ctx.lineWidth = 0.5;
+  for(let y = 0; y < h; y += 40) {
+    ctx.beginPath();
+    ctx.moveTo(40, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+
+  // Y labels
+  ctx.fillStyle = '#64748b';
+  ctx.font = '10px DM Mono';
+  ctx.textAlign = 'right';
+  ['1.0','0.8','0.6','0.4'].forEach((label, i) => {
+    ctx.fillText(label, 35, i * 50 + 14);
+  });
+
+  if(driftData.length < 2) return;
+
+  // Draw line
+  ctx.beginPath();
+  driftData.forEach((d, i) => {
+    const x = 40 + (i / 100) * (w - 60);
+    const y = h - ((d - 0.3) / 0.7) * (h - 20) - 10;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = '#8b5cf6';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Fill under
+  const lastX = 40 + ((driftData.length-1) / 100) * (w - 60);
+  ctx.lineTo(lastX, h - 10);
+  ctx.lineTo(40, h - 10);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(139,92,246,0.08)';
+  ctx.fill();
+}
+
+function detectDrift() {
+  if(driftData.length < 20) return;
+  const canvas = document.getElementById('driftCanvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.offsetWidth, h = 200;
+
+  // Simple drift detection: compare first 20 vs last 20
+  const first20 = driftData.slice(0, 20);
+  const last20 = driftData.slice(-20);
+  const avgFirst = first20.reduce((a,b) => a+b, 0) / first20.length;
+  const avgLast = last20.reduce((a,b) => a+b, 0) / last20.length;
+  const delta = avgLast - avgFirst;
+
+  // Draw detection window
+  const startX = 40 + ((driftData.length - 20) / 100) * (w - 60);
+  ctx.fillStyle = delta < -0.05 ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)';
+  ctx.fillRect(startX, 0, w - startX, h);
+
+  // Draw threshold line
+  const threshY = h - ((avgFirst * 0.95 - 0.3) / 0.7) * (h - 20) - 10;
+  ctx.setLineDash([5,5]);
+  ctx.beginPath();
+  ctx.moveTo(40, threshY);
+  ctx.lineTo(w, threshY);
+  ctx.strokeStyle = 'var(--orange)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Result
+  const severity = delta < -0.1 ? 'CRITICAL' : delta < -0.05 ? 'WARNING' : 'OK';
+  const color = delta < -0.1 ? 'var(--red)' : delta < -0.05 ? 'var(--orange)' : 'var(--green)';
+  document.getElementById('driftResult').innerHTML =
+    `<span style="color:${color};font-weight:600;">[${severity}]</span> ` +
+    `Score delta: <span style="color:${color};font-family:'DM Mono',monospace;">${(delta*100).toFixed(1)}%</span> ` +
+    `(first 20: ${(avgFirst*100).toFixed(1)}%, last 20: ${(avgLast*100).toFixed(1)}%). ` +
+    (delta < -0.05
+      ? 'Drift detected. Investigate data distribution changes or external dependencies.'
+      : 'No significant drift detected.');
+}
+
+// ============ EVAL SIMULATOR ============
+const scenarios = [
+  {
+    query: 'What is the capital of Australia?',
+    reference: 'The capital of Australia is Canberra.',
+    output: 'The capital of Australia is Canberra, which was purpose-built as the capital in 1913 as a compromise between Sydney and Melbourne. It is located in the Australian Capital Territory (ACT).',
+    metrics: {bleu: 0.38, rouge: 1.0, f1: 0.55},
+    judge: {accuracy: 5, completeness: 5, relevance: 4, overall: 4.7, note: 'Accurate and informative. Slightly over-detailed for the question asked, but not off-topic.'},
+    exec: {applicable: false, note: 'Not applicable — this is a factual Q&A task, not code generation.'},
+    insight: 'The automated metrics give a misleadingly low score because the model output is a correct paraphrase with additional context. BLEU penalizes the extra words. The LLM judge correctly identifies this as a high-quality response. This illustrates why automated metrics alone are insufficient for open-ended tasks.'
+  },
+  {
+    query: 'Summarize this article about climate change in 2-3 sentences: [Article about rising sea levels, melting ice caps, and increasing global temperatures affecting ecosystems worldwide]',
+    reference: 'Global temperatures are rising due to greenhouse gas emissions, causing ice caps to melt and sea levels to rise. These changes are disrupting ecosystems worldwide, threatening biodiversity and human communities in coastal areas.',
+    output: 'Climate change is causing significant environmental impacts globally. Rising temperatures are melting polar ice, which leads to higher sea levels that threaten coastal populations. Wildlife ecosystems are being disrupted as habitats change faster than species can adapt.',
+    metrics: {bleu: 0.22, rouge: 0.45, f1: 0.31},
+    judge: {accuracy: 4, completeness: 4, relevance: 5, overall: 4.3, note: 'Good summary that captures main points. Misses the specific mention of greenhouse gas emissions as the cause.'},
+    exec: {applicable: false, note: 'Not applicable — summarization tasks require semantic evaluation, not execution.'},
+    insight: 'BLEU and ROUGE score this poorly because the model uses different words to express the same ideas ("polar ice" vs "ice caps", "coastal populations" vs "coastal areas"). The LLM judge correctly identifies it as a good summary with one minor gap. This is a textbook case for why LLM-as-judge is preferred for summarization tasks.'
+  },
+  {
+    query: 'Write a Python function that returns the nth Fibonacci number using memoization.',
+    reference: 'def fibonacci(n, memo={}):\n    if n in memo: return memo[n]\n    if n <= 1: return n\n    memo[n] = fibonacci(n-1, memo) + fibonacci(n-2, memo)\n    return memo[n]',
+    output: 'def fib(n):\n    cache = {}\n    def helper(k):\n        if k in cache: return cache[k]\n        if k <= 1: return k\n        cache[k] = helper(k-1) + helper(k-2)\n        return cache[k]\n    return helper(n)',
+    metrics: {bleu: 0.15, rouge: 0.35, f1: 0.22},
+    judge: {accuracy: 5, completeness: 5, relevance: 5, overall: 5.0, note: 'Correct implementation using closure-based memoization. Cleaner than the mutable default argument pattern in the reference.'},
+    exec: {applicable: true, passed: true, note: 'All test cases pass: fib(0)=0, fib(1)=1, fib(10)=55, fib(30)=832040. Execution time: <1ms for n=30 (confirms memoization works).'},
+    insight: 'This is the most dramatic disagreement. Automated metrics score ~0.2 because the code uses completely different variable names and structure. But the LLM judge scores it 5/5 and the execution test confirms it works perfectly. For code tasks, execution-based evaluation is the gold standard — string similarity is nearly meaningless.'
+  }
+];
+let currentScenario = 0;
+let evalsRun = [false, false, false];
+
+function selectScenario(idx) {
+  currentScenario = idx;
+  evalsRun = [false, false, false];
+  document.querySelectorAll('#scenarioTabs .method-tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  const s = scenarios[idx];
+  document.getElementById('simQuery').textContent = s.query;
+  document.getElementById('simRef').textContent = s.reference;
+  document.getElementById('simOutput').textContent = s.output;
+  // Reset eval cards
+  for(let i = 0; i < 3; i++) {
+    document.getElementById('evalResult'+i).style.display = 'none';
+    document.getElementById('evalCard'+i).classList.remove('active');
+  }
+  document.getElementById('evalComparison').style.display = 'none';
+}
+
+function runSimEval(method) {
+  const s = scenarios[currentScenario];
+  const card = document.getElementById('evalCard'+method);
+  const result = document.getElementById('evalResult'+method);
+  card.classList.add('active');
+
+  let scoreBig, detail;
+  if(method === 0) {
+    scoreBig = s.metrics.f1.toFixed(2);
+    detail = `BLEU: ${s.metrics.bleu.toFixed(2)} | ROUGE: ${s.metrics.rouge.toFixed(2)} | F1: ${s.metrics.f1.toFixed(2)}`;
+  } else if(method === 1) {
+    scoreBig = s.judge.overall.toFixed(1) + '/5';
+    detail = `Acc: ${s.judge.accuracy} | Comp: ${s.judge.completeness} | Rel: ${s.judge.relevance}`;
+  } else {
+    if(s.exec.applicable) {
+      scoreBig = s.exec.passed ? 'PASS' : 'FAIL';
+      detail = s.exec.note;
+    } else {
+      scoreBig = 'N/A';
+      detail = s.exec.note;
+    }
+  }
+
+  result.querySelector('.score-big').textContent = scoreBig;
+  result.querySelector('.score-big').nextElementSibling.textContent = detail;
+  result.style.display = 'block';
+  evalsRun[method] = true;
+
+  // Show comparison if all run
+  if(evalsRun.every(Boolean)) {
+    showComparison(s);
+  }
+}
+
+function showComparison(s) {
+  document.getElementById('evalComparison').style.display = 'block';
+  document.getElementById('comparisonBody').innerHTML = `
+    <tr>
+      <td style="color:var(--cyan);font-weight:600;">Automated Metrics</td>
+      <td class="score-cell">${s.metrics.f1.toFixed(2)}</td>
+      <td style="font-size:0.82em;color:var(--muted);">Fast, cheap, deterministic, no API calls needed</td>
+      <td style="font-size:0.82em;color:var(--muted);">Penalizes valid paraphrases, ignores semantics</td>
+    </tr>
+    <tr>
+      <td style="color:var(--purple);font-weight:600;">LLM-as-Judge</td>
+      <td class="score-cell">${s.judge.overall.toFixed(1)}/5</td>
+      <td style="font-size:0.82em;color:var(--muted);">Captures nuance, semantic understanding, rubric-based</td>
+      <td style="font-size:0.82em;color:var(--muted);">Costs per eval, non-deterministic, position/verbosity bias</td>
+    </tr>
+    <tr>
+      <td style="color:var(--green);font-weight:600;">Execution-Based</td>
+      <td class="score-cell">${s.exec.applicable ? (s.exec.passed ? 'PASS' : 'FAIL') : 'N/A'}</td>
+      <td style="font-size:0.82em;color:var(--muted);">Ground truth for code, tests actual behavior</td>
+      <td style="font-size:0.82em;color:var(--muted);">Only works for executable tasks, needs test harness</td>
+    </tr>
+  `;
+  document.getElementById('comparisonInsight').textContent = s.insight;
+}
+
+// ============ INIT ============
+selectScenario(0);
+
+// Render chart when section becomes visible
+const observer = new MutationObserver(() => {
+  if(document.getElementById('sec2').classList.contains('active')) {
+    setTimeout(renderChart, 100);
+  }
+  if(document.getElementById('sec3').classList.contains('active')) {
+    setTimeout(() => drawRadar(radarVersions[0]), 100);
+  }
+});
+sections.forEach(s => observer.observe(s, {attributes: true, attributeFilter: ['class']}));
+</script>
+</body>
+</html>
