@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG Architecture — Interactive Deep Dive</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e14;
+  --bg2: #12171f;
+  --bg3: #1a2030;
+  --bg4: #232d3f;
+  --border: #2a3545;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --accent: #10b981;
+  --accent2: #34d399;
+  --accent-dim: rgba(16,185,129,0.1);
+  --green: #22c55e;
+  --green-dim: rgba(34,197,94,0.12);
+  --orange: #f59e0b;
+  --orange-dim: rgba(245,158,11,0.12);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.12);
+  --cyan: #22d3ee;
+  --cyan-dim: rgba(34,211,238,0.12);
+  --pink: #f472b6;
+  --pink-dim: rgba(244,114,182,0.12);
+  --blue: #3b82f6;
+  --blue-dim: rgba(59,130,246,0.1);
+  --yellow: #facc15;
+  --yellow-dim: rgba(250,204,21,0.08);
+  --purple: #a78bfa;
+  --purple-dim: rgba(167,139,250,0.12);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden;}
+
+.topbar{position:sticky;top:0;z-index:100;background:rgba(10,14,20,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;}
+.topbar a{color:var(--muted);text-decoration:none;font-size:0.85em;transition:color 0.2s;}
+.topbar a:hover{color:var(--text);}
+.topbar h1{font-size:0.95em;font-weight:600;background:linear-gradient(135deg,var(--accent),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+
+.section-nav{position:sticky;top:49px;z-index:99;background:rgba(10,14,20,0.88);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:8px 24px;display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.section-nav::-webkit-scrollbar{display:none;}
+.nav-pill{padding:6px 16px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:inherit;font-size:0.78em;font-weight:500;cursor:pointer;white-space:nowrap;transition:all 0.2s;}
+.nav-pill:hover{border-color:var(--accent);color:var(--text);}
+.nav-pill.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+.content{max-width:960px;margin:0 auto;padding:40px 24px 80px;}
+.section{display:none;animation:fadeIn 0.4s ease;}
+.section.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+
+h2{font-size:1.6em;font-weight:700;margin-bottom:8px;letter-spacing:-0.02em;}
+h3{font-size:1.15em;font-weight:600;margin:28px 0 12px;color:var(--accent2);}
+h4{font-size:0.95em;font-weight:600;margin:20px 0 8px;color:var(--cyan);}
+.subtitle{color:var(--muted);font-size:0.95em;margin-bottom:32px;}
+p{margin-bottom:16px;color:var(--text);font-size:0.92em;line-height:1.7;}
+
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin:20px 0;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px;cursor:pointer;transition:all 0.25s;}
+.card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.3);}
+.card.active{border-color:var(--accent);box-shadow:0 0 20px var(--accent-dim);}
+.card.static{cursor:default;}
+.card.static:hover{transform:none;}
+.card-label{font-size:0.7em;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;display:inline-block;padding:2px 8px;border-radius:4px;}
+.card h4{margin:8px 0 6px;color:var(--text);font-size:0.95em;}
+.card p{font-size:0.82em;color:var(--muted);margin:0;}
+
+.code-block{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;margin:16px 0;overflow-x:auto;font-family:'DM Mono',monospace;font-size:0.8em;line-height:1.7;color:var(--cyan);}
+.code-block .kw{color:var(--purple);}
+.code-block .str{color:var(--green);}
+.code-block .cmt{color:var(--muted);}
+.code-block .fn{color:var(--pink);}
+.code-block .num{color:var(--orange);}
+
+.interactive-box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;margin:24px 0;position:relative;}
+.interactive-box::before{content:'INTERACTIVE';position:absolute;top:-10px;left:16px;padding:2px 10px;background:var(--accent);color:#fff;font-size:0.65em;font-weight:700;letter-spacing:0.08em;border-radius:4px;}
+.interactive-box h4{margin-top:8px;}
+
+.method-tabs{display:flex;gap:8px;margin:16px 0;flex-wrap:wrap;}
+.method-tab{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-family:inherit;font-size:0.8em;cursor:pointer;transition:all 0.2s;}
+.method-tab:hover{border-color:var(--accent);color:var(--text);}
+.method-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+.metric-row{display:flex;align-items:center;gap:12px;margin:8px 0;font-size:0.82em;}
+.metric-name{width:120px;color:var(--muted);flex-shrink:0;}
+.metric-bar-bg{flex:1;height:22px;background:var(--bg3);border-radius:4px;overflow:hidden;}
+.metric-bar{height:100%;border-radius:4px;transition:width 0.8s cubic-bezier(0.16,1,0.3,1);display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:0.75em;font-weight:600;color:#fff;}
+.metric-val{width:50px;text-align:right;font-weight:600;font-family:'DM Mono',monospace;font-size:0.85em;}
+
+/* Flow pipeline */
+.flow-pipeline{display:flex;align-items:center;gap:0;margin:24px 0;padding:16px 0;overflow-x:auto;}
+.flow-node{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 18px;text-align:center;min-width:120px;cursor:pointer;transition:all 0.3s;position:relative;}
+.flow-node:hover{border-color:var(--accent);background:var(--bg4);}
+.flow-node.active{border-color:var(--accent);box-shadow:0 0 16px var(--accent-dim);background:var(--bg4);}
+.flow-node .node-icon{font-size:1.2em;margin-bottom:4px;}
+.flow-node .node-label{font-size:0.78em;font-weight:600;color:var(--text);}
+.flow-node .node-sub{font-size:0.68em;color:var(--muted);margin-top:2px;}
+.flow-arrow{width:32px;display:flex;align-items:center;justify-content:center;color:var(--border);font-size:0.8em;flex-shrink:0;}
+.flow-arrow.active{color:var(--accent);}
+
+/* Chunk visualization */
+.chunk-display{display:flex;flex-direction:column;gap:8px;margin:16px 0;max-height:400px;overflow-y:auto;padding-right:8px;}
+.chunk{padding:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-size:0.82em;line-height:1.6;color:var(--muted);transition:all 0.3s;position:relative;}
+.chunk.highlight{border-color:var(--accent);background:rgba(16,185,129,0.05);}
+.chunk-id{position:absolute;top:4px;right:8px;font-size:0.65em;font-family:'DM Mono',monospace;color:var(--muted);opacity:0.5;}
+.chunk-score{display:inline-block;padding:2px 6px;background:var(--accent-dim);color:var(--accent2);border-radius:4px;font-family:'DM Mono',monospace;font-size:0.78em;font-weight:600;margin-right:6px;}
+
+/* Vector space canvas */
+.vector-canvas-wrap{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:var(--bg3);}
+
+/* Compare panels */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0;}
+.compare-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px;}
+
+/* Detail panel */
+.detail-panel{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:20px;margin:16px 0;display:none;animation:slideDown 0.3s ease;}
+.detail-panel.open{display:block;}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
+
+/* Rerank animation */
+.rerank-list{display:flex;flex-direction:column;gap:6px;margin:16px 0;}
+.rerank-item{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;transition:all 0.5s cubic-bezier(0.16,1,0.3,1);font-size:0.82em;}
+.rerank-item .rank{width:28px;height:28px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.78em;flex-shrink:0;font-family:'DM Mono',monospace;}
+.rerank-item .score-badge{margin-left:auto;font-family:'DM Mono',monospace;font-size:0.8em;font-weight:600;flex-shrink:0;}
+.rerank-item.top{border-color:var(--accent);background:rgba(16,185,129,0.05);}
+.rerank-item.top .rank{background:var(--accent);color:#fff;}
+
+/* Failure mode cards */
+.failure-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px;margin:10px 0;cursor:pointer;transition:all 0.25s;}
+.failure-card:hover{border-color:var(--red);transform:translateY(-1px);}
+.failure-card .fail-label{font-size:0.7em;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--red);margin-bottom:6px;}
+.failure-card h4{color:var(--text);font-size:0.92em;margin:4px 0;}
+.failure-card p{font-size:0.8em;color:var(--muted);margin:0;}
+.failure-detail{display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:0.82em;color:var(--muted);line-height:1.7;}
+
+@media(max-width:768px){
+  .compare{grid-template-columns:1fr;}
+  .card-grid{grid-template-columns:1fr;}
+  .flow-pipeline{flex-direction:column;align-items:stretch;}
+  .flow-arrow{transform:rotate(90deg);width:auto;height:24px;}
+  .content{padding:24px 16px 60px;}
+  h2{font-size:1.3em;}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html">← Back</a>
+  <h1>RAG Architecture Deep Dive</h1>
+</div>
+
+<div class="section-nav">
+  <button class="nav-pill active" onclick="showSection(0)">Mental Model</button>
+  <button class="nav-pill" onclick="showSection(1)">Embeddings & Vectors</button>
+  <button class="nav-pill" onclick="showSection(2)">Chunking</button>
+  <button class="nav-pill" onclick="showSection(3)">Vector Stores</button>
+  <button class="nav-pill" onclick="showSection(4)">Advanced Patterns</button>
+  <button class="nav-pill" onclick="showSection(5)">Re-Ranking</button>
+  <button class="nav-pill" onclick="showSection(6)">Failure Modes</button>
+</div>
+
+<div class="content">
+
+<!-- ===== SECTION 0: MENTAL MODEL ===== -->
+<div class="section active" id="sec0">
+  <h2>The RAG Mental Model</h2>
+  <p class="subtitle">Give the LLM access to knowledge it wasn't trained on — without retraining.</p>
+
+  <p>Retrieval-Augmented Generation solves three fundamental problems with LLMs: knowledge cutoff (the model doesn't know about events after training), hallucination (the model confidently generates incorrect facts), and domain specificity (the model doesn't have access to your private data).</p>
+
+  <p>The core idea is simple: before asking the LLM to generate a response, first retrieve relevant information from a knowledge base and include it in the prompt context.</p>
+
+  <h3>The RAG Pipeline</h3>
+  <p>Click each stage to see what happens.</p>
+
+  <div class="interactive-box">
+    <h4>Query to Answer Flow</h4>
+    <div class="flow-pipeline" id="ragFlow">
+      <div class="flow-node active" onclick="showRagStage(0)">
+        <div class="node-label">Query</div>
+        <div class="node-sub">User question</div>
+      </div>
+      <div class="flow-arrow active">→</div>
+      <div class="flow-node" onclick="showRagStage(1)">
+        <div class="node-label">Embed</div>
+        <div class="node-sub">Vectorize query</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node" onclick="showRagStage(2)">
+        <div class="node-label">Retrieve</div>
+        <div class="node-sub">Find similar docs</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node" onclick="showRagStage(3)">
+        <div class="node-label">Re-Rank</div>
+        <div class="node-sub">Score relevance</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node" onclick="showRagStage(4)">
+        <div class="node-label">Augment</div>
+        <div class="node-sub">Build prompt</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node" onclick="showRagStage(5)">
+        <div class="node-label">Generate</div>
+        <div class="node-sub">LLM response</div>
+      </div>
+    </div>
+    <div class="detail-panel open" id="ragStageDetail"></div>
+  </div>
+
+  <h3>When to Use RAG vs Fine-Tuning</h3>
+  <div class="compare">
+    <div class="compare-panel" style="border-color:rgba(16,185,129,0.3);">
+      <div style="font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;color:var(--accent2);">Use RAG When</div>
+      <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+        <div>Knowledge changes frequently (docs, APIs, news)</div>
+        <div>You need source attribution and citations</div>
+        <div>Data is too large to fit in context window</div>
+        <div>You need access to private/proprietary data</div>
+        <div>Factual accuracy is critical (legal, medical, finance)</div>
+      </div>
+    </div>
+    <div class="compare-panel" style="border-color:rgba(167,139,250,0.3);">
+      <div style="font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;color:var(--purple);">Use Fine-Tuning When</div>
+      <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+        <div>You need to change the model's behavior/style</div>
+        <div>Task requires specialized reasoning patterns</div>
+        <div>Knowledge is static and well-defined</div>
+        <div>Latency is critical (skip retrieval step)</div>
+        <div>You want to encode implicit domain knowledge</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SECTION 1: EMBEDDINGS & VECTORS ===== -->
+<div class="section" id="sec1">
+  <h2>Embeddings & Vector Space</h2>
+  <p class="subtitle">How text becomes searchable numbers — the foundation of semantic retrieval.</p>
+
+  <p>An embedding model converts text into a dense vector (array of floating-point numbers) that captures semantic meaning. Similar texts produce vectors that are close together in this high-dimensional space.</p>
+
+  <h3>How Embeddings Work</h3>
+  <div class="code-block">
+<span class="cmt"># Conceptually: text → numbers that capture meaning</span>
+<span class="str">"How do I reset my password?"</span>  →  [<span class="num">0.23</span>, <span class="num">-0.41</span>, <span class="num">0.87</span>, ..., <span class="num">0.12</span>]  <span class="cmt"># 1536 dimensions</span>
+<span class="str">"I forgot my login credentials"</span> →  [<span class="num">0.21</span>, <span class="num">-0.38</span>, <span class="num">0.85</span>, ..., <span class="num">0.15</span>]  <span class="cmt"># close to above!</span>
+<span class="str">"What is the weather today?"</span>    →  [<span class="num">-0.65</span>, <span class="num">0.72</span>, <span class="num">-0.11</span>, ..., <span class="num">0.44</span>]  <span class="cmt"># far from both</span>
+  </div>
+
+  <div class="interactive-box">
+    <h4>2D Vector Space Explorer</h4>
+    <p style="font-size:0.82em;color:var(--muted);margin-bottom:16px;">Documents are plotted as dots in semantic space. Click "Search" to embed a query and find the nearest neighbors. The 2D positions are a simplified projection of the actual high-dimensional space.</p>
+    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+      <input id="vecQuery" type="text" placeholder="Type a query..." value="How do I deploy to production?" style="flex:1;min-width:200px;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:0.85em;outline:none;">
+      <button onclick="runVectorSearch()" style="padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-family:inherit;font-size:0.82em;cursor:pointer;font-weight:600;">Search</button>
+    </div>
+    <div class="vector-canvas-wrap">
+      <canvas id="vectorCanvas" width="900" height="400" style="width:100%;height:400px;"></canvas>
+    </div>
+    <div id="vecResults" style="margin-top:12px;font-size:0.82em;color:var(--muted);min-height:24px;"></div>
+  </div>
+
+  <h3>Embedding Model Comparison</h3>
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.82em;margin:16px 0;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:10px 12px;color:var(--muted);font-weight:600;">Model</th>
+          <th style="text-align:left;padding:10px 12px;color:var(--muted);font-weight:600;">Dims</th>
+          <th style="text-align:left;padding:10px 12px;color:var(--muted);font-weight:600;">Max Tokens</th>
+          <th style="text-align:left;padding:10px 12px;color:var(--muted);font-weight:600;">Best For</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid rgba(42,53,69,0.3);"><td style="padding:10px 12px;color:var(--cyan);">OpenAI text-embedding-3-large</td><td style="padding:10px 12px;">3072</td><td style="padding:10px 12px;">8191</td><td style="padding:10px 12px;color:var(--muted);">Highest quality, API-based</td></tr>
+        <tr style="border-bottom:1px solid rgba(42,53,69,0.3);"><td style="padding:10px 12px;color:var(--cyan);">Cohere embed-v3</td><td style="padding:10px 12px;">1024</td><td style="padding:10px 12px;">512</td><td style="padding:10px 12px;color:var(--muted);">Multilingual, search-optimized</td></tr>
+        <tr style="border-bottom:1px solid rgba(42,53,69,0.3);"><td style="padding:10px 12px;color:var(--cyan);">BAAI/bge-large-en-v1.5</td><td style="padding:10px 12px;">1024</td><td style="padding:10px 12px;">512</td><td style="padding:10px 12px;color:var(--muted);">Open-source, self-hosted</td></tr>
+        <tr style="border-bottom:1px solid rgba(42,53,69,0.3);"><td style="padding:10px 12px;color:var(--cyan);">Voyage voyage-3</td><td style="padding:10px 12px;">1024</td><td style="padding:10px 12px;">32000</td><td style="padding:10px 12px;color:var(--muted);">Long-context embeddings</td></tr>
+        <tr><td style="padding:10px 12px;color:var(--cyan);">nomic-embed-text-v1.5</td><td style="padding:10px 12px;">768</td><td style="padding:10px 12px;">8192</td><td style="padding:10px 12px;color:var(--muted);">Open-source, Matryoshka dims</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Cosine Similarity</h3>
+  <p>The standard distance metric for embeddings. It measures the angle between two vectors, ignoring magnitude. A cosine similarity of 1.0 means identical direction (semantically identical), 0 means orthogonal (unrelated).</p>
+  <div class="code-block">
+<span class="cmt"># Cosine similarity calculation</span>
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">cosine_similarity</span>(a, b):
+    <span class="kw">return</span> np.<span class="fn">dot</span>(a, b) / (np.linalg.<span class="fn">norm</span>(a) * np.linalg.<span class="fn">norm</span>(b))
+
+<span class="cmt"># "reset password" vs "forgot credentials" → 0.92 (very similar)</span>
+<span class="cmt"># "reset password" vs "weather today"     → 0.13 (unrelated)</span>
+  </div>
+</div>
+
+<!-- ===== SECTION 2: CHUNKING ===== -->
+<div class="section" id="sec2">
+  <h2>Chunking Strategies</h2>
+  <p class="subtitle">How you split documents determines retrieval quality more than anything else.</p>
+
+  <p>Chunking is the most underestimated part of RAG. The same retrieval system can go from 60% to 90% accuracy just by changing the chunking strategy. The goal: each chunk should be a self-contained unit of meaning that can answer a question on its own.</p>
+
+  <div class="interactive-box">
+    <h4>Compare Chunking Strategies</h4>
+    <p style="font-size:0.82em;color:var(--muted);margin-bottom:16px;">See how the same document is split differently by each strategy. Highlighted chunks would be retrieved for the query: "How does authentication work?"</p>
+
+    <div class="method-tabs" id="chunkTabs">
+      <button class="method-tab active" onclick="showChunkStrategy(0)">Fixed-Size</button>
+      <button class="method-tab" onclick="showChunkStrategy(1)">Recursive</button>
+      <button class="method-tab" onclick="showChunkStrategy(2)">Semantic</button>
+      <button class="method-tab" onclick="showChunkStrategy(3)">Document-Aware</button>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;margin:12px 0;">
+      <label style="font-size:0.78em;color:var(--muted);">Chunk size:</label>
+      <input type="range" id="chunkSlider" min="50" max="300" value="150" oninput="updateChunks()" style="flex:1;accent-color:var(--accent);">
+      <span id="chunkSizeLabel" style="font-size:0.78em;color:var(--accent2);font-family:'DM Mono',monospace;width:60px;">150 tok</span>
+    </div>
+
+    <div id="chunkDisplay" class="chunk-display"></div>
+    <div id="chunkStats" style="margin-top:12px;font-size:0.78em;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap;"></div>
+  </div>
+
+  <h3>Chunking Trade-offs</h3>
+  <div class="compare">
+    <div class="compare-panel" style="border-color:rgba(239,68,68,0.3);">
+      <div style="font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;color:var(--red);">Too Small</div>
+      <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+        <div>Chunks lose context — "it" refers to something in the previous chunk</div>
+        <div>Need more chunks to answer a question, eating context window</div>
+        <div>Embedding quality degrades for very short text</div>
+        <div>More chunks = more storage, slower retrieval</div>
+      </div>
+    </div>
+    <div class="compare-panel" style="border-color:rgba(239,68,68,0.3);">
+      <div style="font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;color:var(--red);">Too Large</div>
+      <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+        <div>Relevant info diluted with irrelevant content</div>
+        <div>Embedding represents a blend of topics — less precise matching</div>
+        <div>Fewer chunks needed but each wastes more context space</div>
+        <div>Harder to attribute answers to specific source passages</div>
+      </div>
+    </div>
+  </div>
+
+  <h4>Production Recommendations</h4>
+  <div style="font-size:0.88em;color:var(--muted);line-height:2;margin:12px 0;">
+    <p><span style="color:var(--accent2);font-weight:600;">Start with:</span> Recursive character splitting at 500-1000 tokens with 50-100 token overlap.</p>
+    <p><span style="color:var(--accent2);font-weight:600;">For structured docs:</span> Use document-aware chunking that respects headings, code blocks, and tables.</p>
+    <p><span style="color:var(--accent2);font-weight:600;">For accuracy-critical:</span> Semantic chunking with embedding similarity thresholds.</p>
+    <p><span style="color:var(--accent2);font-weight:600;">Always:</span> Add overlap between chunks so context isn't lost at boundaries.</p>
+  </div>
+</div>
+
+<!-- ===== SECTION 3: VECTOR STORES ===== -->
+<div class="section" id="sec3">
+  <h2>Vector Stores & Indexing</h2>
+  <p class="subtitle">How vector databases make similarity search fast at scale.</p>
+
+  <p>Brute-force cosine similarity over millions of vectors is too slow. Vector stores use approximate nearest neighbor (ANN) algorithms to trade a small amount of accuracy for massive speed gains — typically 99% recall in milliseconds instead of minutes.</p>
+
+  <h3>HNSW: The Dominant Algorithm</h3>
+  <p>Hierarchical Navigable Small World graphs are the most widely-used ANN algorithm. Think of it as building a network of express highways on top of local roads.</p>
+
+  <div class="interactive-box">
+    <h4>HNSW Graph Traversal</h4>
+    <p style="font-size:0.82em;color:var(--muted);margin-bottom:16px;">Click "Search" to watch the algorithm navigate from the top layer down to find the nearest neighbor. Each layer is progressively denser with more connections.</p>
+    <button onclick="runHNSW()" id="hnswBtn" style="padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-family:inherit;font-size:0.82em;cursor:pointer;font-weight:600;margin-bottom:12px;">Search</button>
+    <div class="vector-canvas-wrap">
+      <canvas id="hnswCanvas" width="900" height="360" style="width:100%;height:360px;"></canvas>
+    </div>
+    <div id="hnswStatus" style="margin-top:10px;font-size:0.82em;color:var(--muted);min-height:20px;"></div>
+  </div>
+
+  <h3>Hybrid Search: Vector + Keyword</h3>
+  <p>Vector search finds semantically similar content but can miss exact keyword matches. BM25 (keyword search) finds exact terms but misses paraphrases. Hybrid search combines both for the best of both worlds.</p>
+
+  <div class="interactive-box">
+    <h4>Hybrid Search Comparison</h4>
+    <p style="font-size:0.82em;color:var(--muted);margin-bottom:12px;">Query: "kubernetes pod crashloopbackoff error" — see how vector and keyword search find different results.</p>
+    <div class="method-tabs" id="searchTabs">
+      <button class="method-tab active" onclick="showSearchMode(0)">Vector Only</button>
+      <button class="method-tab" onclick="showSearchMode(1)">Keyword Only (BM25)</button>
+      <button class="method-tab" onclick="showSearchMode(2)">Hybrid (RRF)</button>
+    </div>
+    <div id="searchResults" class="chunk-display" style="max-height:300px;"></div>
+  </div>
+
+  <h3>Vector Store Comparison</h3>
+  <div class="card-grid">
+    <div class="card static">
+      <div class="card-label" style="background:var(--cyan-dim);color:var(--cyan);">Managed</div>
+      <h4>Pinecone</h4>
+      <p>Fully managed, serverless option available. Best for teams that don't want to manage infrastructure. Supports metadata filtering and namespaces.</p>
+    </div>
+    <div class="card static">
+      <div class="card-label" style="background:var(--purple-dim);color:var(--purple);">Open Source</div>
+      <h4>Weaviate</h4>
+      <p>GraphQL API, built-in vectorizer modules, hybrid search native. Good for complex filtering with vector search.</p>
+    </div>
+    <div class="card static">
+      <div class="card-label" style="background:var(--green-dim);color:var(--green);">Lightweight</div>
+      <h4>Chroma</h4>
+      <p>Runs in-process or as a server. Perfect for prototyping and small-to-medium datasets. SQLite-backed by default.</p>
+    </div>
+    <div class="card static">
+      <div class="card-label" style="background:var(--orange-dim);color:var(--orange);">Postgres Extension</div>
+      <h4>pgvector</h4>
+      <p>Add vector search to your existing Postgres database. No new infrastructure. Good enough for many production use cases up to ~1M vectors.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SECTION 4: ADVANCED PATTERNS ===== -->
+<div class="section" id="sec4">
+  <h2>Advanced RAG Patterns</h2>
+  <p class="subtitle">Production RAG architectures that go far beyond naive retrieve-and-stuff.</p>
+
+  <p>Naive RAG (retrieve top-k chunks, stuff them into the prompt) works for demos but breaks down in production. These patterns address specific failure modes.</p>
+
+  <div class="card-grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr));">
+    <div class="card" onclick="showPattern(0)">
+      <div class="card-label" style="background:var(--green-dim);color:var(--green);">Foundation</div>
+      <h4>Naive RAG</h4>
+      <p>Retrieve top-k, stuff into prompt. The baseline.</p>
+    </div>
+    <div class="card" onclick="showPattern(1)">
+      <div class="card-label" style="background:var(--cyan-dim);color:var(--cyan);">Context</div>
+      <h4>Sentence Window</h4>
+      <p>Retrieve sentence, expand to surrounding context.</p>
+    </div>
+    <div class="card" onclick="showPattern(2)">
+      <div class="card-label" style="background:var(--purple-dim);color:var(--purple);">Hierarchy</div>
+      <h4>Parent Document</h4>
+      <p>Retrieve child chunk, return parent document.</p>
+    </div>
+    <div class="card" onclick="showPattern(3)">
+      <div class="card-label" style="background:var(--orange-dim);color:var(--orange);">Query</div>
+      <h4>Multi-Query RAG</h4>
+      <p>Generate multiple query reformulations, retrieve for each.</p>
+    </div>
+    <div class="card" onclick="showPattern(4)">
+      <div class="card-label" style="background:var(--pink-dim);color:var(--pink);">Ranking</div>
+      <h4>RAG Fusion</h4>
+      <p>Multiple queries + Reciprocal Rank Fusion.</p>
+    </div>
+    <div class="card" onclick="showPattern(5)">
+      <div class="card-label" style="background:var(--blue-dim);color:var(--blue);">Adaptive</div>
+      <h4>Self-RAG</h4>
+      <p>Model decides when to retrieve and self-evaluates context.</p>
+    </div>
+    <div class="card" onclick="showPattern(6)">
+      <div class="card-label" style="background:var(--red-dim);color:var(--red);">Corrective</div>
+      <h4>CRAG</h4>
+      <p>Evaluate retrieval quality, fallback to web search.</p>
+    </div>
+    <div class="card" onclick="showPattern(7)">
+      <div class="card-label" style="background:var(--yellow-dim);color:var(--yellow);">Autonomous</div>
+      <h4>Agentic RAG</h4>
+      <p>Agent decides retrieval strategy dynamically with tools.</p>
+    </div>
+  </div>
+
+  <div class="detail-panel" id="patternDetail"></div>
+</div>
+
+<!-- ===== SECTION 5: RE-RANKING ===== -->
+<div class="section" id="sec5">
+  <h2>Re-Ranking & Post-Retrieval</h2>
+  <p class="subtitle">Initial retrieval is fast but imprecise. Re-ranking makes it accurate.</p>
+
+  <p>Bi-encoder retrieval (embedding similarity) processes query and document independently — it's fast but can't capture fine-grained interactions between them. Cross-encoder re-ranking processes query and document together, catching nuances that bi-encoders miss.</p>
+
+  <h3>Bi-Encoder vs Cross-Encoder</h3>
+  <div class="compare">
+    <div class="compare-panel">
+      <div style="font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;color:var(--cyan);">Bi-Encoder (Retrieval)</div>
+      <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+        <div>Encode query and docs independently</div>
+        <div>Compare with cosine similarity</div>
+        <div>Fast: O(1) per comparison (pre-computed)</div>
+        <div>Scales to millions of documents</div>
+        <div>Misses token-level interactions</div>
+      </div>
+    </div>
+    <div class="compare-panel">
+      <div style="font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;color:var(--purple);">Cross-Encoder (Re-Ranking)</div>
+      <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+        <div>Process [query, doc] pair together through the model</div>
+        <div>Outputs a single relevance score</div>
+        <div>Slow: O(n) forward passes, one per doc</div>
+        <div>Only practical for top-k results (k=20-100)</div>
+        <div>Captures token-level cross-attention</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="interactive-box">
+    <h4>Re-Ranking in Action</h4>
+    <p style="font-size:0.82em;color:var(--muted);margin-bottom:16px;">Click "Re-Rank" to watch the cross-encoder rescore and reorder the initial retrieval results. Notice how the most relevant result jumps from position 5 to position 1.</p>
+    <button onclick="runRerank()" id="rerankBtn" style="padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-family:inherit;font-size:0.82em;cursor:pointer;font-weight:600;margin-bottom:12px;">Re-Rank</button>
+    <div style="font-size:0.72em;color:var(--muted);margin-bottom:8px;">Query: "How to handle database connection pooling in Node.js"</div>
+    <div class="rerank-list" id="rerankList"></div>
+  </div>
+
+  <h3>The Lost-in-the-Middle Problem</h3>
+  <p>LLMs pay more attention to information at the beginning and end of the context window. Relevant information placed in the middle is often ignored. After re-ranking, place the most relevant chunks first and last in the prompt.</p>
+
+  <div class="interactive-box">
+    <h4>Attention by Position</h4>
+    <p style="font-size:0.82em;color:var(--muted);margin-bottom:16px;">This shows how much attention the model pays to each chunk position in the context window.</p>
+    <div id="attentionBars" style="display:flex;align-items:flex-end;gap:4px;height:120px;padding:0 8px;"></div>
+    <div style="display:flex;justify-content:space-between;font-size:0.72em;color:var(--muted);margin-top:6px;">
+      <span>Chunk 1 (Start)</span>
+      <span>Middle</span>
+      <span>Chunk 10 (End)</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SECTION 6: FAILURE MODES ===== -->
+<div class="section" id="sec6">
+  <h2>Common Failure Modes</h2>
+  <p class="subtitle">RAG systems fail in predictable ways. Knowing the failure modes is half the battle.</p>
+
+  <p>Production RAG debugging is 80% of the work. When the system gives a wrong answer, you need to quickly identify whether the failure is in retrieval, context assembly, or generation.</p>
+
+  <h3>The RAG Triad: Three Points of Failure</h3>
+  <div class="card-grid" style="grid-template-columns:repeat(3,1fr);">
+    <div class="card static" style="border-top:3px solid var(--cyan);">
+      <h4 style="color:var(--cyan);">Context Relevance</h4>
+      <p>Are the retrieved chunks actually relevant to the query? Measure: % of retrieved chunks that are relevant.</p>
+    </div>
+    <div class="card static" style="border-top:3px solid var(--accent);">
+      <h4 style="color:var(--accent2);">Groundedness</h4>
+      <p>Is the answer actually supported by the retrieved context? Or is the LLM hallucinating beyond what the documents say?</p>
+    </div>
+    <div class="card static" style="border-top:3px solid var(--purple);">
+      <h4 style="color:var(--purple);">Answer Relevance</h4>
+      <p>Does the answer actually address the user's question? Even with good retrieval, the model might go off-topic.</p>
+    </div>
+  </div>
+
+  <h3>Failure Catalog</h3>
+  <p>Click each failure mode to see the cause, symptoms, and fix.</p>
+
+  <div id="failureList">
+    <div class="failure-card" onclick="toggleFailure(this)">
+      <div class="fail-label">Retrieval Failure</div>
+      <h4>Query-Document Mismatch</h4>
+      <p>User's phrasing doesn't match the document's vocabulary. Query: "How do I cancel my plan?" but docs say "subscription termination."</p>
+      <div class="failure-detail">
+        <p><strong style="color:var(--cyan);">Root Cause:</strong> Embedding models capture semantics but can miss domain-specific synonyms. The gap between user language and document language is too large.</p>
+        <p><strong style="color:var(--accent2);">Fix:</strong> Use query expansion (generate alternative phrasings), hybrid search (BM25 catches keyword matches), or fine-tune your embedding model on domain-specific pairs. Add a query rewriting step that translates user language into document language.</p>
+      </div>
+    </div>
+    <div class="failure-card" onclick="toggleFailure(this)">
+      <div class="fail-label">Retrieval Failure</div>
+      <h4>Wrong Granularity</h4>
+      <p>Chunks are too large (relevant info diluted) or too small (context lost). The right answer spans two chunks but neither is retrieved.</p>
+      <div class="failure-detail">
+        <p><strong style="color:var(--cyan);">Root Cause:</strong> Chunk boundaries don't align with semantic boundaries. Important context is split across chunks, and the overlapping window isn't large enough to capture it.</p>
+        <p><strong style="color:var(--accent2);">Fix:</strong> Use parent-document retrieval (retrieve the small chunk, return the larger parent). Increase chunk overlap. Use semantic chunking that splits at topic boundaries. Index at multiple granularities.</p>
+      </div>
+    </div>
+    <div class="failure-card" onclick="toggleFailure(this)">
+      <div class="fail-label">Context Failure</div>
+      <h4>Context Window Overflow</h4>
+      <p>Too many chunks stuffed into the prompt, exceeding the context window or pushing out the system prompt and instructions.</p>
+      <div class="failure-detail">
+        <p><strong style="color:var(--cyan);">Root Cause:</strong> Retrieving too many chunks (top-20 instead of top-5), or chunks are too large. The total context exceeds the model's effective attention span even if it fits the token limit.</p>
+        <p><strong style="color:var(--accent2);">Fix:</strong> Re-rank and take only top-3 to top-5 most relevant chunks. Use contextual compression to extract only the relevant sentences from each chunk. Set a hard token budget for retrieved context (e.g., max 2000 tokens).</p>
+      </div>
+    </div>
+    <div class="failure-card" onclick="toggleFailure(this)">
+      <div class="fail-label">Context Failure</div>
+      <h4>Lost in the Middle</h4>
+      <p>Relevant information is in the retrieved context but the model ignores it because it's buried in the middle of a long prompt.</p>
+      <div class="failure-detail">
+        <p><strong style="color:var(--cyan);">Root Cause:</strong> LLMs have a U-shaped attention pattern — they attend most to the beginning and end of the context. Information in the middle gets less attention.</p>
+        <p><strong style="color:var(--accent2);">Fix:</strong> Place the most relevant chunk first. Use the "sandwich" pattern: most relevant at start, second-most relevant at end, less relevant in the middle. Alternatively, reduce total context length so the model can attend to everything.</p>
+      </div>
+    </div>
+    <div class="failure-card" onclick="toggleFailure(this)">
+      <div class="fail-label">Generation Failure</div>
+      <h4>Hallucination Despite Context</h4>
+      <p>The model generates facts not present in the retrieved context, or contradicts the context with its parametric knowledge.</p>
+      <div class="failure-detail">
+        <p><strong style="color:var(--cyan);">Root Cause:</strong> The model's parametric knowledge (from training) conflicts with the retrieved context, and the model trusts its own knowledge more. Or the model extrapolates beyond what the context says.</p>
+        <p><strong style="color:var(--accent2);">Fix:</strong> Add explicit instructions: "Only answer based on the provided context. If the context doesn't contain the answer, say so." Use a grounding check as a post-processing step (LLM-as-judge verifying the answer is supported by context). Lower temperature for more conservative generation.</p>
+      </div>
+    </div>
+    <div class="failure-card" onclick="toggleFailure(this)">
+      <div class="fail-label">Data Failure</div>
+      <h4>Stale or Conflicting Data</h4>
+      <p>The vector store contains outdated documents, or multiple documents contradict each other on the same topic.</p>
+      <div class="failure-detail">
+        <p><strong style="color:var(--cyan);">Root Cause:</strong> No document lifecycle management. Old versions of docs are still indexed alongside new versions. Or multiple sources of truth exist for the same information.</p>
+        <p><strong style="color:var(--accent2);">Fix:</strong> Implement document versioning and deduplication in your ingestion pipeline. Add metadata timestamps and filter for recency. Use a reconciliation step when multiple chunks contradict each other. Build an incremental update pipeline rather than full re-indexing.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<script>
+// ===== NAVIGATION =====
+const sections = document.querySelectorAll('.section');
+const pills = document.querySelectorAll('.nav-pill');
+function showSection(idx) {
+  sections.forEach((s,i) => s.classList.toggle('active', i===idx));
+  pills.forEach((p,i) => p.classList.toggle('active', i===idx));
+  window.scrollTo({top:0,behavior:'smooth'});
+  if(idx===1) setTimeout(initVectorSpace, 100);
+  if(idx===3) setTimeout(initHNSW, 100);
+  if(idx===5) { setTimeout(initRerank, 100); setTimeout(initAttention, 150); }
+}
+
+// ===== RAG FLOW STAGES =====
+const ragStages = [
+  {title:'Query', html:'<p style="font-size:0.85em;">The user asks a question in natural language. Before retrieval, you may preprocess the query: expand abbreviations, extract keywords, or rewrite it for better retrieval.</p><div class="code-block" style="font-size:0.78em;"><span class="cmt"># Query preprocessing</span>\nquery = <span class="str">"How do I set up CI/CD for my Python project?"</span>\n\n<span class="cmt"># Optional: query rewriting for better retrieval</span>\nrewritten = llm.<span class="fn">rewrite</span>(query, style=<span class="str">"search_optimized"</span>)\n<span class="cmt"># → "CI/CD pipeline setup Python project GitHub Actions configuration"</span></div>'},
+  {title:'Embed', html:'<p style="font-size:0.85em;">Convert the query into a dense vector using the same embedding model used to index your documents. This is critical — you must use the same model, otherwise the vectors live in different spaces and similarity is meaningless.</p><div style="font-size:0.82em;color:var(--muted);padding:10px;background:var(--bg);border-radius:6px;"><span style="color:var(--cyan);">query_embedding</span> = embed_model.encode("How do I set up CI/CD...")<br><span style="color:var(--muted);"># → [0.23, -0.41, 0.87, ..., 0.12]  (1536 dimensions)</span></div>'},
+  {title:'Retrieve', html:'<p style="font-size:0.85em;">Search the vector store for the k most similar document chunks. This uses approximate nearest neighbor (ANN) search — HNSW, IVF, or similar algorithms that make this fast even over millions of vectors.</p><p style="font-size:0.82em;color:var(--muted);">Typical k: 5-20 for initial retrieval (retrieve more than you need, then re-rank down to 3-5).</p>'},
+  {title:'Re-Rank', html:'<p style="font-size:0.85em;">Pass the retrieved chunks through a cross-encoder re-ranker that scores each (query, chunk) pair more accurately than embedding similarity alone. This catches cases where the bi-encoder missed nuance.</p><p style="font-size:0.82em;color:var(--muted);">Re-ranking typically reorders the top-20 results and keeps only the top-3 to top-5. This step is optional but significantly improves accuracy (typically +5-15% on retrieval benchmarks).</p>'},
+  {title:'Augment', html:'<p style="font-size:0.85em;">Assemble the final prompt: system instructions + retrieved context + user query. Context ordering matters — put the most relevant chunk first (or use the sandwich pattern).</p><div class="code-block" style="font-size:0.78em;"><span class="kw">prompt</span> = <span class="str">f"""Use the following context to answer the question.\nOnly use information from the context. If the answer\nis not in the context, say "I don\'t know."\n\nContext:\n{formatted_chunks}\n\nQuestion: {query}"""</span></div>'},
+  {title:'Generate', html:'<p style="font-size:0.85em;">Send the augmented prompt to the LLM. The model generates a response grounded in the retrieved context. Post-processing: extract citations, verify grounding, format the response.</p><p style="font-size:0.82em;color:var(--muted);">Production tip: ask the model to cite which chunks it used (e.g., "[Source 1]"). This enables source attribution and makes it easier to verify accuracy.</p>'}
+];
+
+function showRagStage(idx) {
+  document.querySelectorAll('#ragFlow .flow-node').forEach((n,i) => n.classList.toggle('active', i===idx));
+  document.querySelectorAll('#ragFlow .flow-arrow').forEach((a,i) => {
+    a.classList.toggle('active', i < idx);
+  });
+  const s = ragStages[idx];
+  document.getElementById('ragStageDetail').innerHTML = `<h4 style="color:var(--accent2);">${s.title}</h4>${s.html}`;
+  document.getElementById('ragStageDetail').classList.add('open');
+}
+showRagStage(0);
+
+// ===== VECTOR SPACE =====
+const docPoints = [
+  {x:0.2,y:0.3,label:'Setting up CI/CD pipelines',cat:'devops'},
+  {x:0.25,y:0.35,label:'GitHub Actions workflow config',cat:'devops'},
+  {x:0.18,y:0.28,label:'Jenkins pipeline tutorial',cat:'devops'},
+  {x:0.7,y:0.2,label:'React component lifecycle',cat:'frontend'},
+  {x:0.75,y:0.25,label:'Managing state in React apps',cat:'frontend'},
+  {x:0.65,y:0.18,label:'CSS Grid layout guide',cat:'frontend'},
+  {x:0.5,y:0.7,label:'PostgreSQL query optimization',cat:'database'},
+  {x:0.45,y:0.75,label:'Database indexing strategies',cat:'database'},
+  {x:0.55,y:0.68,label:'SQL join performance tuning',cat:'database'},
+  {x:0.3,y:0.65,label:'Python deployment best practices',cat:'devops'},
+  {x:0.8,y:0.6,label:'API authentication with OAuth',cat:'security'},
+  {x:0.85,y:0.55,label:'JWT token management',cat:'security'},
+  {x:0.15,y:0.55,label:'Docker container orchestration',cat:'devops'},
+  {x:0.4,y:0.4,label:'Microservices architecture patterns',cat:'architecture'},
+  {x:0.35,y:0.5,label:'Load balancing strategies',cat:'architecture'},
+];
+const catColors = {devops:'#10b981',frontend:'#3b82f6',database:'#f59e0b',security:'#ef4444',architecture:'#a78bfa'};
+const queryPoints = {
+  'How do I deploy to production?': {x:0.25,y:0.45},
+  'React state management': {x:0.72,y:0.22},
+  'Database performance': {x:0.5,y:0.72},
+  'Authentication setup': {x:0.82,y:0.58},
+};
+
+function initVectorSpace() {
+  drawVectorSpace(null);
+}
+
+function drawVectorSpace(queryPt) {
+  const canvas = document.getElementById('vectorCanvas');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = 400 * dpr;
+  ctx.scale(dpr, dpr);
+  const w = canvas.offsetWidth, h = 400;
+  ctx.clearRect(0,0,w,h);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(42,53,69,0.3)';
+  ctx.lineWidth = 0.5;
+  for(let i = 0; i < w; i += 40) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,h); ctx.stroke(); }
+  for(let i = 0; i < h; i += 40) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(w,i); ctx.stroke(); }
+
+  // Find nearest if query exists
+  let nearest = [];
+  if(queryPt) {
+    const dists = docPoints.map((d,i) => ({i, dist: Math.sqrt((d.x-queryPt.x)**2+(d.y-queryPt.y)**2)}));
+    dists.sort((a,b) => a.dist - b.dist);
+    nearest = dists.slice(0,3).map(d => d.i);
+
+    // Draw lines to nearest
+    nearest.forEach(ni => {
+      const d = docPoints[ni];
+      ctx.beginPath();
+      ctx.moveTo(queryPt.x*w, queryPt.y*h);
+      ctx.lineTo(d.x*w, d.y*h);
+      ctx.strokeStyle = 'rgba(16,185,129,0.3)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4,4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+  }
+
+  // Draw docs
+  docPoints.forEach((d,i) => {
+    const x = d.x * w, y = d.y * h;
+    const isNearest = nearest.includes(i);
+    ctx.beginPath();
+    ctx.arc(x, y, isNearest ? 7 : 5, 0, Math.PI*2);
+    ctx.fillStyle = isNearest ? catColors[d.cat] : catColors[d.cat] + '80';
+    ctx.fill();
+    if(isNearest) {
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    // Label
+    ctx.fillStyle = isNearest ? '#e2e8f0' : '#64748b';
+    ctx.font = `${isNearest ? '12' : '10'}px DM Sans`;
+    ctx.textAlign = 'left';
+    ctx.fillText(d.label, x + 10, y + 4);
+  });
+
+  // Draw query point
+  if(queryPt) {
+    const qx = queryPt.x * w, qy = queryPt.y * h;
+    ctx.beginPath();
+    ctx.arc(qx, qy, 9, 0, Math.PI*2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(qx, qy, 6, 0, Math.PI*2);
+    ctx.fillStyle = '#10b981';
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px DM Sans';
+    ctx.fillText('Q', qx - 4, qy + 4);
+  }
+
+  // Legend
+  const legendY = h - 20;
+  let legendX = 10;
+  Object.entries(catColors).forEach(([cat, color]) => {
+    ctx.beginPath();
+    ctx.arc(legendX, legendY, 4, 0, Math.PI*2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px DM Sans';
+    ctx.textAlign = 'left';
+    ctx.fillText(cat, legendX + 8, legendY + 3);
+    legendX += ctx.measureText(cat).width + 24;
+  });
+}
+
+function runVectorSearch() {
+  const query = document.getElementById('vecQuery').value.trim();
+  // Simulate embedding by hashing to a position
+  let qx = 0.5, qy = 0.5;
+  const lower = query.toLowerCase();
+  if(lower.includes('deploy') || lower.includes('ci') || lower.includes('pipeline') || lower.includes('docker')) { qx = 0.22; qy = 0.42; }
+  else if(lower.includes('react') || lower.includes('component') || lower.includes('state') || lower.includes('css')) { qx = 0.72; qy = 0.22; }
+  else if(lower.includes('database') || lower.includes('sql') || lower.includes('query') || lower.includes('postgres')) { qx = 0.5; qy = 0.72; }
+  else if(lower.includes('auth') || lower.includes('security') || lower.includes('jwt') || lower.includes('oauth')) { qx = 0.82; qy = 0.58; }
+  else if(lower.includes('micro') || lower.includes('architect') || lower.includes('load')) { qx = 0.38; qy = 0.45; }
+  else { qx = 0.3 + Math.random()*0.4; qy = 0.3 + Math.random()*0.4; }
+
+  // Add jitter
+  qx += (Math.random()-0.5)*0.05;
+  qy += (Math.random()-0.5)*0.05;
+
+  drawVectorSpace({x: qx, y: qy});
+
+  // Show results
+  const dists = docPoints.map((d,i) => ({i, dist: Math.sqrt((d.x-qx)**2+(d.y-qy)**2), label: d.label}));
+  dists.sort((a,b) => a.dist - b.dist);
+  const top3 = dists.slice(0,3);
+  document.getElementById('vecResults').innerHTML = '<strong style="color:var(--accent2);">Top 3 results:</strong> ' +
+    top3.map((r,i) => `<span style="color:var(--text);">${i+1}. ${r.label}</span> <span style="color:var(--muted);">(similarity: ${(1-r.dist).toFixed(2)})</span>`).join(' | ');
+}
+
+// ===== CHUNKING =====
+const sampleDoc = `# Authentication Guide
+
+## Overview
+Our API uses OAuth 2.0 for authentication. All requests must include a valid access token in the Authorization header. Tokens expire after 1 hour and must be refreshed using the refresh token flow.
+
+## Getting Started
+First, register your application in the developer portal to get your client_id and client_secret. These credentials are used in the authorization code flow to obtain access tokens.
+
+## Token Flow
+1. Redirect the user to the authorization endpoint
+2. User grants permission and receives an authorization code
+3. Exchange the code for an access and refresh token
+4. Use the access token in API requests
+5. When the token expires, use the refresh token to get a new one
+
+## Rate Limiting
+API requests are rate-limited to 100 requests per minute per user. If you exceed this limit, you'll receive a 429 status code. Implement exponential backoff in your retry logic.
+
+## Error Handling
+Authentication errors return a 401 status code with a JSON body containing an error code and message. Common errors include: expired_token, invalid_token, insufficient_scope.`;
+
+let currentChunkStrategy = 0;
+
+function showChunkStrategy(idx) {
+  currentChunkStrategy = idx;
+  document.querySelectorAll('#chunkTabs .method-tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  updateChunks();
+}
+
+function updateChunks() {
+  const size = parseInt(document.getElementById('chunkSlider').value);
+  document.getElementById('chunkSizeLabel').textContent = size + ' tok';
+  const words = sampleDoc.split(/\s+/);
+  let chunks = [];
+
+  if(currentChunkStrategy === 0) {
+    // Fixed-size
+    const overlap = Math.floor(size * 0.15);
+    for(let i = 0; i < words.length; i += size - overlap) {
+      chunks.push(words.slice(i, i + size).join(' '));
+    }
+  } else if(currentChunkStrategy === 1) {
+    // Recursive (by paragraph)
+    const paras = sampleDoc.split('\n\n').filter(p => p.trim());
+    let current = '';
+    paras.forEach(p => {
+      if((current + ' ' + p).split(/\s+/).length > size && current) {
+        chunks.push(current.trim());
+        current = p;
+      } else {
+        current += (current ? '\n\n' : '') + p;
+      }
+    });
+    if(current.trim()) chunks.push(current.trim());
+  } else if(currentChunkStrategy === 2) {
+    // Semantic (by section headers)
+    const sections = sampleDoc.split(/(?=^## )/m).filter(s => s.trim());
+    sections.forEach(s => {
+      if(s.split(/\s+/).length > size) {
+        const sentences = s.split(/\. /);
+        let current = '';
+        sentences.forEach(sent => {
+          if((current + '. ' + sent).split(/\s+/).length > size && current) {
+            chunks.push(current.trim());
+            current = sent;
+          } else {
+            current += (current ? '. ' : '') + sent;
+          }
+        });
+        if(current.trim()) chunks.push(current.trim());
+      } else {
+        chunks.push(s.trim());
+      }
+    });
+  } else {
+    // Document-aware (by markdown headers)
+    const sections = sampleDoc.split(/(?=^#+ )/m).filter(s => s.trim());
+    chunks = sections.map(s => s.trim());
+  }
+
+  const authChunks = chunks.map((c,i) => ({
+    text: c,
+    highlight: c.toLowerCase().includes('authentication') || c.toLowerCase().includes('oauth') || c.toLowerCase().includes('token flow')
+  }));
+
+  const display = document.getElementById('chunkDisplay');
+  display.innerHTML = authChunks.map((c,i) => `
+    <div class="chunk ${c.highlight ? 'highlight' : ''}">
+      <div class="chunk-id">chunk_${i}</div>
+      ${c.highlight ? '<span class="chunk-score">0.' + (92 - i*8) + '</span>' : ''}
+      ${c.text.substring(0, 300)}${c.text.length > 300 ? '...' : ''}
+    </div>
+  `).join('');
+
+  const strategyNames = ['Fixed-Size','Recursive','Semantic','Document-Aware'];
+  document.getElementById('chunkStats').innerHTML =
+    `<span>Strategy: <strong style="color:var(--accent2);">${strategyNames[currentChunkStrategy]}</strong></span>` +
+    `<span>Chunks: <strong style="color:var(--text);">${chunks.length}</strong></span>` +
+    `<span>Avg size: <strong style="color:var(--text);">${Math.round(chunks.reduce((a,c) => a+c.split(/\s+/).length,0)/chunks.length)} tokens</strong></span>` +
+    `<span>Retrieved: <strong style="color:var(--accent2);">${authChunks.filter(c=>c.highlight).length} relevant</strong></span>`;
+}
+updateChunks();
+
+// ===== HNSW =====
+let hnswNodes = [];
+let hnswLayers = 3;
+
+function initHNSW() {
+  const canvas = document.getElementById('hnswCanvas');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = 360 * dpr;
+
+  hnswNodes = [];
+  const layerCounts = [5, 12, 30];
+  for(let layer = 0; layer < 3; layer++) {
+    const count = layerCounts[layer];
+    const layerNodes = [];
+    for(let i = 0; i < count; i++) {
+      layerNodes.push({
+        x: 0.08 + Math.random() * 0.84,
+        y: 0.15 + Math.random() * 0.7,
+        layer,
+        id: `${layer}-${i}`
+      });
+    }
+    hnswNodes.push(layerNodes);
+  }
+  drawHNSW(canvas, []);
+}
+
+function drawHNSW(canvas, visitedPath) {
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.offsetWidth, h = 360;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0,0,w,h);
+
+  const layerW = w / 3;
+
+  for(let layer = 0; layer < 3; layer++) {
+    const offsetX = layer * layerW;
+    const nodes = hnswNodes[layer];
+
+    // Layer background
+    ctx.fillStyle = `rgba(${16+layer*8},${24+layer*6},${32+layer*8},0.5)`;
+    ctx.fillRect(offsetX + 4, 4, layerW - 8, h - 8);
+    ctx.strokeStyle = 'var(--border)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(offsetX + 4, 4, layerW - 8, h - 8);
+
+    // Layer label
+    ctx.fillStyle = '#64748b';
+    ctx.font = 'bold 11px DM Sans';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Layer ${2 - layer} (${layer === 0 ? 'sparse' : layer === 1 ? 'medium' : 'dense'})`, offsetX + layerW/2, 22);
+
+    // Draw edges
+    ctx.strokeStyle = 'rgba(42,53,69,0.4)';
+    ctx.lineWidth = 0.5;
+    nodes.forEach((n, i) => {
+      const nx = offsetX + n.x * layerW;
+      const ny = 30 + n.y * (h - 40);
+      // Connect to 2-3 nearest
+      const others = nodes.filter((_,j) => j !== i).sort((a,b) =>
+        Math.sqrt((a.x-n.x)**2+(a.y-n.y)**2) - Math.sqrt((b.x-n.x)**2+(b.y-n.y)**2)
+      ).slice(0, layer === 0 ? 2 : layer === 1 ? 3 : 4);
+      others.forEach(o => {
+        ctx.beginPath();
+        ctx.moveTo(nx, ny);
+        ctx.lineTo(offsetX + o.x * layerW, 30 + o.y * (h - 40));
+        ctx.stroke();
+      });
+    });
+
+    // Draw nodes
+    nodes.forEach((n, i) => {
+      const nx = offsetX + n.x * layerW;
+      const ny = 30 + n.y * (h - 40);
+      const isVisited = visitedPath.includes(n.id);
+      const isTarget = visitedPath.length > 0 && visitedPath[visitedPath.length-1] === n.id;
+      ctx.beginPath();
+      ctx.arc(nx, ny, isVisited ? 6 : 4, 0, Math.PI*2);
+      ctx.fillStyle = isTarget ? '#10b981' : isVisited ? '#f59e0b' : 'rgba(100,116,139,0.5)';
+      ctx.fill();
+      if(isVisited) {
+        ctx.strokeStyle = isTarget ? '#10b981' : '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    });
+  }
+
+  // Draw visited path connections across layers
+  if(visitedPath.length > 1) {
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4,4]);
+    for(let i = 0; i < visitedPath.length - 1; i++) {
+      const [l1,n1] = visitedPath[i].split('-').map(Number);
+      const [l2,n2] = visitedPath[i+1].split('-').map(Number);
+      const node1 = hnswNodes[l1][n1];
+      const node2 = hnswNodes[l2][n2];
+      const x1 = l1 * layerW + node1.x * layerW;
+      const y1 = 30 + node1.y * (h - 40);
+      const x2 = l2 * layerW + node2.x * layerW;
+      const y2 = 30 + node2.y * (h - 40);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+}
+
+function runHNSW() {
+  const canvas = document.getElementById('hnswCanvas');
+  const btn = document.getElementById('hnswBtn');
+  btn.disabled = true;
+  btn.textContent = 'Searching...';
+  document.getElementById('hnswStatus').textContent = 'Starting search from Layer 2 (sparsest)...';
+
+  // Simulate traversal
+  const path = [];
+  // Pick random entry in each layer, moving to "closer" nodes
+  let step = 0;
+  const targetX = 0.3 + Math.random() * 0.4;
+  const targetY = 0.3 + Math.random() * 0.4;
+
+  function visitLayer(layer) {
+    const nodes = hnswNodes[layer];
+    // Find closest node in this layer
+    const sorted = nodes.map((n,i) => ({i, dist: Math.sqrt((n.x-targetX)**2+(n.y-targetY)**2)})).sort((a,b)=>a.dist-b.dist);
+    // Visit 2-3 nodes in this layer
+    const toVisit = sorted.slice(0, layer === 0 ? 2 : 3);
+    let visitIdx = 0;
+
+    function visitNext() {
+      if(visitIdx >= toVisit.length) {
+        // Move to next layer
+        if(layer < 2) {
+          document.getElementById('hnswStatus').textContent = `Dropping to Layer ${2-layer-1} (denser, more precise)...`;
+          setTimeout(() => visitLayer(layer + 1), 400);
+        } else {
+          // Done
+          document.getElementById('hnswStatus').innerHTML = `<span style="color:var(--accent2);">Found nearest neighbor!</span> Traversed ${path.length} nodes across 3 layers.`;
+          btn.disabled = false;
+          btn.textContent = 'Search Again';
+        }
+        return;
+      }
+      path.push(`${layer}-${toVisit[visitIdx].i}`);
+      drawHNSW(canvas, path);
+      document.getElementById('hnswStatus').textContent = `Layer ${2-layer}: visiting node ${visitIdx+1}/${toVisit.length} (distance: ${toVisit[visitIdx].dist.toFixed(3)})`;
+      visitIdx++;
+      setTimeout(visitNext, 350);
+    }
+    visitNext();
+  }
+
+  path.length = 0;
+  drawHNSW(canvas, []);
+  setTimeout(() => visitLayer(0), 300);
+}
+
+// ===== HYBRID SEARCH =====
+const searchResults = {
+  vector: [
+    {text:'Managing connection pools in Node.js applications with pg-pool library',score:0.89,rank:1},
+    {text:'Node.js application architecture best practices for scalability',score:0.82,rank:2},
+    {text:'Database connection management in Express.js middleware',score:0.79,rank:3},
+    {text:'Understanding connection pooling in PostgreSQL',score:0.76,rank:4},
+    {text:'Node.js performance optimization and memory management',score:0.71,rank:5},
+  ],
+  keyword: [
+    {text:'Database connection pooling in Node.js: a complete guide',score:28.5,rank:1},
+    {text:'Node.js pg module: createPool() API reference',score:24.1,rank:2},
+    {text:'Connection pool configuration for node-postgres',score:21.8,rank:3},
+    {text:'Troubleshooting database connection pool exhaustion in Node.js',score:18.3,rank:4},
+    {text:'Node.js database drivers comparison: pg vs mysql2 vs mongodb',score:14.7,rank:5},
+  ],
+  hybrid: [
+    {text:'Database connection pooling in Node.js: a complete guide',score:0.95,rank:1},
+    {text:'Managing connection pools in Node.js applications with pg-pool library',score:0.91,rank:2},
+    {text:'Connection pool configuration for node-postgres',score:0.85,rank:3},
+    {text:'Database connection management in Express.js middleware',score:0.79,rank:4},
+    {text:'Troubleshooting database connection pool exhaustion in Node.js',score:0.74,rank:5},
+  ]
+};
+
+function showSearchMode(idx) {
+  document.querySelectorAll('#searchTabs .method-tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  const modes = ['vector','keyword','hybrid'];
+  const results = searchResults[modes[idx]];
+  const unit = idx === 1 ? '' : '';
+  document.getElementById('searchResults').innerHTML = results.map((r,i) => `
+    <div class="chunk ${i < 3 ? 'highlight' : ''}">
+      <div class="chunk-id">#${r.rank}</div>
+      <span class="chunk-score">${idx===1 ? r.score.toFixed(1) : r.score.toFixed(2)}</span>
+      ${r.text}
+    </div>
+  `).join('');
+}
+showSearchMode(0);
+
+// ===== ADVANCED PATTERNS =====
+const patterns = [
+  {title:'Naive RAG', html:'<p style="font-size:0.85em;">The baseline: embed the query, retrieve top-k chunks, stuff them into the prompt, generate.</p><p style="font-size:0.82em;color:var(--muted);"><strong style="color:var(--accent2);">Pros:</strong> Simple to implement, works for many use cases.<br><strong style="color:var(--red);">Cons:</strong> No query understanding, no retrieval quality check, vulnerable to all failure modes.</p><div class="code-block" style="font-size:0.78em;">chunks = vector_store.<span class="fn">search</span>(query, k=<span class="num">5</span>)\nprompt = <span class="fn">build_prompt</span>(query, chunks)\nresponse = llm.<span class="fn">generate</span>(prompt)</div>'},
+  {title:'Sentence Window Retrieval', html:'<p style="font-size:0.85em;">Index individual sentences for precise matching, but at retrieval time, expand each hit to include surrounding sentences (a "window" of context).</p><p style="font-size:0.82em;color:var(--muted);"><strong style="color:var(--accent2);">Why it works:</strong> Sentences embed more precisely than large chunks (less topic dilution), but single sentences lack context. The window provides context without diluting the embedding.</p><div style="padding:12px;background:var(--bg);border-radius:8px;font-size:0.82em;margin:8px 0;"><span style="color:var(--muted);">Retrieved sentence:</span> "Tokens expire after 1 hour."<br><span style="color:var(--accent2);">Expanded window:</span> "All requests must include a valid access token. <strong style="color:var(--text);">Tokens expire after 1 hour</strong> and must be refreshed using the refresh token flow."</div>'},
+  {title:'Parent Document Retrieval', html:'<p style="font-size:0.85em;">Store documents at two levels: small child chunks for embedding/retrieval, and larger parent chunks for context. When a child chunk is retrieved, return its parent instead.</p><p style="font-size:0.82em;color:var(--muted);"><strong style="color:var(--accent2);">Why it works:</strong> Small chunks give precise retrieval. Large parent chunks give the LLM the full context it needs to generate a good answer. Best of both worlds.</p>'},
+  {title:'Multi-Query RAG', html:'<p style="font-size:0.85em;">Use an LLM to generate 3-5 alternative phrasings of the user\'s query, run retrieval for each, then merge and deduplicate the results.</p><div class="code-block" style="font-size:0.78em;"><span class="cmt"># Generate query variations</span>\nvariations = llm.<span class="fn">generate</span>(<span class="str">f"Generate 3 alternative search queries for: {query}"</span>)\n\n<span class="cmt"># Retrieve for each</span>\nall_results = []\n<span class="kw">for</span> q <span class="kw">in</span> [query] + variations:\n    all_results.<span class="fn">extend</span>(vector_store.<span class="fn">search</span>(q, k=<span class="num">5</span>))\n\n<span class="cmt"># Deduplicate and merge</span>\nfinal = <span class="fn">dedupe_by_content</span>(all_results)</div>'},
+  {title:'RAG Fusion', html:'<p style="font-size:0.85em;">Like Multi-Query but with a smarter merging step: Reciprocal Rank Fusion (RRF). Each document gets a score based on its rank across all queries, not just its raw similarity score.</p><div class="code-block" style="font-size:0.78em;"><span class="cmt"># Reciprocal Rank Fusion</span>\n<span class="kw">def</span> <span class="fn">rrf_score</span>(doc, ranked_lists, k=<span class="num">60</span>):\n    score = <span class="num">0</span>\n    <span class="kw">for</span> ranked_list <span class="kw">in</span> ranked_lists:\n        <span class="kw">if</span> doc <span class="kw">in</span> ranked_list:\n            rank = ranked_list.<span class="fn">index</span>(doc) + <span class="num">1</span>\n            score += <span class="num">1</span> / (k + rank)\n    <span class="kw">return</span> score</div>'},
+  {title:'Self-RAG', html:'<p style="font-size:0.85em;">The model itself decides whether retrieval is needed, evaluates retrieved context quality, and self-critiques its own response. Uses special tokens trained into the model.</p><p style="font-size:0.82em;color:var(--muted);"><strong style="color:var(--accent2);">Decision flow:</strong> (1) Is retrieval needed? → (2) Is retrieved context relevant? → (3) Is the response supported by context? → (4) Is the response useful?</p><p style="font-size:0.82em;color:var(--muted);"><strong style="color:var(--orange);">Trade-off:</strong> Requires a model fine-tuned with reflection tokens. Not applicable with off-the-shelf API models without significant prompt engineering.</p>'},
+  {title:'Corrective RAG (CRAG)', html:'<p style="font-size:0.85em;">After retrieval, evaluate whether the results are good enough. If they are, proceed normally. If ambiguous, refine the query. If poor, fall back to web search.</p><div style="padding:12px;background:var(--bg);border-radius:8px;font-size:0.82em;margin:8px 0;line-height:2;"><span style="color:var(--green);">CORRECT</span> → confidence > 0.8 → use retrieved docs<br><span style="color:var(--orange);">AMBIGUOUS</span> → 0.5 < confidence < 0.8 → refine query + re-retrieve<br><span style="color:var(--red);">INCORRECT</span> → confidence < 0.5 → fall back to web search</div>'},
+  {title:'Agentic RAG', html:'<p style="font-size:0.85em;">An LLM agent with access to multiple retrieval tools decides the optimal strategy dynamically. It can query different sources, refine queries, and combine information across multiple retrieval steps.</p><p style="font-size:0.82em;color:var(--muted);">The agent has tools like: <span style="color:var(--cyan);">search_docs(query)</span>, <span style="color:var(--cyan);">search_web(query)</span>, <span style="color:var(--cyan);">search_code(query)</span>, <span style="color:var(--cyan);">ask_clarification(question)</span>. It reasons about which tools to use and in what order based on the user\'s question.</p><p style="font-size:0.82em;color:var(--muted);"><strong style="color:var(--accent2);">Best for:</strong> Complex questions that require information from multiple sources or multi-step reasoning over retrieved information.</p>'}
+];
+
+function showPattern(idx) {
+  document.querySelectorAll('#sec4 .card').forEach((c,i) => c.classList.toggle('active', i===idx));
+  const p = patterns[idx];
+  const panel = document.getElementById('patternDetail');
+  panel.innerHTML = `<h4 style="color:var(--accent2);">${p.title}</h4>${p.html}`;
+  panel.classList.add('open');
+  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+// ===== RE-RANKING =====
+const rerankItems = [
+  {text:'pg.Pool configuration options and defaults', biScore: 0.84, crossScore: 0.62},
+  {text:'Express middleware error handling patterns', biScore: 0.81, crossScore: 0.35},
+  {text:'Managing PostgreSQL connection limits per client', biScore: 0.79, crossScore: 0.71},
+  {text:'Node.js cluster module for multi-core utilization', biScore: 0.77, crossScore: 0.28},
+  {text:'Database connection pooling: why, when, and how to configure pool size, idle timeout, and connection lifecycle in Node.js', biScore: 0.75, crossScore: 0.94},
+  {text:'Connection retry strategies with exponential backoff', biScore: 0.73, crossScore: 0.68},
+  {text:'ORM vs raw SQL performance comparison in Node.js', biScore: 0.71, crossScore: 0.22},
+];
+
+let reranked = false;
+
+function initRerank() {
+  reranked = false;
+  renderRerank(false);
+}
+
+function renderRerank(useReranked) {
+  const items = [...rerankItems];
+  if(useReranked) {
+    items.sort((a,b) => b.crossScore - a.crossScore);
+  }
+  const list = document.getElementById('rerankList');
+  list.innerHTML = items.map((item, i) => {
+    const score = useReranked ? item.crossScore : item.biScore;
+    const isTop = useReranked && i < 3;
+    return `<div class="rerank-item ${isTop ? 'top' : ''}" style="transition-delay:${i*0.05}s;">
+      <div class="rank">${i+1}</div>
+      <div style="flex:1;color:${isTop ? 'var(--text)' : 'var(--muted)'};">${item.text}</div>
+      <div class="score-badge" style="color:${score > 0.7 ? 'var(--accent2)' : score > 0.5 ? 'var(--orange)' : 'var(--red)'};">${score.toFixed(2)}</div>
+    </div>`;
+  }).join('');
+}
+
+function runRerank() {
+  reranked = !reranked;
+  document.getElementById('rerankBtn').textContent = reranked ? 'Reset' : 'Re-Rank';
+  renderRerank(reranked);
+}
+
+// ===== ATTENTION BARS =====
+function initAttention() {
+  const values = [0.92, 0.75, 0.58, 0.42, 0.35, 0.31, 0.38, 0.45, 0.72, 0.88];
+  const container = document.getElementById('attentionBars');
+  container.innerHTML = values.map((v, i) => {
+    const color = v > 0.7 ? 'var(--accent)' : v > 0.5 ? 'var(--orange)' : 'var(--red)';
+    return `<div style="flex:1;background:${color};height:${v*100}%;border-radius:4px 4px 0 0;opacity:${0.5+v*0.5};transition:height 0.5s;position:relative;" title="Chunk ${i+1}: ${(v*100).toFixed(0)}% attention">
+      <div style="position:absolute;top:-18px;width:100%;text-align:center;font-size:0.68em;color:var(--muted);font-family:'DM Mono',monospace;">${(v*100).toFixed(0)}%</div>
+    </div>`;
+  }).join('');
+}
+
+// ===== FAILURE MODES =====
+function toggleFailure(card) {
+  const detail = card.querySelector('.failure-detail');
+  const isOpen = detail.style.display === 'block';
+  document.querySelectorAll('.failure-detail').forEach(d => d.style.display = 'none');
+  if(!isOpen) detail.style.display = 'block';
+}
+
+// Init first visible section
+setTimeout(initVectorSpace, 200);
+
+// Observe section changes
+const observer = new MutationObserver(() => {
+  if(document.getElementById('sec2').classList.contains('active')) updateChunks();
+});
+sections.forEach(s => observer.observe(s, {attributes:true, attributeFilter:['class']}));
+</script>
+</body>
+</html>

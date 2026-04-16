@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Inference & Serving Optimization — Interactive Deep Dive</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e14;
+  --bg2: #12171f;
+  --bg3: #1a2030;
+  --bg4: #232d3f;
+  --border: #2a3545;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --accent: #f59e0b;
+  --accent2: #fbbf24;
+  --accent-dim: rgba(245,158,11,0.1);
+  --green: #22c55e;
+  --green-dim: rgba(34,197,94,0.12);
+  --orange: #f59e0b;
+  --orange-dim: rgba(245,158,11,0.12);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.12);
+  --cyan: #22d3ee;
+  --cyan-dim: rgba(34,211,238,0.12);
+  --pink: #f472b6;
+  --pink-dim: rgba(244,114,182,0.12);
+  --blue: #3b82f6;
+  --blue-dim: rgba(59,130,246,0.1);
+  --purple: #a78bfa;
+  --purple-dim: rgba(167,139,250,0.12);
+  --yellow: #facc15;
+  --yellow-dim: rgba(250,204,21,0.08);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden;}
+
+.topbar{position:sticky;top:0;z-index:100;background:rgba(10,14,20,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;}
+.topbar a{color:var(--muted);text-decoration:none;font-size:0.85em;transition:color 0.2s;}
+.topbar a:hover{color:var(--text);}
+.topbar h1{font-size:0.95em;font-weight:600;background:linear-gradient(135deg,var(--accent),var(--red));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+
+.section-nav{position:sticky;top:49px;z-index:99;background:rgba(10,14,20,0.88);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:8px 24px;display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.section-nav::-webkit-scrollbar{display:none;}
+.nav-pill{padding:6px 16px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:inherit;font-size:0.78em;font-weight:500;cursor:pointer;white-space:nowrap;transition:all 0.2s;}
+.nav-pill:hover{border-color:var(--accent);color:var(--text);}
+.nav-pill.active{background:var(--accent);border-color:var(--accent);color:#000;}
+
+.content{max-width:960px;margin:0 auto;padding:40px 24px 80px;}
+.section{display:none;animation:fadeIn 0.4s ease;}
+.section.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+
+h2{font-size:1.6em;font-weight:700;margin-bottom:8px;letter-spacing:-0.02em;}
+h3{font-size:1.15em;font-weight:600;margin:28px 0 12px;color:var(--accent2);}
+h4{font-size:0.95em;font-weight:600;margin:20px 0 8px;color:var(--cyan);}
+.subtitle{color:var(--muted);font-size:0.95em;margin-bottom:32px;}
+p{margin-bottom:16px;color:var(--text);font-size:0.92em;line-height:1.7;}
+
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin:20px 0;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px;transition:all 0.25s;}
+.card h4{margin:8px 0 6px;color:var(--text);font-size:0.95em;}
+.card p{font-size:0.82em;color:var(--muted);margin:0;}
+.card-label{font-size:0.7em;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;display:inline-block;padding:2px 8px;border-radius:4px;}
+
+.code-block{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;margin:16px 0;overflow-x:auto;font-family:'DM Mono',monospace;font-size:0.8em;line-height:1.7;color:var(--cyan);}
+.code-block .kw{color:var(--purple);}
+.code-block .str{color:var(--green);}
+.code-block .cmt{color:var(--muted);}
+.code-block .fn{color:var(--pink);}
+.code-block .num{color:var(--orange);}
+
+.interactive-box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;margin:24px 0;position:relative;}
+.interactive-box::before{content:'INTERACTIVE';position:absolute;top:-10px;left:16px;padding:2px 10px;background:var(--accent);color:#000;font-size:0.65em;font-weight:700;letter-spacing:0.08em;border-radius:4px;}
+.interactive-box h4{margin-top:8px;}
+
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0;}
+.compare-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px;}
+
+.method-tabs{display:flex;gap:8px;margin:16px 0;flex-wrap:wrap;}
+.method-tab{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-family:inherit;font-size:0.8em;cursor:pointer;transition:all 0.2s;}
+.method-tab:hover{border-color:var(--accent);color:var(--text);}
+.method-tab.active{background:var(--accent);border-color:var(--accent);color:#000;}
+
+.metric-row{display:flex;align-items:center;gap:12px;margin:8px 0;font-size:0.82em;}
+.metric-name{width:130px;color:var(--muted);flex-shrink:0;}
+.metric-bar-bg{flex:1;height:22px;background:var(--bg3);border-radius:4px;overflow:hidden;}
+.metric-bar{height:100%;border-radius:4px;transition:width 0.8s cubic-bezier(0.16,1,0.3,1);display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:0.75em;font-weight:600;color:#fff;}
+.metric-val{width:70px;text-align:right;font-weight:600;font-family:'DM Mono',monospace;font-size:0.85em;}
+
+/* KV Cache grid */
+.kv-grid{display:grid;gap:2px;margin:16px 0;}
+.kv-cell{border-radius:2px;transition:all 0.15s;position:relative;}
+.kv-cell.filled{opacity:1;}
+.kv-cell.empty{opacity:0.15;}
+.kv-cell:hover{transform:scale(1.3);z-index:2;}
+
+/* Batch visualization */
+.batch-viz{display:flex;flex-direction:column;gap:6px;margin:16px 0;font-size:0.78em;}
+.batch-row{display:flex;align-items:center;gap:8px;}
+.batch-label{width:60px;color:var(--muted);flex-shrink:0;font-family:'DM Mono',monospace;font-size:0.85em;}
+.batch-bar{display:flex;gap:1px;flex:1;height:28px;background:var(--bg3);border-radius:4px;overflow:hidden;position:relative;}
+.batch-token{height:100%;transition:all 0.3s;}
+.batch-token.active{background:var(--accent);}
+.batch-token.done{background:var(--green);}
+.batch-token.pad{background:rgba(100,116,139,0.15);}
+.batch-token.waiting{background:rgba(59,130,246,0.3);}
+
+/* Speculative decoding */
+.spec-timeline{display:flex;flex-direction:column;gap:12px;margin:16px 0;}
+.spec-row{display:flex;align-items:center;gap:8px;}
+.spec-label{width:100px;font-size:0.78em;color:var(--muted);flex-shrink:0;}
+.spec-tokens{display:flex;gap:3px;flex:1;flex-wrap:wrap;}
+.spec-token{padding:4px 10px;border-radius:4px;font-family:'DM Mono',monospace;font-size:0.78em;border:1px solid var(--border);transition:all 0.3s;}
+.spec-token.draft{background:var(--blue-dim);border-color:rgba(59,130,246,0.3);color:var(--blue);}
+.spec-token.accepted{background:var(--green-dim);border-color:rgba(34,197,94,0.3);color:var(--green);}
+.spec-token.rejected{background:var(--red-dim);border-color:rgba(239,68,68,0.3);color:var(--red);text-decoration:line-through;}
+.spec-token.resampled{background:var(--purple-dim);border-color:rgba(167,139,250,0.3);color:var(--purple);}
+.spec-token.verified{background:var(--green-dim);border-color:rgba(34,197,94,0.3);color:var(--green);}
+
+/* Memory blocks */
+.mem-grid{display:grid;grid-template-columns:repeat(16,1fr);gap:2px;margin:16px 0;}
+.mem-block{aspect-ratio:1;border-radius:3px;border:1px solid var(--border);transition:all 0.3s;cursor:pointer;position:relative;}
+.mem-block.free{background:var(--bg3);}
+.mem-block.used-a{background:rgba(59,130,246,0.4);border-color:rgba(59,130,246,0.5);}
+.mem-block.used-b{background:rgba(244,114,182,0.4);border-color:rgba(244,114,182,0.5);}
+.mem-block.used-c{background:rgba(34,211,238,0.4);border-color:rgba(34,211,238,0.5);}
+.mem-block.wasted{background:rgba(239,68,68,0.2);border-color:rgba(239,68,68,0.3);}
+.mem-block:hover{transform:scale(1.15);z-index:2;}
+
+/* Serving architecture */
+.arch-box{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px 18px;text-align:center;cursor:pointer;transition:all 0.3s;}
+.arch-box:hover{border-color:var(--accent);background:var(--bg4);}
+.arch-box.active{border-color:var(--accent);box-shadow:0 0 16px var(--accent-dim);}
+.arch-box .arch-label{font-size:0.82em;font-weight:600;}
+.arch-box .arch-sub{font-size:0.7em;color:var(--muted);margin-top:2px;}
+
+.detail-panel{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:20px;margin:16px 0;display:none;}
+.detail-panel.open{display:block;animation:fadeIn 0.3s ease;}
+
+/* Calc inputs */
+.calc-row{display:flex;align-items:center;gap:12px;margin:8px 0;flex-wrap:wrap;}
+.calc-row label{font-size:0.82em;color:var(--muted);width:120px;flex-shrink:0;}
+.calc-row input,.calc-row select{padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:0.85em;outline:none;width:120px;}
+.calc-row input:focus,.calc-row select:focus{border-color:var(--accent);}
+.calc-result{padding:16px;background:var(--bg);border-radius:10px;margin:16px 0;font-family:'DM Mono',monospace;}
+.calc-result .big{font-size:1.8em;font-weight:700;color:var(--accent2);}
+.calc-result .label{font-size:0.78em;color:var(--muted);}
+
+@media(max-width:768px){
+  .compare{grid-template-columns:1fr;}
+  .card-grid{grid-template-columns:1fr;}
+  .content{padding:24px 16px 60px;}
+  h2{font-size:1.3em;}
+  .mem-grid{grid-template-columns:repeat(8,1fr);}
+  .calc-row{flex-direction:column;align-items:flex-start;gap:4px;}
+  .calc-row label{width:auto;}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html">← Back</a>
+  <h1>LLM Inference & Serving Optimization</h1>
+</div>
+
+<div class="section-nav">
+  <button class="nav-pill active" onclick="showSection(0)">Inference Lifecycle</button>
+  <button class="nav-pill" onclick="showSection(1)">KV Cache</button>
+  <button class="nav-pill" onclick="showSection(2)">Batching</button>
+  <button class="nav-pill" onclick="showSection(3)">PagedAttention</button>
+  <button class="nav-pill" onclick="showSection(4)">Speculative Decoding</button>
+  <button class="nav-pill" onclick="showSection(5)">Quantization</button>
+  <button class="nav-pill" onclick="showSection(6)">Serving Architecture</button>
+</div>
+
+<div class="content">
+
+<!-- ===== SECTION 0: INFERENCE LIFECYCLE ===== -->
+<div class="section active" id="sec0">
+  <h2>The Inference Lifecycle</h2>
+  <p class="subtitle">What happens from the moment you hit "send" to when you see the first token.</p>
+
+  <p>Every LLM API call goes through two distinct phases. Understanding these phases is essential because they have completely different performance characteristics and bottlenecks.</p>
+
+  <h3>Two Phases of Inference</h3>
+  <div class="compare">
+    <div class="compare-panel" style="border-color:rgba(59,130,246,0.3);">
+      <div style="font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;color:var(--blue);">Phase 1: Prefill</div>
+      <p style="font-size:0.85em;margin-bottom:12px;">Process the entire input prompt in parallel. Compute attention across all input tokens simultaneously.</p>
+      <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+        <div><span style="color:var(--blue);">Compute-bound</span> — GPU math units are the bottleneck</div>
+        <div>All input tokens processed in parallel (matrix multiply)</div>
+        <div>Builds the KV cache for all input tokens</div>
+        <div>Determines <strong style="color:var(--text);">Time to First Token (TTFT)</strong></div>
+      </div>
+    </div>
+    <div class="compare-panel" style="border-color:rgba(245,158,11,0.3);">
+      <div style="font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;color:var(--accent2);">Phase 2: Decode</div>
+      <p style="font-size:0.85em;margin-bottom:12px;">Generate output tokens one at a time. Each new token requires attending to ALL previous tokens.</p>
+      <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+        <div><span style="color:var(--accent2);">Memory-bound</span> — GPU memory bandwidth is the bottleneck</div>
+        <div>Tokens generated sequentially (autoregressive)</div>
+        <div>Reads the entire KV cache at every step</div>
+        <div>Determines <strong style="color:var(--text);">Inter-Token Latency (ITL)</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="interactive-box">
+    <h4>Inference Animation</h4>
+    <p style="font-size:0.82em;color:var(--muted);margin-bottom:16px;">Click "Run Inference" to watch the two phases in action. Notice how prefill processes many tokens at once, while decode generates one at a time.</p>
+    <button onclick="runInference()" id="inferBtn" style="padding:8px 20px;background:var(--accent);color:#000;border:none;border-radius:6px;font-family:inherit;font-size:0.82em;cursor:pointer;font-weight:600;margin-bottom:12px;">Run Inference</button>
+    <div style="margin-bottom:8px;">
+      <div style="font-size:0.72em;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Input Prompt</div>
+      <div id="inferInput" style="padding:10px;background:var(--bg3);border-radius:6px;font-size:0.85em;font-family:'DM Mono',monospace;min-height:20px;"></div>
+    </div>
+    <div>
+      <div style="font-size:0.72em;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Generated Output</div>
+      <div id="inferOutput" style="padding:10px;background:var(--bg3);border-radius:6px;font-size:0.85em;font-family:'DM Mono',monospace;min-height:20px;"></div>
+    </div>
+    <div id="inferStatus" style="margin-top:12px;font-size:0.82em;color:var(--muted);min-height:20px;"></div>
+  </div>
+
+  <h3>Key Latency Metrics</h3>
+  <div class="card-grid" style="grid-template-columns:repeat(3,1fr);">
+    <div class="card">
+      <div class="card-label" style="background:var(--blue-dim);color:var(--blue);">Responsiveness</div>
+      <h4>TTFT</h4>
+      <p>Time to First Token. How long the user waits before seeing any output. Dominated by prefill time. Target: &lt;500ms for interactive apps.</p>
+    </div>
+    <div class="card">
+      <div class="card-label" style="background:var(--accent-dim);color:var(--accent2);">Smoothness</div>
+      <h4>ITL</h4>
+      <p>Inter-Token Latency. Time between consecutive output tokens. Determines streaming smoothness. Target: &lt;50ms for a "typing" feel.</p>
+    </div>
+    <div class="card">
+      <div class="card-label" style="background:var(--green-dim);color:var(--green);">Capacity</div>
+      <h4>Throughput</h4>
+      <p>Total tokens/second across all concurrent requests. The metric that determines cost-per-token and how many users you can serve.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SECTION 1: KV CACHE ===== -->
+<div class="section" id="sec1">
+  <h2>The KV Cache</h2>
+  <p class="subtitle">The single most important concept for understanding inference optimization.</p>
+
+  <p>During generation, each new token needs to "attend to" (look at) every previous token. Without caching, the model would recompute the Key and Value matrices for ALL previous tokens at every single generation step. The KV cache stores these computed K and V tensors so they only need to be computed once.</p>
+
+  <h3>Why the KV Cache Exists</h3>
+  <div class="code-block">
+<span class="cmt"># Without KV cache (wasteful): recompute everything at each step</span>
+<span class="kw">for</span> step <span class="kw">in</span> range(output_len):
+    <span class="cmt"># Recompute K, V for ALL tokens (input + previously generated)</span>
+    K = <span class="fn">compute_keys</span>(all_tokens)       <span class="cmt"># O(n) work repeated every step</span>
+    V = <span class="fn">compute_values</span>(all_tokens)     <span class="cmt"># growing cost as sequence grows</span>
+    attn = <span class="fn">softmax</span>(Q @ K.T) @ V
+
+<span class="cmt"># With KV cache (efficient): only compute K, V for the new token</span>
+<span class="kw">for</span> step <span class="kw">in</span> range(output_len):
+    K_new = <span class="fn">compute_keys</span>(new_token)    <span class="cmt"># O(1) work per step</span>
+    V_new = <span class="fn">compute_values</span>(new_token)
+    kv_cache.<span class="fn">append</span>(K_new, V_new)       <span class="cmt"># store for future steps</span>
+    attn = <span class="fn">softmax</span>(Q @ kv_cache.K.T) @ kv_cache.V
+  </div>
+
+  <div class="interactive-box">
+    <h4>KV Cache Memory Calculator</h4>
+    <p style="font-size:0.82em;color:var(--muted);margin-bottom:16px;">Adjust model parameters to see how much GPU memory the KV cache requires. This is often the bottleneck for long-context inference.</p>
+
+    <div class="calc-row">
+      <label>Layers:</label>
+      <input type="number" id="kvLayers" value="80" min="1" max="200" oninput="calcKV()">
+      <label>Heads (KV):</label>
+      <input type="number" id="kvHeads" value="8" min="1" max="128" oninput="calcKV()">
+    </div>
+    <div class="calc-row">
+      <label>Head dim:</label>
+      <input type="number" id="kvHeadDim" value="128" min="32" max="256" oninput="calcKV()">
+      <label>Seq length:</label>
+      <input type="number" id="kvSeqLen" value="4096" min="128" max="1000000" oninput="calcKV()">
+    </div>
+    <div class="calc-row">
+      <label>Precision:</label>
+      <select id="kvPrecision" onchange="calcKV()">
+        <option value="2" selected>FP16 (2 bytes)</option>
+        <option value="1">FP8 (1 byte)</option>
+        <option value="4">FP32 (4 bytes)</option>
+      </select>
+      <label>Batch size:</label>
+      <input type="number" id="kvBatch" value="1" min="1" max="256" oninput="calcKV()">
+    </div>
+
+    <div class="calc-result" id="kvResult"></div>
+
+    <div style="margin-top:16px;">
+      <h4 style="color:var(--accent2);font-size:0.88em;">Presets</h4>
+      <div class="method-tabs">
+        <button class="method-tab" onclick="kvPreset(32,32,128,4096,2,1)">Llama 3 8B</button>
+        <button class="method-tab" onclick="kvPreset(80,8,128,4096,2,1)">Llama 3 70B</button>
+        <button class="method-tab" onclick="kvPreset(126,16,128,131072,2,1)">Llama 3 405B</button>
+        <button class="method-tab" onclick="kvPreset(80,8,128,4096,2,32)">70B batch=32</button>
+      </div>
+    </div>
+  </div>
+
+  <h3>MHA vs MQA vs GQA</h3>
+  <p>The biggest lever for reducing KV cache size is reducing the number of KV heads. Multi-Head Attention (MHA) uses one KV head per attention head. Grouped-Query Attention (GQA) shares KV heads across groups. Multi-Query Attention (MQA) uses a single KV head for all query heads.</p>
+
+  <div class="interactive-box">
+    <h4>Attention Head Configurations</h4>
+    <p style="font-size:0.82em;color:var(--muted);margin-bottom:16px;">Compare KV cache size across attention variants. GQA (used by Llama 3) is the sweet spot — significant memory savings with minimal quality loss.</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+      <div style="text-align:center;">
+        <div style="font-size:0.78em;font-weight:600;color:var(--red);margin-bottom:8px;">MHA (Multi-Head)</div>
+        <div id="mhaViz" style="display:flex;gap:2px;justify-content:center;flex-wrap:wrap;"></div>
+        <div style="font-size:0.78em;color:var(--muted);margin-top:8px;">32 KV heads</div>
+        <div style="font-family:'DM Mono',monospace;font-size:0.88em;color:var(--red);font-weight:600;margin-top:4px;" id="mhaSize"></div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:0.78em;font-weight:600;color:var(--accent2);margin-bottom:8px;">GQA (Grouped-Query)</div>
+        <div id="gqaViz" style="display:flex;gap:2px;justify-content:center;flex-wrap:wrap;"></div>
+        <div style="font-size:0.78em;color:var(--muted);margin-top:8px;">8 KV heads (4:1 ratio)</div>
+        <div style="font-family:'DM Mono',monospace;font-size:0.88em;color:var(--accent2);font-weight:600;margin-top:4px;" id="gqaSize"></div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:0.78em;font-weight:600;color:var(--green);margin-bottom:8px;">MQA (Multi-Query)</div>
+        <div id="mqaViz" style="display:flex;gap:2px;justify-content:center;flex-wrap:wrap;"></div>
+        <div style="font-size:0.78em;color:var(--muted);margin-top:8px;">1 KV head</div>
+        <div style="font-family:'DM Mono',monospace;font-size:0.88em;color:var(--green);font-weight:600;margin-top:4px;" id="mqaSize"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SECTION 2: BATCHING ===== -->
+<div class="section" id="sec2">
+  <h2>Batching Strategies</h2>
+  <p class="subtitle">How to process multiple requests simultaneously without wasting GPU cycles.</p>
+
+  <p>A single decode step uses a tiny fraction of the GPU's compute capacity — it's memory-bound, not compute-bound. Batching multiple requests together amortizes the cost of reading model weights from GPU memory, dramatically increasing throughput.</p>
+
+  <h3>Static vs Continuous Batching</h3>
+
+  <div class="interactive-box">
+    <h4>Batching Simulator</h4>
+    <p style="font-size:0.82em;color:var(--muted);margin-bottom:16px;">Watch how static batching wastes GPU cycles on padding, while continuous batching fills freed slots immediately.</p>
+    <div class="method-tabs">
+      <button class="method-tab active" onclick="showBatchMode(0)" id="batchTab0">Static Batching</button>
+      <button class="method-tab" onclick="showBatchMode(1)" id="batchTab1">Continuous Batching</button>
+    </div>
+    <button onclick="runBatchSim()" id="batchBtn" style="padding:8px 20px;background:var(--accent);color:#000;border:none;border-radius:6px;font-family:inherit;font-size:0.82em;cursor:pointer;font-weight:600;margin:12px 0;">Run Simulation</button>
+    <div id="batchViz" class="batch-viz"></div>
+    <div id="batchStats" style="margin-top:12px;display:flex;gap:24px;flex-wrap:wrap;font-size:0.82em;"></div>
+  </div>
+
+  <div class="compare">
+    <div class="compare-panel" style="border-color:rgba(239,68,68,0.3);">
+      <div style="font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;color:var(--red);">Static Batching</div>
+      <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+        <div>All requests padded to the same max length</div>
+        <div>Batch waits for the longest request to finish</div>
+        <div>Short requests waste GPU cycles sitting idle</div>
+        <div>New requests queue until entire batch completes</div>
+        <div>Typical GPU utilization: 30-50%</div>
+      </div>
+    </div>
+    <div class="compare-panel" style="border-color:rgba(34,197,94,0.3);">
+      <div style="font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;color:var(--green);">Continuous Batching</div>
+      <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+        <div>No padding — each request uses only what it needs</div>
+        <div>Finished requests immediately freed, new ones inserted</div>
+        <div>GPU stays busy processing actual tokens</div>
+        <div>Iteration-level scheduling: decide batch composition per step</div>
+        <div>Typical GPU utilization: 80-95%</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SECTION 3: PAGEDATTENTION ===== -->
+<div class="section" id="sec3">
+  <h2>PagedAttention & vLLM</h2>
+  <p class="subtitle">Treating KV cache like virtual memory — the breakthrough behind vLLM.</p>
+
+  <p>Traditional inference engines pre-allocate KV cache as contiguous memory blocks for the maximum sequence length. This wastes massive amounts of GPU memory — a request that generates 100 tokens still reserves memory for 4096 tokens. PagedAttention solves this by allocating KV cache in small fixed-size pages, just like how operating systems manage virtual memory.</p>
+
+  <div class="interactive-box">
+    <h4>Memory Allocation: Contiguous vs Paged</h4>
+    <p style="font-size:0.82em;color:var(--muted);margin-bottom:12px;">Click "Simulate Requests" to see how 3 requests allocate and free memory over time. Notice how the contiguous approach wastes memory with fragmentation.</p>
+    <div class="method-tabs">
+      <button class="method-tab active" onclick="showMemMode(0)" id="memTab0">Contiguous (Traditional)</button>
+      <button class="method-tab" onclick="showMemMode(1)" id="memTab1">Paged (PagedAttention)</button>
+    </div>
+    <button onclick="runMemSim()" id="memBtn" style="padding:8px 20px;background:var(--accent);color:#000;border:none;border-radius:6px;font-family:inherit;font-size:0.82em;cursor:pointer;font-weight:600;margin:12px 0;">Simulate Requests</button>
+    <div style="font-size:0.72em;color:var(--muted);margin-bottom:4px;">GPU Memory Blocks (each block = 16 tokens of KV cache)</div>
+    <div class="mem-grid" id="memGrid"></div>
+    <div style="display:flex;gap:16px;font-size:0.75em;margin-top:8px;flex-wrap:wrap;">
+      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(59,130,246,0.4);border-radius:2px;"></span> Request A</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(244,114,182,0.4);border-radius:2px;"></span> Request B</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(34,211,238,0.4);border-radius:2px;"></span> Request C</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(239,68,68,0.2);border-radius:2px;"></span> Wasted</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:var(--bg3);border-radius:2px;border:1px solid var(--border);"></span> Free</span>
+    </div>
+    <div id="memStats" style="margin-top:12px;font-size:0.82em;color:var(--muted);min-height:20px;"></div>
+  </div>
+
+  <h3>How PagedAttention Works</h3>
+  <div style="font-size:0.88em;color:var(--muted);line-height:2;margin:12px 0;">
+    <p><span style="color:var(--accent2);font-weight:600;">1. Page Table:</span> Each request has a logical-to-physical page mapping, just like a CPU's virtual memory page table. Logical KV cache is contiguous from the model's perspective, but physical blocks can be anywhere in GPU memory.</p>
+    <p><span style="color:var(--accent2);font-weight:600;">2. On-Demand Allocation:</span> New pages are allocated only when needed (as the sequence grows), not pre-allocated for the max length.</p>
+    <p><span style="color:var(--accent2);font-weight:600;">3. Memory Sharing:</span> For parallel sampling (beam search, best-of-n), multiple sequences can share the same physical pages for their common prefix. Only divergent suffixes need separate pages (copy-on-write).</p>
+  </div>
+
+  <div style="display:flex;gap:24px;margin:20px 0;flex-wrap:wrap;">
+    <div style="flex:1;min-width:200px;padding:16px;background:var(--bg3);border-radius:10px;text-align:center;">
+      <div style="font-size:2em;font-weight:700;color:var(--red);">~60%</div>
+      <div style="font-size:0.82em;color:var(--muted);">Memory wasted (contiguous)</div>
+    </div>
+    <div style="flex:1;min-width:200px;padding:16px;background:var(--bg3);border-radius:10px;text-align:center;">
+      <div style="font-size:2em;font-weight:700;color:var(--green);">~4%</div>
+      <div style="font-size:0.82em;color:var(--muted);">Memory wasted (PagedAttention)</div>
+    </div>
+    <div style="flex:1;min-width:200px;padding:16px;background:var(--bg3);border-radius:10px;text-align:center;">
+      <div style="font-size:2em;font-weight:700;color:var(--accent2);">2-4x</div>
+      <div style="font-size:0.82em;color:var(--muted);">More concurrent requests</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SECTION 4: SPECULATIVE DECODING ===== -->
+<div class="section" id="sec4">
+  <h2>Speculative Decoding</h2>
+  <p class="subtitle">Use a small model to draft tokens, a large model to verify — 2-3x speedup for free.</p>
+
+  <p>The key insight: verifying whether k tokens are correct can be done in a single forward pass (parallel, like prefill), while generating k tokens requires k sequential forward passes. Speculative decoding exploits this asymmetry.</p>
+
+  <h3>How It Works</h3>
+  <div style="font-size:0.88em;color:var(--muted);line-height:2;margin:12px 0;">
+    <p><span style="color:var(--blue);font-weight:600;">1. Draft:</span> A small, fast model (the "draft model") generates k candidate tokens quickly.</p>
+    <p><span style="color:var(--green);font-weight:600;">2. Verify:</span> The large target model processes ALL k draft tokens in a single forward pass (parallel verification).</p>
+    <p><span style="color:var(--accent2);font-weight:600;">3. Accept/Reject:</span> Accept matching tokens from left to right. At the first mismatch, reject that token and all subsequent ones. Resample the rejected position from the target model's distribution.</p>
+    <p><span style="color:var(--purple);font-weight:600;">4. Guarantee:</span> The output is mathematically identical to what the target model would produce alone. Zero quality loss.</p>
+  </div>
+
+  <div class="interactive-box">
+    <h4>Speculative Decoding Step-Through</h4>
+    <p style="font-size:0.82em;color:var(--muted);margin-bottom:16px;">Click "Next Step" to walk through speculative decoding, one phase at a time.</p>
+    <button onclick="nextSpecStep()" id="specBtn" style="padding:8px 20px;background:var(--accent);color:#000;border:none;border-radius:6px;font-family:inherit;font-size:0.82em;cursor:pointer;font-weight:600;margin-bottom:12px;">Next Step</button>
+    <button onclick="resetSpec()" style="padding:8px 20px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:0.82em;cursor:pointer;margin-bottom:12px;margin-left:8px;">Reset</button>
+
+    <div class="spec-timeline" id="specTimeline">
+      <div class="spec-row">
+        <div class="spec-label" style="color:var(--muted);">Context:</div>
+        <div class="spec-tokens">
+          <span class="spec-token" style="background:var(--bg3);color:var(--text);">The</span>
+          <span class="spec-token" style="background:var(--bg3);color:var(--text);">capital</span>
+          <span class="spec-token" style="background:var(--bg3);color:var(--text);">of</span>
+          <span class="spec-token" style="background:var(--bg3);color:var(--text);">France</span>
+          <span class="spec-token" style="background:var(--bg3);color:var(--text);">is</span>
+        </div>
+      </div>
+      <div class="spec-row" id="specDraftRow" style="display:none;">
+        <div class="spec-label" style="color:var(--blue);">Draft (7B):</div>
+        <div class="spec-tokens" id="specDraftTokens"></div>
+      </div>
+      <div class="spec-row" id="specVerifyRow" style="display:none;">
+        <div class="spec-label" style="color:var(--green);">Verify (70B):</div>
+        <div class="spec-tokens" id="specVerifyTokens"></div>
+      </div>
+      <div class="spec-row" id="specResultRow" style="display:none;">
+        <div class="spec-label" style="color:var(--accent2);">Accepted:</div>
+        <div class="spec-tokens" id="specResultTokens"></div>
+      </div>
+    </div>
+    <div id="specStatus" style="margin-top:12px;font-size:0.82em;color:var(--muted);padding:8px;background:var(--bg3);border-radius:6px;min-height:20px;"></div>
+  </div>
+
+  <h3>Speedup Analysis</h3>
+  <div class="card-grid" style="grid-template-columns:1fr 1fr;">
+    <div class="card">
+      <h4 style="color:var(--accent2);">When It Helps Most</h4>
+      <p>High acceptance rate (draft model agrees with target 70-90% of the time). Larger draft length k (5-8 tokens). When the target model is much larger (and slower) than the draft model.</p>
+    </div>
+    <div class="card">
+      <h4 style="color:var(--red);">When It Doesn't Help</h4>
+      <p>Low acceptance rate (creative, high-temperature generation where draft diverges). Very small target model (draft overhead not worth it). Memory-constrained (need to fit both models in GPU memory).</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SECTION 5: QUANTIZATION ===== -->
+<div class="section" id="sec5">
+  <h2>Quantization for Serving</h2>
+  <p class="subtitle">Shrink model weights and KV cache to serve bigger models on smaller GPUs.</p>
+
+  <p>Quantization reduces the precision of model weights from 16-bit floats to 8-bit or 4-bit integers. This reduces memory by 2-4x and speeds up inference by reducing memory bandwidth requirements. The quality loss is surprisingly small for well-calibrated quantization.</p>
+
+  <h3>Weight Quantization Methods</h3>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-label" style="background:var(--green-dim);color:var(--green);">Simple</div>
+      <h4>INT8 (W8A8)</h4>
+      <p>Quantize weights and activations to 8-bit. Near-lossless for most models. 2x memory reduction. Supported natively by most hardware (TensorRT, CUDA).</p>
+    </div>
+    <div class="card">
+      <div class="card-label" style="background:var(--accent-dim);color:var(--accent2);">Popular</div>
+      <h4>GPTQ (INT4)</h4>
+      <p>One-shot weight quantization using a calibration dataset. 4x memory reduction. Good quality with 128 group size. The standard for self-hosted models.</p>
+    </div>
+    <div class="card">
+      <div class="card-label" style="background:var(--cyan-dim);color:var(--cyan);">Advanced</div>
+      <h4>AWQ</h4>
+      <p>Activation-aware weight quantization. Protects the 1% of weights that matter most (based on activation patterns). Often better quality than GPTQ at the same bit-width.</p>
+    </div>
+    <div class="card">
+      <div class="card-label" style="background:var(--purple-dim);color:var(--purple);">CPU/Edge</div>
+      <h4>GGUF</h4>
+      <p>llama.cpp format. Multiple quant levels (Q4_K_M, Q5_K_S, etc). Optimized for CPU inference. Enables running 70B models on a MacBook.</p>
+    </div>
+  </div>
+
+  <h3>Quantization Impact Comparison</h3>
+  <div class="interactive-box">
+    <h4>Memory vs Quality Trade-off</h4>
+    <p style="font-size:0.82em;color:var(--muted);margin-bottom:16px;">For a 70B parameter model. Quality is measured on MMLU benchmark.</p>
+    <div>
+      <div class="metric-row">
+        <span class="metric-name">FP16 (baseline)</span>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:100%;background:var(--red);">140 GB</div></div>
+        <span class="metric-val" style="color:var(--green);">79.5%</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-name">INT8 (W8A16)</span>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:50%;background:var(--orange);">70 GB</div></div>
+        <span class="metric-val" style="color:var(--green);">79.2%</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-name">INT4 (GPTQ)</span>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:27%;background:var(--accent);">38 GB</div></div>
+        <span class="metric-val" style="color:var(--accent2);">78.1%</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-name">INT4 (AWQ)</span>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:27%;background:var(--accent);">38 GB</div></div>
+        <span class="metric-val" style="color:var(--green);">78.8%</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-name">INT3 (aggressive)</span>
+        <div class="metric-bar-bg"><div class="metric-bar" style="width:20%;background:var(--green);">28 GB</div></div>
+        <span class="metric-val" style="color:var(--red);">74.2%</span>
+      </div>
+    </div>
+    <div style="margin-top:12px;padding:12px;background:var(--bg);border-radius:8px;font-size:0.82em;color:var(--muted);border-left:3px solid var(--accent);">
+      <strong style="color:var(--accent2);">Key insight:</strong> INT4 with AWQ gives 3.7x memory reduction with only 0.7% quality loss. This means a 70B model that normally needs 2x A100 80GB can fit on a single GPU. The cost-per-token drops by roughly 50%.
+    </div>
+  </div>
+
+  <h3>Flash Attention</h3>
+  <p>Flash Attention isn't quantization, but it's the other critical memory optimization. It fuses the attention computation into a single GPU kernel, avoiding writing the full attention matrix to HBM (GPU memory). This reduces memory usage from O(n^2) to O(n) and speeds up attention 2-4x.</p>
+  <div class="code-block">
+<span class="cmt"># Standard attention: materializes n x n attention matrix in HBM</span>
+attn_weights = <span class="fn">softmax</span>(Q @ K.T / sqrt(d))  <span class="cmt"># O(n^2) memory</span>
+output = attn_weights @ V
+
+<span class="cmt"># Flash Attention: tiled computation, never materializes full matrix</span>
+<span class="cmt"># Processes in blocks, accumulates in SRAM (fast on-chip memory)</span>
+output = <span class="fn">flash_attention</span>(Q, K, V)           <span class="cmt"># O(n) memory</span>
+<span class="cmt"># 2-4x faster, enables longer sequences on same hardware</span>
+  </div>
+</div>
+
+<!-- ===== SECTION 6: SERVING ARCHITECTURE ===== -->
+<div class="section" id="sec6">
+  <h2>Serving Architecture</h2>
+  <p class="subtitle">The full production stack from user request to GPU inference and back.</p>
+
+  <p>Serving an LLM in production requires much more than loading a model and calling .generate(). You need request routing, load balancing, batching, memory management, model parallelism, auto-scaling, and monitoring.</p>
+
+  <h3>Production Serving Stack</h3>
+  <div class="interactive-box">
+    <h4>System Architecture</h4>
+    <p style="font-size:0.82em;color:var(--muted);margin-bottom:16px;">Click each component to see details.</p>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+      <div class="arch-box active" onclick="showArchDetail(0)"><div class="arch-label">Load Balancer</div><div class="arch-sub">Route requests</div></div>
+      <div class="arch-box" onclick="showArchDetail(1)"><div class="arch-label">API Gateway</div><div class="arch-sub">Auth, rate limit</div></div>
+      <div class="arch-box" onclick="showArchDetail(2)"><div class="arch-label">Router</div><div class="arch-sub">Model selection</div></div>
+      <div class="arch-box" onclick="showArchDetail(3)"><div class="arch-label">Queue</div><div class="arch-sub">Request buffer</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+      <div class="arch-box" onclick="showArchDetail(4)"><div class="arch-label">Scheduler</div><div class="arch-sub">Batch assembly</div></div>
+      <div class="arch-box" onclick="showArchDetail(5)"><div class="arch-label">Inference Engine</div><div class="arch-sub">vLLM / TRT-LLM</div></div>
+      <div class="arch-box" onclick="showArchDetail(6)"><div class="arch-label">GPU Cluster</div><div class="arch-sub">TP / PP shards</div></div>
+      <div class="arch-box" onclick="showArchDetail(7)"><div class="arch-label">Streaming</div><div class="arch-sub">SSE response</div></div>
+    </div>
+    <div class="detail-panel open" id="archDetail"></div>
+  </div>
+
+  <h3>Inference Frameworks</h3>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-label" style="background:var(--accent-dim);color:var(--accent2);">Most Popular</div>
+      <h4>vLLM</h4>
+      <p>PagedAttention, continuous batching, OpenAI-compatible API. The default choice for most teams. Excellent throughput and ease of use.</p>
+    </div>
+    <div class="card">
+      <div class="card-label" style="background:var(--green-dim);color:var(--green);">Highest Perf</div>
+      <h4>TensorRT-LLM</h4>
+      <p>NVIDIA's optimized engine. Best raw performance on NVIDIA GPUs. More complex setup. Supports in-flight batching and FP8 on Hopper.</p>
+    </div>
+    <div class="card">
+      <div class="card-label" style="background:var(--cyan-dim);color:var(--cyan);">HuggingFace</div>
+      <h4>TGI</h4>
+      <p>Text Generation Inference. Easy deployment via Docker. Good for HF model hub models. Continuous batching and Flash Attention built in.</p>
+    </div>
+    <div class="card">
+      <div class="card-label" style="background:var(--purple-dim);color:var(--purple);">Research</div>
+      <h4>SGLang</h4>
+      <p>Structured generation language. Excellent for constrained decoding (JSON, regex). RadixAttention for prefix caching across requests.</p>
+    </div>
+  </div>
+
+  <h3>Model Parallelism</h3>
+  <p>Large models don't fit on a single GPU. Two main strategies for splitting them across GPUs:</p>
+  <div class="compare">
+    <div class="compare-panel">
+      <div style="font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;color:var(--cyan);">Tensor Parallelism (TP)</div>
+      <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+        <div>Split each layer's matrices across GPUs</div>
+        <div>Each GPU computes part of every layer</div>
+        <div>Requires all-reduce after each layer (high bandwidth)</div>
+        <div>Best within a node (NVLink: 900 GB/s)</div>
+        <div>Linear memory reduction: TP=4 → 4x less per GPU</div>
+      </div>
+    </div>
+    <div class="compare-panel">
+      <div style="font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;color:var(--purple);">Pipeline Parallelism (PP)</div>
+      <div style="font-size:0.82em;color:var(--muted);line-height:2;">
+        <div>Assign different layers to different GPUs</div>
+        <div>Each GPU runs a subset of layers sequentially</div>
+        <div>Only send activations between stages (lower bandwidth)</div>
+        <div>Works across nodes (InfiniBand: 400 Gb/s)</div>
+        <div>Introduces "pipeline bubbles" of idle time</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<script>
+// ===== NAVIGATION =====
+const sections = document.querySelectorAll('.section');
+const pills = document.querySelectorAll('.nav-pill');
+function showSection(idx) {
+  sections.forEach((s,i) => s.classList.toggle('active', i===idx));
+  pills.forEach((p,i) => p.classList.toggle('active', i===idx));
+  window.scrollTo({top:0,behavior:'smooth'});
+  if(idx===1) { setTimeout(calcKV,50); setTimeout(initGQAViz,100); }
+  if(idx===2) setTimeout(initBatch,50);
+  if(idx===3) setTimeout(initMem,50);
+  if(idx===6) setTimeout(()=>showArchDetail(0),50);
+}
+
+// ===== INFERENCE ANIMATION =====
+const promptTokens = ['What','is','the','meaning','of','life','according','to','philosophy','?'];
+const outputTokens = ['The','meaning','of','life','has','been','debated','by','philosophers','for','centuries','.'];
+
+function runInference() {
+  const btn = document.getElementById('inferBtn');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  document.getElementById('inferInput').innerHTML = '';
+  document.getElementById('inferOutput').innerHTML = '';
+  document.getElementById('inferStatus').innerHTML = '<span style="color:var(--blue);">Phase 1: Prefill — processing input tokens in parallel...</span>';
+
+  let step = 0;
+  // Prefill: show all tokens appearing at once
+  setTimeout(() => {
+    document.getElementById('inferInput').innerHTML = promptTokens.map(t =>
+      `<span style="display:inline-block;padding:2px 6px;margin:2px;background:var(--blue-dim);border-radius:3px;color:var(--blue);animation:fadeIn 0.3s ease;">${t}</span>`
+    ).join('');
+    document.getElementById('inferStatus').innerHTML = '<span style="color:var(--blue);">Prefill complete (all input tokens processed in parallel). KV cache built. Starting decode...</span>';
+
+    // Decode: tokens one by one
+    setTimeout(() => {
+      document.getElementById('inferStatus').innerHTML = '<span style="color:var(--accent2);">Phase 2: Decode — generating tokens one at a time (autoregressive)...</span>';
+      let tokenIdx = 0;
+      function addToken() {
+        if(tokenIdx >= outputTokens.length) {
+          document.getElementById('inferStatus').innerHTML = '<span style="color:var(--green);">Generation complete. TTFT was determined by prefill. ITL determined by decode speed.</span>';
+          btn.disabled = false;
+          btn.textContent = 'Run Again';
+          return;
+        }
+        document.getElementById('inferOutput').innerHTML +=
+          `<span style="display:inline-block;padding:2px 6px;margin:2px;background:var(--accent-dim);border-radius:3px;color:var(--accent2);animation:fadeIn 0.2s ease;">${outputTokens[tokenIdx]}</span>`;
+        tokenIdx++;
+        setTimeout(addToken, 200);
+      }
+      addToken();
+    }, 800);
+  }, 600);
+}
+
+// ===== KV CACHE CALCULATOR =====
+function calcKV() {
+  const layers = parseInt(document.getElementById('kvLayers').value) || 80;
+  const heads = parseInt(document.getElementById('kvHeads').value) || 8;
+  const headDim = parseInt(document.getElementById('kvHeadDim').value) || 128;
+  const seqLen = parseInt(document.getElementById('kvSeqLen').value) || 4096;
+  const precision = parseInt(document.getElementById('kvPrecision').value) || 2;
+  const batch = parseInt(document.getElementById('kvBatch').value) || 1;
+
+  // KV cache per token = 2 (K+V) * layers * heads * head_dim * bytes
+  const bytesPerToken = 2 * layers * heads * headDim * precision;
+  const totalBytes = bytesPerToken * seqLen * batch;
+  const totalGB = totalBytes / (1024**3);
+  const perTokenKB = bytesPerToken / 1024;
+
+  document.getElementById('kvResult').innerHTML = `
+    <div style="display:flex;gap:24px;flex-wrap:wrap;">
+      <div>
+        <div class="label">Total KV Cache</div>
+        <div class="big">${totalGB < 1 ? (totalGB * 1024).toFixed(1) + ' MB' : totalGB.toFixed(2) + ' GB'}</div>
+      </div>
+      <div>
+        <div class="label">Per Token</div>
+        <div class="big" style="font-size:1.2em;">${perTokenKB < 1 ? (perTokenKB * 1024).toFixed(0) + ' B' : perTokenKB.toFixed(1) + ' KB'}</div>
+      </div>
+      <div>
+        <div class="label">Per Request</div>
+        <div class="big" style="font-size:1.2em;">${(totalBytes / batch / (1024**3)).toFixed(2)} GB</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;font-size:0.78em;color:var(--muted);">
+      Formula: 2 (K+V) x ${layers} layers x ${heads} KV heads x ${headDim} head_dim x ${precision} bytes x ${seqLen} tokens x ${batch} batch = ${(totalBytes / 1e9).toFixed(3)} billion bytes
+    </div>
+    <div style="margin-top:8px;font-size:0.78em;color:${totalGB > 40 ? 'var(--red)' : totalGB > 10 ? 'var(--orange)' : 'var(--green)'};">
+      ${totalGB > 80 ? 'Exceeds a single A100 80GB. Need tensor parallelism or KV cache quantization.' :
+        totalGB > 40 ? 'Tight fit on A100 80GB — leaves little room for model weights.' :
+        totalGB > 10 ? 'Fits on A100 with room for model weights.' :
+        'Comfortable fit. Room for larger batches.'}
+    </div>
+  `;
+}
+function kvPreset(l,h,d,s,p,b) {
+  document.getElementById('kvLayers').value = l;
+  document.getElementById('kvHeads').value = h;
+  document.getElementById('kvHeadDim').value = d;
+  document.getElementById('kvSeqLen').value = s;
+  document.getElementById('kvPrecision').value = p;
+  document.getElementById('kvBatch').value = b;
+  calcKV();
+}
+
+// ===== GQA VISUALIZATION =====
+function initGQAViz() {
+  const colors = ['#3b82f6','#ef4444','#22c55e','#f59e0b','#a78bfa','#f472b6','#22d3ee','#facc15'];
+  // MHA: 32 colored blocks (each unique)
+  let mha = '';
+  for(let i = 0; i < 32; i++) mha += `<div style="width:8px;height:16px;background:${colors[i%8]};border-radius:2px;opacity:${0.5+((i%8)/8)*0.5};"></div>`;
+  document.getElementById('mhaViz').innerHTML = mha;
+  document.getElementById('mhaSize').textContent = '100% cache';
+
+  // GQA: 8 colored blocks, each repeated 4x
+  let gqa = '';
+  for(let i = 0; i < 8; i++) gqa += `<div style="width:12px;height:16px;background:${colors[i]};border-radius:2px;"></div>`;
+  document.getElementById('gqaViz').innerHTML = gqa;
+  document.getElementById('gqaSize').textContent = '25% cache (4x savings)';
+
+  // MQA: 1 block
+  document.getElementById('mqaViz').innerHTML = `<div style="width:20px;height:16px;background:${colors[0]};border-radius:2px;"></div>`;
+  document.getElementById('mqaSize').textContent = '3% cache (32x savings)';
+}
+
+// ===== BATCHING SIMULATOR =====
+let batchMode = 0;
+function showBatchMode(m) {
+  batchMode = m;
+  document.getElementById('batchTab0').classList.toggle('active', m===0);
+  document.getElementById('batchTab1').classList.toggle('active', m===1);
+  initBatch();
+}
+
+function initBatch() {
+  document.getElementById('batchViz').innerHTML = '';
+  document.getElementById('batchStats').innerHTML = '';
+}
+
+function runBatchSim() {
+  const btn = document.getElementById('batchBtn');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+
+  const requests = [
+    {id:'R1', len:8, total:12},
+    {id:'R2', len:5, total:12},
+    {id:'R3', len:11, total:12},
+    {id:'R4', len:3, total:12},
+  ];
+  const maxLen = 12;
+  let step = 0;
+  const totalSteps = batchMode === 0 ? maxLen : 16;
+
+  function renderStep() {
+    if(step > totalSteps) {
+      btn.disabled = false;
+      btn.textContent = 'Run Again';
+      const usedTokens = batchMode === 0 ?
+        requests.reduce((s,r) => s + r.len, 0) :
+        requests.reduce((s,r) => s + r.len, 0) + 8; // extra from filling slots
+      const totalSlots = batchMode === 0 ? requests.length * maxLen : usedTokens + 4;
+      const util = ((usedTokens / totalSlots) * 100).toFixed(0);
+      document.getElementById('batchStats').innerHTML = `
+        <span>GPU utilization: <strong style="color:${util > 70 ? 'var(--green)' : 'var(--red)'};">${util}%</strong></span>
+        <span>Total steps: <strong style="color:var(--text);">${batchMode === 0 ? maxLen : 14}</strong></span>
+        <span style="color:var(--muted);">${batchMode === 0 ? 'Short requests idle after finishing, wasting GPU cycles.' : 'Freed slots immediately filled with new requests.'}</span>
+      `;
+      return;
+    }
+
+    const viz = document.getElementById('batchViz');
+    viz.innerHTML = '';
+
+    if(batchMode === 0) {
+      // Static: all padded to max length
+      requests.forEach(r => {
+        let bar = '';
+        for(let t = 0; t < maxLen; t++) {
+          const cls = t < Math.min(r.len, step) ? 'done' : t < r.len && t === step ? 'active' : t >= r.len ? 'pad' : '';
+          bar += `<div class="batch-token ${cls}" style="flex:1;"></div>`;
+        }
+        viz.innerHTML += `<div class="batch-row"><div class="batch-label">${r.id}</div><div class="batch-bar">${bar}</div></div>`;
+      });
+    } else {
+      // Continuous: no padding, fill freed slots
+      const active = [];
+      const queue = [{id:'R5',len:6},{id:'R6',len:4},{id:'R7',len:7}];
+      let nextQ = 0;
+
+      // Simple sim: show current state at this step
+      requests.forEach((r,i) => {
+        const progress = Math.min(step, r.len);
+        const done = step >= r.len;
+        let replacement = null;
+        if(done && nextQ < queue.length) {
+          replacement = queue[nextQ];
+          const repProgress = Math.min(step - r.len, replacement.len);
+          nextQ++;
+          let bar = '';
+          for(let t = 0; t < replacement.len; t++) {
+            bar += `<div class="batch-token ${t < repProgress ? 'done' : t === repProgress ? 'active' : ''}" style="flex:1;"></div>`;
+          }
+          viz.innerHTML += `<div class="batch-row"><div class="batch-label" style="color:var(--cyan);">${replacement.id}</div><div class="batch-bar">${bar}</div></div>`;
+        } else {
+          let bar = '';
+          for(let t = 0; t < r.len; t++) {
+            bar += `<div class="batch-token ${t < progress ? 'done' : t === progress ? 'active' : ''}" style="flex:1;"></div>`;
+          }
+          viz.innerHTML += `<div class="batch-row"><div class="batch-label">${r.id}</div><div class="batch-bar">${bar}</div></div>`;
+        }
+      });
+    }
+
+    step++;
+    setTimeout(renderStep, 250);
+  }
+  step = 0;
+  renderStep();
+}
+
+// ===== PAGED ATTENTION MEMORY =====
+let memMode = 0;
+function showMemMode(m) {
+  memMode = m;
+  document.getElementById('memTab0').classList.toggle('active', m===0);
+  document.getElementById('memTab1').classList.toggle('active', m===1);
+  initMem();
+}
+
+function initMem() {
+  const grid = document.getElementById('memGrid');
+  const totalBlocks = 64;
+  grid.innerHTML = '';
+  for(let i = 0; i < totalBlocks; i++) {
+    grid.innerHTML += `<div class="mem-block free" id="mb${i}"></div>`;
+  }
+  document.getElementById('memStats').textContent = 'Click "Simulate Requests" to see memory allocation.';
+}
+
+function runMemSim() {
+  const btn = document.getElementById('memBtn');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  initMem();
+
+  const requests = [
+    {cls:'used-a', actual:6, max:16},
+    {cls:'used-b', actual:10, max:16},
+    {cls:'used-c', actual:4, max:16},
+  ];
+
+  let step = 0;
+  function simStep() {
+    if(step >= 3) {
+      const blocks = document.querySelectorAll('.mem-block');
+      let used = 0, wasted = 0, free = 0;
+      blocks.forEach(b => {
+        if(b.classList.contains('free')) free++;
+        else if(b.classList.contains('wasted')) wasted++;
+        else used++;
+      });
+      const total = used + wasted + free;
+      document.getElementById('memStats').innerHTML =
+        `<span style="color:var(--green);">Used: ${used} blocks</span> | ` +
+        `<span style="color:var(--red);">Wasted: ${wasted} blocks (${((wasted/(used+wasted))*100).toFixed(0)}%)</span> | ` +
+        `<span style="color:var(--muted);">Free: ${free} blocks</span>`;
+      btn.disabled = false;
+      btn.textContent = 'Simulate Again';
+      return;
+    }
+
+    const req = requests[step];
+    if(memMode === 0) {
+      // Contiguous: allocate max blocks in a row
+      const start = step * req.max;
+      for(let i = start; i < start + req.max; i++) {
+        const block = document.getElementById('mb'+i);
+        if(block) {
+          if(i < start + req.actual) block.className = 'mem-block ' + req.cls;
+          else block.className = 'mem-block wasted';
+        }
+      }
+    } else {
+      // Paged: allocate only actual blocks, scattered
+      let allocated = 0;
+      const blocks = document.querySelectorAll('.mem-block.free');
+      // Spread out allocations to show non-contiguous
+      const indices = [];
+      blocks.forEach((b, i) => { if(allocated < req.actual) { indices.push(i); allocated++; }});
+      // Shuffle for visual effect
+      indices.forEach(i => { if(blocks[i]) blocks[i].className = 'mem-block ' + req.cls; });
+    }
+
+    step++;
+    setTimeout(simStep, 600);
+  }
+  simStep();
+}
+
+// ===== SPECULATIVE DECODING =====
+const draftTokens = ['Paris',',','which','is','known'];
+const targetTokens = ['Paris',',','a','city','known'];
+let specStep = 0;
+
+function nextSpecStep() {
+  specStep++;
+  const draftRow = document.getElementById('specDraftRow');
+  const verifyRow = document.getElementById('specVerifyRow');
+  const resultRow = document.getElementById('specResultRow');
+  const status = document.getElementById('specStatus');
+
+  if(specStep === 1) {
+    // Draft generates
+    draftRow.style.display = 'flex';
+    document.getElementById('specDraftTokens').innerHTML = draftTokens.map(t =>
+      `<span class="spec-token draft">${t}</span>`
+    ).join('');
+    status.innerHTML = '<span style="color:var(--blue);">Step 1: Draft model (7B) quickly generates 5 candidate tokens in 5 sequential steps.</span>';
+  } else if(specStep === 2) {
+    // Target verifies
+    verifyRow.style.display = 'flex';
+    document.getElementById('specVerifyTokens').innerHTML = targetTokens.map((t,i) =>
+      `<span class="spec-token verified">${t}</span>`
+    ).join('');
+    status.innerHTML = '<span style="color:var(--green);">Step 2: Target model (70B) verifies all 5 tokens in ONE forward pass (parallel, like prefill). It computes what it would have generated at each position.</span>';
+  } else if(specStep === 3) {
+    // Accept/reject
+    document.getElementById('specDraftTokens').innerHTML = draftTokens.map((t,i) => {
+      const match = t === targetTokens[i];
+      return `<span class="spec-token ${match ? 'accepted' : 'rejected'}">${t}</span>`;
+    }).join('');
+    status.innerHTML = '<span style="color:var(--accent2);">Step 3: Compare left-to-right. "Paris" matches, "," matches, but "which" != "a" — reject from position 3 onward. Accept 2 tokens, resample position 3.</span>';
+  } else if(specStep === 4) {
+    // Final result
+    resultRow.style.display = 'flex';
+    document.getElementById('specResultTokens').innerHTML = [
+      '<span class="spec-token accepted">Paris</span>',
+      '<span class="spec-token accepted">,</span>',
+      '<span class="spec-token resampled">a</span>',
+    ].join('');
+    status.innerHTML = '<span style="color:var(--green);">Result: 3 tokens produced in ~1 large-model forward pass instead of 3 sequential passes. With a good draft model (80% acceptance), you get ~2-3x speedup with mathematically identical output.</span>';
+    document.getElementById('specBtn').textContent = 'Done';
+    document.getElementById('specBtn').disabled = true;
+  }
+}
+
+function resetSpec() {
+  specStep = 0;
+  document.getElementById('specDraftRow').style.display = 'none';
+  document.getElementById('specVerifyRow').style.display = 'none';
+  document.getElementById('specResultRow').style.display = 'none';
+  document.getElementById('specStatus').textContent = 'Click "Next Step" to begin.';
+  document.getElementById('specBtn').textContent = 'Next Step';
+  document.getElementById('specBtn').disabled = false;
+}
+
+// ===== SERVING ARCHITECTURE =====
+const archDetails = [
+  {title:'Load Balancer', html:'<p style="font-size:0.85em;">Distributes incoming requests across API server replicas. Typically Nginx, HAProxy, or cloud LB (ALB/NLB). For streaming (SSE), use HTTP/2 or WebSocket-aware load balancers. Least-connections routing works better than round-robin for LLM workloads (variable latency).</p>'},
+  {title:'API Gateway', html:'<p style="font-size:0.85em;">Authentication (API keys, JWT), rate limiting (per-user token budgets), request validation (check prompt length, model availability), usage tracking and billing. This is where you enforce cost controls — reject requests that would exceed token budgets before they hit the GPU.</p>'},
+  {title:'Router', html:'<p style="font-size:0.85em;">Routes to the correct model instance. In multi-model setups, selects based on model name in the request. In multi-region setups, routes to the nearest GPU cluster. Can implement A/B testing by routing a percentage of traffic to a new model version.</p>'},
+  {title:'Request Queue', html:'<p style="font-size:0.85em;">Buffers requests when GPU capacity is saturated. Implements priority queues (paid users first), timeout handling (drop requests waiting too long), and backpressure (return 429 when queue is full). Queue depth is a key auto-scaling signal.</p>'},
+  {title:'Scheduler', html:'<p style="font-size:0.85em;">The brain of the serving system. Decides which requests to batch together, manages KV cache allocation, implements preemption (pause low-priority requests to serve high-priority ones). In vLLM, this is the component that implements continuous batching and PagedAttention scheduling.</p>'},
+  {title:'Inference Engine', html:'<p style="font-size:0.85em;">The actual model execution runtime. vLLM, TensorRT-LLM, TGI, or SGLang. Handles: model loading, weight management, KV cache management, attention computation (Flash Attention), sampling (temperature, top-p, top-k), and output detokenization.</p>'},
+  {title:'GPU Cluster', html:'<p style="font-size:0.85em;">The hardware. Typically NVIDIA A100 (80GB) or H100 (80GB). For large models: tensor parallelism within a node (8 GPUs connected by NVLink), pipeline parallelism across nodes (connected by InfiniBand). Auto-scaling: add/remove replicas based on queue depth and latency metrics.</p>'},
+  {title:'Streaming Response', html:'<p style="font-size:0.85em;">Tokens streamed back via Server-Sent Events (SSE) as they are generated. Each token is sent as a JSON event. The client reconstructs the response incrementally. This is why TTFT matters — it is the time before the user sees anything. SSE is simpler than WebSockets and sufficient for unidirectional streaming.</p>'},
+];
+
+function showArchDetail(idx) {
+  document.querySelectorAll('.arch-box').forEach((b,i) => b.classList.toggle('active', i===idx));
+  const d = archDetails[idx];
+  const panel = document.getElementById('archDetail');
+  panel.innerHTML = `<h4 style="color:var(--accent2);">${d.title}</h4>${d.html}`;
+  panel.classList.add('open');
+}
+showArchDetail(0);
+
+// Init
+calcKV();
+</script>
+</body>
+</html>
